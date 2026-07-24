@@ -635,6 +635,7 @@ async function fetchServerState(){
       .maybeSingle();
     if(error || !data || !data.data) return null;
     const parsed = data.data;
+    if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'F5', priceTotal:'', alias:'' };
     if(!parsed.history) parsed.history = [];
     if(!parsed.players) parsed.players = [];
     if(!parsed.sedes) parsed.sedes = [];
