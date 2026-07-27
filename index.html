@@ -693,25 +693,41 @@ async function saveState(s){
   }
 }
 
-function mergePlayers(serverPlayers, localPlayers){
-  const map = new Map();
-  (serverPlayers||[]).forEach(p=> map.set(p.name.toLowerCase(), p));
-  (localPlayers||[]).forEach(p=> map.set(p.name.toLowerCase(), p));
-  return Array.from(map.values());
+// Estas listas guardan qué nombres ya conocíamos la última vez que sincronizamos
+// con el servidor. Sirven para distinguir "esto lo agregó otra persona recién"
+// (hay que sumarlo) de "esto ya lo conocía y ahora no está en mi lista local"
+// (lo borré yo a propósito, no hay que resucitarlo).
+let knownPlayerNames = new Set();
+let knownSedeNames = new Set();
+let knownRosterNames = new Set();
+function updateKnownSets(s){
+  knownPlayerNames = new Set((s.players||[]).map(p=>p.name.toLowerCase()));
+  knownSedeNames = new Set((s.sedes||[]).map(x=>x.name.toLowerCase()));
+  knownRosterNames = new Set((s.roster||[]).map(n=>n.toLowerCase()));
+}
+
+// Combina lo nuevo del servidor con lo local: si un nombre ya lo conocíamos y
+// ahora no está en la lista local, es porque lo borramos a propósito (no se
+// reincorpora). Si es un nombre que nunca vimos, es una alta nueva de otra
+// persona y sí se suma.
+function mergeKeepingDeletions(freshItems, localItems, knownNames, getKey){
+  const localMap = new Map((localItems||[]).map(item=>[getKey(item), item]));
+  (freshItems||[]).forEach(item=>{
+    const key = getKey(item);
+    if(!localMap.has(key) && !knownNames.has(key)){
+      localMap.set(key, item);
+    }
+  });
+  return Array.from(localMap.values());
+}
+function mergePlayers(freshPlayers, localPlayers){
+  return mergeKeepingDeletions(freshPlayers, localPlayers, knownPlayerNames, p=>p.name.toLowerCase());
 }
 function mergeSedesArr(freshSedes, localSedes){
-  const map = new Map();
-  (freshSedes||[]).forEach(s=> map.set(s.name.toLowerCase(), s));
-  (localSedes||[]).forEach(s=> map.set(s.name.toLowerCase(), s));
-  return Array.from(map.values());
+  return mergeKeepingDeletions(freshSedes, localSedes, knownSedeNames, s=>s.name.toLowerCase());
 }
 function mergeRosterArr(freshRoster, localRoster){
-  const seen = new Set(); const out = [];
-  [...(freshRoster||[]), ...(localRoster||[])].forEach(n=>{
-    const key = n.toLowerCase();
-    if(!seen.has(key)){ seen.add(key); out.push(n); }
-  });
-  return out;
+  return mergeKeepingDeletions(freshRoster, localRoster, knownRosterNames, n=>n.toLowerCase());
 }
 
 async function refreshFromServer(){
@@ -726,6 +742,7 @@ async function refreshFromServer(){
   fresh.roster = mergeRosterArr(fresh.roster, state ? state.roster : []);
   if(state && state.formations) fresh.formations = {...fresh.formations, ...state.formations};
   state = fresh;
+  updateKnownSets(state);
   render();
 }
 
@@ -1167,14 +1184,12 @@ async function persist(){
   const fresh = await fetchServerState();
   if(fresh){
     state.players = mergePlayers(fresh.players, state.players);
-    if(fresh.history && fresh.history.length > (state.history||[]).length){
-      state.history = fresh.history;
-    }
     state.sedes = mergeSedesArr(fresh.sedes, state.sedes);
     state.roster = mergeRosterArr(fresh.roster, state.roster);
     if(!state.formations) state.formations = fresh.formations || {};
   }
   await saveState(state);
+  updateKnownSets(state);
   saving = false;
 }
 
@@ -1553,6 +1568,7 @@ document.getElementById('theme-toggle').onclick = ()=>{
   }catch(e){}
   applyTheme(themePref);
   state = (await fetchServerState()) || defaultState();
+  updateKnownSets(state);
   render();
   setInterval(refreshFromServer, 4000);
 })();
