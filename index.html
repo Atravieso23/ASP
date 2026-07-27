@@ -215,6 +215,21 @@
   }
   .view-switch button.active{background:var(--celeste); color:#fff; border-color:transparent;}
 
+  /* SWITCH CONFIRMADOS / ESPERA / DUDA / NO VAN */
+  .status-switch{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .status-switch-btn{
+    flex:1 1 calc(50% - 6px); padding:9px 8px; border-radius:9px; border:1px solid var(--card-border);
+    background:var(--white); color:var(--muted); font-weight:700; font-size:12.5px; cursor:pointer;
+    font-family:'Inter',sans-serif; display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;
+  }
+  @media(min-width:480px){ .status-switch-btn{flex:1 1 auto;} }
+  .status-switch-btn.active{background:var(--celeste-deep); color:#fff; border-color:transparent;}
+  .status-switch-btn .count{
+    background:rgba(0,0,0,0.08); color:inherit; font-family:'JetBrains Mono',monospace;
+    font-weight:700; font-size:11px; padding:1px 7px; border-radius:999px;
+  }
+  .status-switch-btn.active .count{background:rgba(255,255,255,0.28); color:#fff;}
+
   /* TEAMS SPLIT (vista lista) */
   .split{display:grid; grid-template-columns:1fr 1fr; gap:0; border-radius:12px; overflow:hidden; border:1px solid var(--card-border);}
   .split-col{padding:14px;}
@@ -414,23 +429,17 @@
   </div>
 
   <div class="section">
-    <div class="section-title">Confirmados <span class="count" id="count-in">0</span></div>
+    <div class="section-title">Jugadores</div>
+    <div class="status-switch">
+      <button class="status-switch-btn active" data-status-view="in">Confirmados <span class="count" id="count-in">0</span></button>
+      <button class="status-switch-btn" data-status-view="espera">Espera <span class="count" id="count-espera">0</span></button>
+      <button class="status-switch-btn" data-status-view="duda">Duda <span class="count" id="count-duda">0</span></button>
+      <button class="status-switch-btn" data-status-view="out">No van <span class="count" id="count-out">0</span></button>
+    </div>
     <ul class="player-list" id="list-in"></ul>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Lista de espera <span class="count" id="count-espera">0</span></div>
-    <ul class="player-list" id="list-espera"></ul>
-  </div>
-
-  <div class="section">
-    <div class="section-title">En duda <span class="count" id="count-duda">0</span></div>
-    <ul class="player-list" id="list-duda"></ul>
-  </div>
-
-  <div class="section">
-    <div class="section-title">No van <span class="count" id="count-out">0</span></div>
-    <ul class="player-list" id="list-out"></ul>
+    <ul class="player-list" id="list-espera" style="display:none;"></ul>
+    <ul class="player-list" id="list-duda" style="display:none;"></ul>
+    <ul class="player-list" id="list-out" style="display:none;"></ul>
   </div>
 
   <div class="section">
@@ -1178,6 +1187,21 @@ function setTab(tab){
 }
 document.getElementById('tab-btn-partido').onclick = ()=> setTab('partido');
 document.getElementById('tab-btn-historial').onclick = ()=> setTab('historial');
+
+/* ---------- SWITCH CONFIRMADOS / ESPERA / DUDA / NO VAN ---------- */
+let activeStatusView = 'in';
+function setStatusView(view){
+  activeStatusView = view;
+  ['in','espera','duda','out'].forEach(v=>{
+    document.getElementById('list-'+v).style.display = (v===view) ? 'flex' : 'none';
+  });
+  document.querySelectorAll('.status-switch-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.statusView === view);
+  });
+}
+document.querySelectorAll('.status-switch-btn').forEach(btn=>{
+  btn.onclick = ()=> setStatusView(btn.dataset.statusView);
+});
 
 /* ---------- SWITCH LISTA/FORMACIÓN ---------- */
 function setTeamsView(mode){
