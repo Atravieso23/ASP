@@ -489,7 +489,11 @@
   <div class="section">
     <div class="finalize-box">
       <button class="finalize-btn" id="finalize-btn">🏁 Finalizar esta fecha</button>
-      <p class="finalize-hint">Guarda este partido en el historial y arranca una lista limpia para la próxima.</p>
+      <p class="finalize-hint">Guarda este partido en el historial y arranca una lista limpia (todo "Sin asignar") para la próxima.</p>
+    </div>
+    <div class="finalize-box" style="margin-top:12px; border-color:var(--danger);">
+      <button class="finalize-btn" id="clear-btn" style="background:var(--danger);">🧹 Limpiar todo</button>
+      <p class="finalize-hint">Borra confirmados, equipos y datos del partido actual <b>sin guardar nada en el historial</b>. Usalo si te equivocaste o querés arrancar de cero.</p>
     </div>
   </div>
 
@@ -521,6 +525,7 @@
     </div>
     <div class="field"><label>Tipo de fútbol</label>
       <select id="m-type">
+        <option value="">Sin asignar</option>
         <option value="F5">Fútbol 5</option>
         <option value="F7">Fútbol 7</option>
         <option value="F8">Fútbol 8</option>
@@ -576,10 +581,21 @@
 <div class="modal-overlay" id="finalize-overlay">
   <div class="modal">
     <h2>Finalizar fecha</h2>
-    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto guarda el partido de hoy en el historial (equipos, pagos y quién jugó) y limpia la lista para anotar la próxima fecha. La cancha, el tipo de fútbol y el alias quedan igual para la próxima semana.</p>
+    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto guarda el partido de hoy en el historial (equipos, pagos y quién jugó) y deja todo "Sin asignar" para anotar la próxima fecha (cancha, tipo de fútbol, precio, alias, día y hora).</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="f-cancel">Cancelar</button>
       <button class="btn-confirm-danger" id="f-confirm">Sí, finalizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="clear-overlay">
+  <div class="modal">
+    <h2>Limpiar todo</h2>
+    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto borra los confirmados, equipos, pagos y los datos del partido actual (cancha, tipo, precio, día, hora, alias) y <b>no lo guarda en el historial</b>. No se puede deshacer. ¿Seguro que querés continuar?</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="c-cancel">Cancelar</button>
+      <button class="btn-confirm-danger" id="c-confirm">Sí, limpiar todo</button>
     </div>
   </div>
 </div>
@@ -616,7 +632,7 @@ let teamsViewMode = 'lista';
 
 function defaultState(){
   return {
-    matchInfo:{ teamName:'ASP', date:'', time:'', loc:'', type:'F5', priceTotal:'', alias:'' },
+    matchInfo:{ teamName:'ASP', date:'', time:'', loc:'', type:'', priceTotal:'', alias:'' },
     players: [],
     history: [],
     sedes: [],
@@ -638,7 +654,7 @@ async function fetchServerState(){
       .maybeSingle();
     if(error || !data || !data.data) return null;
     const parsed = data.data;
-    if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'F5', priceTotal:'', alias:'' };
+    if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'', priceTotal:'', alias:'' };
     if(!parsed.history) parsed.history = [];
     if(!parsed.players) parsed.players = [];
     if(!parsed.sedes) parsed.sedes = [];
@@ -690,7 +706,7 @@ function mergeRosterArr(freshRoster, localRoster){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','manage-sedes-overlay','manage-roster-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','manage-sedes-overlay','manage-roster-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
   if(anyModalOpen || addingNewPlayer || saving) return;
@@ -706,7 +722,7 @@ async function refreshFromServer(){
 
 function fieldTypeLabel(t){
   const map = {F5:'Fútbol 5', F7:'Fútbol 7', F8:'Fútbol 8', F11:'Fútbol 11'};
-  return map[t] || t;
+  return map[t] || 'Sin asignar';
 }
 function formatMoney(n){
   return '$' + Math.round(n).toLocaleString('es-AR');
@@ -893,14 +909,14 @@ function render(){
   document.getElementById('team-name').textContent = mi.teamName || 'ASP';
   setSb('sb-date', formatDateDisplay(mi.date));
   setSb('sb-time', mi.time);
-  setSb('sb-loc', mi.loc, 'Sin definir');
+  setSb('sb-loc', mi.loc);
   document.getElementById('sb-type').textContent = fieldTypeLabel(mi.type);
   const total = parsePrice(mi.priceTotal);
   setSb('sb-price-total', total>0 ? formatMoney(total) : '');
   const divisor = DIVISOR_MAP[mi.type] || 10;
   const perPerson = total>0 ? total/divisor : 0;
-  document.getElementById('sb-price-person').textContent = perPerson>0 ? formatMoney(perPerson) : '—';
-  setSb('sb-alias', mi.alias, 'Sin definir');
+  document.getElementById('sb-price-person').textContent = perPerson>0 ? formatMoney(perPerson) : 'Sin asignar';
+  setSb('sb-alias', mi.alias);
 
   const cd = document.getElementById('countdown-badge');
   const cdLabel = daysUntilLabel(mi.date);
@@ -921,7 +937,11 @@ function render(){
   document.getElementById('confirmed-count-2').textContent = inList.length;
 
   const cap = capacityFor(mi.type);
-  document.getElementById('capacity-note').textContent = `Cupo de esta cancha: ${cap} jugadores (${inList.length}/${cap} confirmados, ${playersPerTeam(mi.type)} por equipo). El que se anota de más queda en lista de espera.`;
+  if(!mi.type){
+    document.getElementById('capacity-note').textContent = `Todavía no elegiste el tipo de cancha (Editar partido) — por ahora se usa un cupo de ${cap} jugadores como referencia.`;
+  } else {
+    document.getElementById('capacity-note').textContent = `Cupo de esta cancha: ${cap} jugadores (${inList.length}/${cap} confirmados, ${playersPerTeam(mi.type)} por equipo). El que se anota de más queda en lista de espera.`;
+  }
 
   renderConfirmedList(inList);
   renderSimpleList('list-espera', esperaList, 'Nadie en espera por ahora.');
@@ -954,7 +974,7 @@ function render(){
 
 function setSb(id, val, emptyLabel){
   const el = document.getElementById(id);
-  el.textContent = val || (emptyLabel !== undefined ? emptyLabel : '—');
+  el.textContent = val || (emptyLabel !== undefined ? emptyLabel : 'Sin asignar');
   el.className = 'sb-value' + ((val)? '':' empty');
 }
 
@@ -1332,11 +1352,9 @@ function populateLocSelect(selected){
   const sel = document.getElementById('m-loc');
   sel.innerHTML = '';
   const sedes = state.sedes || [];
-  if(sedes.length === 0){
-    const opt = document.createElement('option');
-    opt.value = ''; opt.textContent = 'Sin canchas guardadas todavía';
-    sel.appendChild(opt);
-  }
+  const sinAsignarOpt = document.createElement('option');
+  sinAsignarOpt.value = ''; sinAsignarOpt.textContent = 'Sin asignar';
+  sel.appendChild(sinAsignarOpt);
   sedes.forEach(s=>{
     const opt = document.createElement('option');
     opt.value = s.name; opt.textContent = s.name;
@@ -1354,6 +1372,8 @@ function populateLocSelect(selected){
     opt.value = selected; opt.textContent = selected;
     sel.insertBefore(opt, newOpt);
     sel.value = selected;
+  } else {
+    sel.value = '';
   }
   document.getElementById('new-loc-wrap').style.display = sel.value === '__new__' ? 'block' : 'none';
 }
@@ -1367,7 +1387,7 @@ document.getElementById('edit-match-btn').onclick = ()=>{
   document.getElementById('m-time').value = mi.time||'';
   populateLocSelect(mi.loc);
   document.getElementById('m-loc-new').value = '';
-  document.getElementById('m-type').value = mi.type||'F5';
+  document.getElementById('m-type').value = mi.type||'';
   document.getElementById('m-price').value = mi.priceTotal||'';
   document.getElementById('m-alias').value = mi.alias||'';
   overlay.classList.add('open');
@@ -1397,7 +1417,14 @@ document.getElementById('m-save').onclick = async ()=>{
   await persist();
 };
 
-/* ---------- FINALIZAR ---------- */
+/* ---------- FINALIZAR / LIMPIAR ---------- */
+function blankMatchInfo(){
+  return {
+    teamName: state.matchInfo.teamName || 'ASP',
+    date: '', time: '', loc: '', type: '', priceTotal: '', alias: ''
+  };
+}
+
 const finalizeOverlay = document.getElementById('finalize-overlay');
 document.getElementById('finalize-btn').onclick = ()=> finalizeOverlay.classList.add('open');
 document.getElementById('f-cancel').onclick = ()=> finalizeOverlay.classList.remove('open');
@@ -1413,11 +1440,23 @@ document.getElementById('f-confirm').onclick = async ()=>{
     players: state.players.map(p=>({...p}))
   });
   state.players = [];
-  state.matchInfo.date = '';
-  state.matchInfo.time = '';
+  state.matchInfo = blankMatchInfo();
   finalizeOverlay.classList.remove('open');
   render();
   await persist();
+  showToast('Fecha finalizada. Arrancás de cero para la próxima 👌');
+};
+
+const clearOverlay = document.getElementById('clear-overlay');
+document.getElementById('clear-btn').onclick = ()=> clearOverlay.classList.add('open');
+document.getElementById('c-cancel').onclick = ()=> clearOverlay.classList.remove('open');
+document.getElementById('c-confirm').onclick = async ()=>{
+  state.players = [];
+  state.matchInfo = blankMatchInfo();
+  clearOverlay.classList.remove('open');
+  render();
+  await persist();
+  showToast('Se limpió todo (sin guardar en el historial).');
 };
 
 /* ---------- ALIAS Y MAPA ---------- */
