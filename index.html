@@ -41,7 +41,7 @@
     --ok:#3FAE7A;
   }
   [data-theme="dark"] .split-col.blanco li{color:#e7e7e4;}
-  [data-theme="dark"] .team-chip.blanco{color:#e7e7e4;}
+  [data-theme="dark"] .team-square.blanco{color:#e7e7e4;}
   [data-theme="dark"] .btn-duda{color:#241800;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -173,28 +173,31 @@
 
   .player-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
   .player-row{
-    display:flex; align-items:center; gap:8px;
+    display:flex; align-items:center; gap:5px;
     background:var(--white); border:1px solid var(--card-border);
-    border-radius:10px; padding:10px 12px;
+    border-radius:10px; padding:9px 8px;
   }
-  .player-name{flex:1; font-weight:600; font-size:14.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .player-name{
+    flex:1 1 auto; font-weight:600; font-size:14px; min-width:30px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
   .jersey-input{
-    width:38px; text-align:center; border:1px solid var(--card-border); border-radius:6px;
-    padding:6px 2px; font-family:'JetBrains Mono',monospace; font-size:13px;
+    width:28px; text-align:center; border:1px solid var(--card-border); border-radius:6px;
+    padding:5px 1px; font-family:'JetBrains Mono',monospace; font-size:12px;
     background:var(--bg-bottom); color:var(--navy); flex-shrink:0;
   }
-  .team-chip{
-    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.03em;
-    padding:6px 10px; border-radius:7px; cursor:pointer; border:1px solid transparent;
-    white-space:nowrap;
+  .team-square{
+    width:28px; height:28px; border-radius:7px; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:11px;
+    border:2px solid var(--card-border);
   }
-  .team-chip.none{background:#EEF4F8; color:var(--muted); border-color:var(--card-border);}
-  .team-chip.negro{background:var(--roca); color:#fff; border-color:#000;}
-  .team-chip.blanco{background:var(--lacole); color:#1a1a1a; border-color:var(--lacole-border);}
+  .team-square.none{background:transparent; border-style:dashed; color:var(--muted);}
+  .team-square.negro{background:var(--roca); border-color:var(--roca); color:#fff;}
+  .team-square.blanco{background:var(--lacole); border-color:var(--lacole-border); color:#1a1a1a;}
   .icon-btn{
-    width:34px; height:34px; border-radius:8px; border:1px solid var(--card-border);
-    background:var(--bg-bottom); cursor:pointer; font-size:15px; display:flex;
+    width:28px; height:28px; border-radius:7px; border:1px solid var(--card-border);
+    background:var(--bg-bottom); cursor:pointer; font-size:13px; display:flex;
     align-items:center; justify-content:center; flex-shrink:0; color:var(--navy);
   }
   .icon-btn.paid{background:var(--ok); border-color:var(--ok); color:#fff;}
@@ -689,8 +692,8 @@ function mergeRosterArr(freshRoster, localRoster){
 async function refreshFromServer(){
   const anyModalOpen = ['modal-overlay','finalize-overlay','manage-sedes-overlay','manage-roster-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
-  const typingName = document.activeElement && document.activeElement.id === 'new-player-name' && document.activeElement.value.length>0;
-  if(anyModalOpen || typingName || saving) return;
+  const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
+  if(anyModalOpen || addingNewPlayer || saving) return;
   const fresh = await fetchServerState();
   if(!fresh) return;
   fresh.players = mergePlayers(fresh.players, state ? state.players : []);
@@ -812,15 +815,25 @@ function attachDragHandlers(chip, team){
       chip.classList.remove('dragging');
       chip.removeEventListener('pointermove', onMove);
       chip.removeEventListener('pointerup', onUp);
-      const x = parseFloat(chip.style.left);
-      const y = parseFloat(chip.style.top);
+      let x = parseFloat(chip.style.left);
+      let y = parseFloat(chip.style.top);
       const name = chip.dataset.name;
       const p = state.players.find(pl=>pl.name===name);
       if(!p){ return; }
+      // "Imán": si soltó cerca de un círculo punteado de la formación, se engancha ahí
+      const slots = computeSlots(state.formations[team]);
+      let nearestSlot = null, nearestSlotDist = Infinity;
+      slots.forEach(s=>{
+        const d = Math.hypot(s.x - x, s.y - y);
+        if(d < nearestSlotDist){ nearestSlotDist = d; nearestSlot = s; }
+      });
+      if(nearestSlot && nearestSlotDist < 9){
+        x = nearestSlot.x; y = nearestSlot.y;
+      }
       const others = state.players.filter(pl=>pl.team===team && pl.status==='in' && pl.name!==name && pl.pos);
       for(const other of others){
         const dx = other.pos.x - x, dy = other.pos.y - y;
-        if(Math.sqrt(dx*dx+dy*dy) < 9){
+        if(Math.sqrt(dx*dx+dy*dy) < 5){
           other.pos = {x:p.pos.x, y:p.pos.y};
           break;
         }
@@ -956,11 +969,12 @@ function renderConfirmedList(inList){
     const li = document.createElement('li');
     li.className = 'player-row';
     const teamClass = p.team || 'none';
-    const teamLabel = p.team ? TEAM_LABELS[p.team] : 'SIN EQUIPO';
+    const teamLetter = p.team === 'negro' ? 'R' : (p.team === 'blanco' ? 'C' : '–');
+    const teamTitle = p.team ? TEAM_LABELS[p.team] : 'Sin equipo (tocá para asignar)';
     li.innerHTML = `
       <span class="player-name">${escapeHtml(p.name)}</span>
       <input type="text" class="jersey-input" data-action="number" data-name="${escapeHtml(p.name)}" value="${p.number?escapeHtml(String(p.number)):''}" placeholder="#" maxlength="2" inputmode="numeric">
-      <span class="team-chip ${teamClass}" data-name="${escapeHtml(p.name)}">${teamLabel}</span>
+      <span class="team-square ${teamClass}" data-name="${escapeHtml(p.name)}" title="${escapeHtml(teamTitle)}">${teamLetter}</span>
       <button class="icon-btn ${p.paid?'paid':''}" data-action="pay" data-name="${escapeHtml(p.name)}" title="Marcar pagado">${p.paid?'✓':'$'}</button>
       <button class="icon-btn danger" data-action="remove" data-name="${escapeHtml(p.name)}" title="Sacar de la lista">✕</button>
     `;
@@ -990,7 +1004,8 @@ function renderSimpleList(elId, arr, emptyMsg){
 function renderNameSelect(){
   const sel = document.getElementById('name-select');
   const wasFocused = document.activeElement === sel;
-  if(wasFocused) return;
+  const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
+  if(wasFocused || addingNewPlayer) return;
   sel.innerHTML = '';
   const taken = new Set(state.players.map(p=>p.name.toLowerCase()));
   const available = (state.roster||[]).filter(n=>!taken.has(n.toLowerCase()));
@@ -1014,7 +1029,7 @@ function renderNameSelect(){
 }
 
 function attachListEvents(){
-  document.querySelectorAll('.team-chip').forEach(el=>{
+  document.querySelectorAll('.team-square').forEach(el=>{
     el.onclick = async ()=>{
       const name = el.getAttribute('data-name');
       const p = state.players.find(pl=>pl.name===name);
