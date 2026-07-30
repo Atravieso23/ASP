@@ -248,8 +248,20 @@
   .split-col.negro h3{color:#fff;}
   .split-col.blanco h3{color:#1a1a1a;}
   .split-col ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .split-col li{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
   .split-col.negro li{color:#e8e6df; font-size:14px;}
   .split-col.blanco li{color:#222; font-size:14px;}
+  .split-name{display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .captain-band{
+    flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    width:17px; height:17px; border-radius:3px; background:#E8A93B; color:#3a2500;
+    font-size:10px; font-weight:800; font-family:'JetBrains Mono',monospace;
+  }
+  .split-number{
+    flex-shrink:0; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; opacity:0.85;
+  }
 
   /* VISTA FORMACION */
   .pitch-wrap{margin-bottom:24px;}
@@ -779,6 +791,18 @@ function shortNameForChip(fullName){
   if(parts.length <= 1) return parts[0] || '';
   return parts[0] + ' ' + parts[1].charAt(0).toUpperCase();
 }
+function buildTeamListRow(p){
+  const li = document.createElement('li');
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'split-name';
+  nameSpan.innerHTML = escapeHtml(p.name) + (p.isCaptain ? ' <span class="captain-band">C</span>' : '');
+  const numSpan = document.createElement('span');
+  numSpan.className = 'split-number';
+  numSpan.textContent = p.number ? ('#'+p.number) : '';
+  li.appendChild(nameSpan);
+  li.appendChild(numSpan);
+  return li;
+}
 
 let toastTimer = null;
 function showToast(msg){
@@ -1000,9 +1024,9 @@ function render(){
   const negros = inList.filter(p=>p.team==='negro');
   const blancos = inList.filter(p=>p.team==='blanco');
   if(negros.length===0) negroListEl.innerHTML = '<li style="opacity:.55">Sin jugadores todavía</li>';
-  negros.forEach(p=>{ const li=document.createElement('li'); li.textContent=(p.isCaptain?'★ ':'')+(p.number?('#'+p.number+' '):'')+p.name; negroListEl.appendChild(li); });
+  negros.forEach(p=>{ negroListEl.appendChild(buildTeamListRow(p)); });
   if(blancos.length===0) blancoListEl.innerHTML = '<li style="opacity:.55">Sin jugadores todavía</li>';
-  blancos.forEach(p=>{ const li=document.createElement('li'); li.textContent=(p.isCaptain?'★ ':'')+(p.number?('#'+p.number+' '):'')+p.name; blancoListEl.appendChild(li); });
+  blancos.forEach(p=>{ blancoListEl.appendChild(buildTeamListRow(p)); });
 
   renderFormationView(inList);
 
