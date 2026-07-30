@@ -181,6 +181,12 @@
     flex:1 1 auto; font-weight:600; font-size:14px; min-width:30px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
+  .captain-star{
+    width:18px; height:28px; flex-shrink:0; border:none; background:transparent; cursor:pointer;
+    font-size:15px; line-height:1; color:var(--card-border); display:flex; align-items:center;
+    justify-content:center; padding:0;
+  }
+  .captain-star.active{color:#E8A93B;}
   .jersey-input{
     width:28px; text-align:center; border:1px solid var(--card-border); border-radius:6px;
     padding:5px 1px; font-family:'JetBrains Mono',monospace; font-size:12px;
@@ -422,8 +428,9 @@
     </div>
     <div class="new-loc-field" id="new-player-wrap" style="display:none;">
       <input type="text" id="new-player-name" placeholder="Escribí tu nombre" maxlength="30">
+      <p class="field-note">Se anota solo para esta fecha, como invitado. Si es alguien fijo del grupo, mejor cargalo en "Gestionar plantel" de una vez.</p>
     </div>
-    <p class="hint">Elegí tu nombre de la lista (o "No estoy en la lista" si sos nuevo) y tocá tu estado.</p>
+    <p class="hint">Elegí tu nombre de la lista (o "No estoy en la lista" si sos invitado) y tocá tu estado.</p>
     <p class="capacity-note" id="capacity-note"></p>
     <button class="link-btn" id="manage-roster-btn" style="margin-top:4px;">⚙️ Gestionar plantel del grupo</button>
   </div>
@@ -576,10 +583,11 @@
 <div class="modal-overlay" id="manage-roster-overlay">
   <div class="modal">
     <h2>Plantel del grupo</h2>
-    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Estos son los que aparecen en el desplegable de "Anotarse". Sacar a alguien de acá no borra su anotación de esta semana.</p>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Estos son los que aparecen en el desplegable de "Anotarse". El dorsal es opcional y se puede volver a cambiar después en la lista de Confirmados. Sacar a alguien de acá no borra su anotación de esta semana.</p>
     <ul class="manage-list" id="roster-manage-list"></ul>
     <div class="manage-add-row">
       <input type="text" id="new-roster-name" placeholder="Nombre del jugador">
+      <input type="text" id="new-roster-number" placeholder="#" maxlength="2" inputmode="numeric" style="max-width:50px; flex:0 0 auto; text-align:center;">
       <button class="btn-save" id="add-roster-btn" style="flex:0 0 auto;padding:10px 14px;">Agregar</button>
     </div>
     <div class="modal-actions">
@@ -668,11 +676,15 @@ async function fetchServerState(){
     if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'', priceTotal:'', alias:'' };
     if(!parsed.history) parsed.history = [];
     if(!parsed.players) parsed.players = [];
+    parsed.players.forEach(p=>{ if(p.isCaptain === undefined) p.isCaptain = false; });
     if(!parsed.sedes) parsed.sedes = [];
     if(parsed.sedes.length && typeof parsed.sedes[0] === 'string'){
       parsed.sedes = parsed.sedes.map(s=>({name:s, address:''}));
     }
     if(!parsed.roster) parsed.roster = [];
+    if(parsed.roster.length && typeof parsed.roster[0] === 'string'){
+      parsed.roster = parsed.roster.map(n=>({name:n, number:null}));
+    }
     if(!parsed.formations) parsed.formations = {};
     return parsed;
   }catch(e){
@@ -705,7 +717,7 @@ let knownRosterNames = new Set();
 function updateKnownSets(s){
   knownPlayerNames = new Set((s.players||[]).map(p=>p.name.toLowerCase()));
   knownSedeNames = new Set((s.sedes||[]).map(x=>x.name.toLowerCase()));
-  knownRosterNames = new Set((s.roster||[]).map(n=>n.toLowerCase()));
+  knownRosterNames = new Set((s.roster||[]).map(r=>r.name.toLowerCase()));
 }
 
 // Combina lo nuevo del servidor con lo local: si un nombre ya lo conocíamos y
@@ -729,7 +741,7 @@ function mergeSedesArr(freshSedes, localSedes){
   return mergeKeepingDeletions(freshSedes, localSedes, knownSedeNames, s=>s.name.toLowerCase());
 }
 function mergeRosterArr(freshRoster, localRoster){
-  return mergeKeepingDeletions(freshRoster, localRoster, knownRosterNames, n=>n.toLowerCase());
+  return mergeKeepingDeletions(freshRoster, localRoster, knownRosterNames, r=>r.name.toLowerCase());
 }
 
 async function refreshFromServer(){
@@ -761,6 +773,11 @@ function parsePrice(str){
 }
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function shortNameForChip(fullName){
+  const parts = fullName.trim().split(/\s+/);
+  if(parts.length <= 1) return parts[0] || '';
+  return parts[0] + ' ' + parts[1].charAt(0).toUpperCase();
 }
 
 let toastTimer = null;
@@ -920,8 +937,9 @@ function renderFormationView(inList){
       chip.className = 'field-chip ' + team;
       chip.style.left = p.pos.x+'%'; chip.style.top = p.pos.y+'%';
       chip.dataset.name = p.name;
-      const firstName = p.name.split(' ')[0];
-      chip.innerHTML = `<div class="num">${p.number ? escapeHtml(String(p.number)) : ''}</div><div>${escapeHtml(firstName)}</div>`;
+      const shortName = shortNameForChip(p.name);
+      const captainMark = p.isCaptain ? ' ★' : '';
+      chip.innerHTML = `<div class="num">${p.number ? escapeHtml(String(p.number)) : ''}</div><div>${escapeHtml(shortName)}${captainMark}</div>`;
       attachDragHandlers(chip, team);
       pitch.appendChild(chip);
     });
@@ -982,9 +1000,9 @@ function render(){
   const negros = inList.filter(p=>p.team==='negro');
   const blancos = inList.filter(p=>p.team==='blanco');
   if(negros.length===0) negroListEl.innerHTML = '<li style="opacity:.55">Sin jugadores todavía</li>';
-  negros.forEach(p=>{ const li=document.createElement('li'); li.textContent=(p.number?('#'+p.number+' '):'')+p.name; negroListEl.appendChild(li); });
+  negros.forEach(p=>{ const li=document.createElement('li'); li.textContent=(p.isCaptain?'★ ':'')+(p.number?('#'+p.number+' '):'')+p.name; negroListEl.appendChild(li); });
   if(blancos.length===0) blancoListEl.innerHTML = '<li style="opacity:.55">Sin jugadores todavía</li>';
-  blancos.forEach(p=>{ const li=document.createElement('li'); li.textContent=(p.number?('#'+p.number+' '):'')+p.name; blancoListEl.appendChild(li); });
+  blancos.forEach(p=>{ const li=document.createElement('li'); li.textContent=(p.isCaptain?'★ ':'')+(p.number?('#'+p.number+' '):'')+p.name; blancoListEl.appendChild(li); });
 
   renderFormationView(inList);
 
@@ -1020,6 +1038,7 @@ function renderConfirmedList(inList){
     const teamLetter = p.team === 'negro' ? 'R' : (p.team === 'blanco' ? 'C' : '–');
     const teamTitle = p.team ? TEAM_LABELS[p.team] : 'Sin equipo (tocá para asignar)';
     li.innerHTML = `
+      <button class="captain-star ${p.isCaptain?'active':''}" data-action="captain" data-name="${escapeHtml(p.name)}" title="${p.isCaptain?'Es capitán':'Hacer capitán de su equipo'}">★</button>
       <span class="player-name">${escapeHtml(p.name)}</span>
       <input type="text" class="jersey-input" data-action="number" data-name="${escapeHtml(p.name)}" value="${p.number?escapeHtml(String(p.number)):''}" placeholder="#" maxlength="2" inputmode="numeric">
       <span class="team-square ${teamClass}" data-name="${escapeHtml(p.name)}" title="${escapeHtml(teamTitle)}">${teamLetter}</span>
@@ -1056,7 +1075,7 @@ function renderNameSelect(){
   if(wasFocused || addingNewPlayer) return;
   sel.innerHTML = '';
   const taken = new Set(state.players.map(p=>p.name.toLowerCase()));
-  const available = (state.roster||[]).filter(n=>!taken.has(n.toLowerCase()));
+  const available = (state.roster||[]).filter(r=>!taken.has(r.name.toLowerCase()));
   if(available.length===0){
     const opt = document.createElement('option');
     opt.value = '';
@@ -1066,8 +1085,8 @@ function renderNameSelect(){
     const placeholder = document.createElement('option');
     placeholder.value = ''; placeholder.textContent = 'Elegí tu nombre…';
     sel.appendChild(placeholder);
-    available.sort((a,b)=>a.localeCompare(b,'es')).forEach(n=>{
-      const opt = document.createElement('option'); opt.value = n; opt.textContent = n;
+    available.sort((a,b)=>a.name.localeCompare(b.name,'es')).forEach(r=>{
+      const opt = document.createElement('option'); opt.value = r.name; opt.textContent = r.name;
       sel.appendChild(opt);
     });
   }
@@ -1085,6 +1104,20 @@ function attachListEvents(){
       const order = [null,'negro','blanco'];
       const idx = order.indexOf(p.team);
       p.team = order[(idx+1)%order.length];
+      if(!p.team) p.isCaptain = false;
+      render();
+      await persist();
+    };
+  });
+  document.querySelectorAll('[data-action="captain"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const name = el.getAttribute('data-name');
+      const p = state.players.find(pl=>pl.name===name);
+      if(!p) return;
+      if(!p.team){ showToast('Asignale un equipo antes de hacerlo capitán.'); return; }
+      const makingCaptain = !p.isCaptain;
+      state.players.filter(pl=>pl.team===p.team && pl.name!==p.name).forEach(pl=> pl.isCaptain=false);
+      p.isCaptain = makingCaptain;
       render();
       await persist();
     };
@@ -1260,8 +1293,8 @@ document.querySelectorAll('.status-btns button').forEach(btn=>{
     if(name === '__new__'){
       name = document.getElementById('new-player-name').value.trim();
       if(!name) return;
-      if(!state.roster) state.roster = [];
-      if(!state.roster.some(n=>n.toLowerCase()===name.toLowerCase())) state.roster.push(name);
+      // Ojo: NO se agrega al plantel del grupo — son invitados de esta fecha,
+      // no queremos que aparezcan en el desplegable de las próximas semanas.
     }
     if(!name) return;
     let status = btn.getAttribute('data-status');
@@ -1275,7 +1308,11 @@ document.querySelectorAll('.status-btns button').forEach(btn=>{
       }
     }
     if(p){ p.status = status; }
-    else { state.players.push({name, status, team:null, paid:false, number:null, pos:null}); }
+    else {
+      const rosterEntry = (state.roster||[]).find(r=>r.name.toLowerCase()===name.toLowerCase());
+      const defaultNumber = (rosterEntry && rosterEntry.number) ? rosterEntry.number : null;
+      state.players.push({name, status, team:null, paid:false, number:defaultNumber, pos:null, isCaptain:false});
+    }
     document.getElementById('new-player-name').value = '';
     document.getElementById('new-player-wrap').style.display = 'none';
     render();
@@ -1287,11 +1324,12 @@ document.querySelectorAll('.status-btns button').forEach(btn=>{
 function renderRosterManageList(){
   const ul = document.getElementById('roster-manage-list');
   ul.innerHTML = '';
-  (state.roster||[]).forEach((name, idx)=>{
+  (state.roster||[]).forEach((r, idx)=>{
     const li = document.createElement('li');
     li.className = 'manage-row';
     li.innerHTML = `
-      <input type="text" data-idx="${idx}" value="${escapeHtml(name)}">
+      <input type="text" data-idx="${idx}" data-field="name" value="${escapeHtml(r.name)}" placeholder="Nombre">
+      <input type="text" data-idx="${idx}" data-field="number" value="${r.number?escapeHtml(String(r.number)):''}" placeholder="#" maxlength="2" inputmode="numeric" style="max-width:50px; flex:0 0 auto; text-align:center;">
       <button class="icon-btn danger" data-idx="${idx}" data-action="delete-roster" title="Eliminar">✕</button>
     `;
     ul.appendChild(li);
@@ -1299,7 +1337,12 @@ function renderRosterManageList(){
   ul.querySelectorAll('input').forEach(inp=>{
     inp.onchange = async ()=>{
       const idx = parseInt(inp.dataset.idx);
-      state.roster[idx] = inp.value.trim();
+      if(inp.dataset.field === 'name'){
+        state.roster[idx].name = inp.value.trim();
+      } else {
+        const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
+        state.roster[idx].number = val ? parseInt(val) : null;
+      }
       await persist();
     };
   });
@@ -1323,10 +1366,13 @@ document.getElementById('manage-roster-close').onclick = ()=>{
 };
 document.getElementById('add-roster-btn').onclick = async ()=>{
   const name = document.getElementById('new-roster-name').value.trim();
+  const numberRaw = document.getElementById('new-roster-number').value.replace(/[^0-9]/g,'').slice(0,2);
+  const number = numberRaw ? parseInt(numberRaw) : null;
   if(!name) return;
   if(!state.roster) state.roster = [];
-  if(!state.roster.some(n=>n.toLowerCase()===name.toLowerCase())) state.roster.push(name);
+  if(!state.roster.some(r=>r.name.toLowerCase()===name.toLowerCase())) state.roster.push({name, number});
   document.getElementById('new-roster-name').value = '';
+  document.getElementById('new-roster-number').value = '';
   renderRosterManageList();
   await persist();
 };
