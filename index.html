@@ -630,6 +630,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="pay-confirm-overlay">
+  <div class="modal">
+    <h2>Confirmar pago</h2>
+    <p id="pay-confirm-text" style="color:var(--muted); font-size:14px; line-height:1.5;">¿Confirmás que pagó?</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="pay-confirm-cancel">Cancelar</button>
+      <button class="btn-save" id="pay-confirm-ok">Sí, ya pagó</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    CONFIGURÁ ACÁ TU PROYECTO DE SUPABASE
@@ -757,7 +768,7 @@ function mergeRosterArr(freshRoster, localRoster){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','manage-sedes-overlay','manage-roster-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','pay-confirm-overlay','manage-sedes-overlay','manage-roster-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
   if(anyModalOpen || addingNewPlayer || saving) return;
@@ -1151,9 +1162,20 @@ function attachListEvents(){
       const name = el.getAttribute('data-name');
       const p = state.players.find(pl=>pl.name===name);
       if(!p) return;
-      p.paid = !p.paid;
-      render();
-      await persist();
+      if(!p.paid){
+        document.getElementById('pay-confirm-text').textContent = `¿Confirmás que ${p.name} ya pagó?`;
+        document.getElementById('pay-confirm-overlay').classList.add('open');
+        document.getElementById('pay-confirm-ok').onclick = async ()=>{
+          p.paid = true;
+          document.getElementById('pay-confirm-overlay').classList.remove('open');
+          render();
+          await persist();
+        };
+      } else {
+        p.paid = false;
+        render();
+        await persist();
+      }
     };
   });
   document.querySelectorAll('[data-action="remove"]').forEach(el=>{
@@ -1561,6 +1583,7 @@ document.getElementById('f-confirm').onclick = async ()=>{
 const clearOverlay = document.getElementById('clear-overlay');
 document.getElementById('clear-btn').onclick = ()=> clearOverlay.classList.add('open');
 document.getElementById('c-cancel').onclick = ()=> clearOverlay.classList.remove('open');
+document.getElementById('pay-confirm-cancel').onclick = ()=> document.getElementById('pay-confirm-overlay').classList.remove('open');
 document.getElementById('c-confirm').onclick = async ()=>{
   state.players = [];
   state.matchInfo = blankMatchInfo();
