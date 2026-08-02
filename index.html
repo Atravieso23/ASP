@@ -322,6 +322,23 @@
   }
   .history-item .h-date{font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.06em; color:var(--celeste-deep); font-weight:700; margin-bottom:6px;}
   .history-item .h-row{color:var(--muted); margin-top:2px;}
+  .history-standings{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
+  }
+  .standings-item{
+    background:var(--white); border:1px solid var(--card-border); border-radius:10px;
+    padding:10px 8px; text-align:center;
+  }
+  .standings-item.roca{background:var(--roca);}
+  .standings-item.cole{background:var(--lacole); border-color:var(--lacole-border);}
+  .standings-num{
+    display:block; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:20px; color:var(--navy);
+  }
+  .standings-item.roca .standings-num, .standings-item.roca .standings-label{color:#fff;}
+  .standings-item.cole .standings-num, .standings-item.cole .standings-label{color:#1a1a1a;}
+  .standings-label{
+    display:block; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-top:2px; font-weight:700;
+  }
   .history-summary{
     list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; gap:10px;
   }
@@ -557,6 +574,7 @@
 
   <div id="tab-historial" style="display:none;">
     <div class="section-title">Historial de fechas</div>
+    <div class="history-standings" id="history-standings"></div>
     <div id="history-list"></div>
   </div>
 
@@ -1245,12 +1263,42 @@ function attachListEvents(){
   });
 }
 
+function computeStandings(){
+  let negroWins=0, blancoWins=0, draws=0;
+  (state.history||[]).forEach(h=>{
+    if(!h.score) return;
+    const hasScore = h.score.negro>0 || h.score.blanco>0 || h.hasScore;
+    if(!hasScore) return;
+    if(h.score.negro > h.score.blanco) negroWins++;
+    else if(h.score.blanco > h.score.negro) blancoWins++;
+    else draws++;
+  });
+  return {negroWins, blancoWins, draws};
+}
+
 function renderHistory(){
   const listEl = document.getElementById('history-list');
+  const standingsEl = document.getElementById('history-standings');
   if(!state.history || state.history.length===0){
     listEl.innerHTML = '<p class="empty-state">Todavía no finalizaste ninguna fecha.</p>';
+    standingsEl.innerHTML = '';
     return;
   }
+  const st = computeStandings();
+  standingsEl.innerHTML = `
+    <div class="standings-item roca">
+      <span class="standings-num">${st.negroWins}</span>
+      <span class="standings-label">Roca Juniors</span>
+    </div>
+    <div class="standings-item">
+      <span class="standings-num">${st.draws}</span>
+      <span class="standings-label">Empates</span>
+    </div>
+    <div class="standings-item cole">
+      <span class="standings-num">${st.blancoWins}</span>
+      <span class="standings-label">La Cole</span>
+    </div>
+  `;
   const openSet = new Set();
   listEl.querySelectorAll('details.history-item').forEach(d=>{ if(d.open) openSet.add(d.dataset.hidx); });
   listEl.innerHTML = '';
@@ -1271,9 +1319,17 @@ function renderHistory(){
     const perPerson = totalPrice>0 ? totalPrice/divisor : 0;
     const dateLabel = formatDateDisplay(h.matchInfo.date) || h.matchInfo.date || 'Sin fecha';
 
-    const scorers = Object.entries(h.goals).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
-    const scorersLine = scorers.length ? '⚽ ' + scorers.map(([n,c])=>`${n} x${c}`).join(', ') : 'Sin goleadores cargados';
-    const hasScore = h.score.negro>0 || h.score.blanco>0;
+    const negroNames = new Set(negrosPlayers.map(p=>p.name));
+    const blancoNames = new Set(blancosPlayers.map(p=>p.name));
+    const allScorers = Object.entries(h.goals).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+    const negroScorers = allScorers.filter(([n])=>negroNames.has(n));
+    const blancoScorers = allScorers.filter(([n])=>blancoNames.has(n));
+    const negroScorersLine = negroScorers.length ? negroScorers.map(([n,c])=>`${n} x${c}`).join(', ') : '—';
+    const blancoScorersLine = blancoScorers.length ? blancoScorers.map(([n,c])=>`${n} x${c}`).join(', ') : '—';
+    const goleadoresHtml = allScorers.length
+      ? `<div class="history-goals-line"><b>Roca Juniors:</b> ${escapeHtml(negroScorersLine)}</div><div class="history-goals-line"><b>La Cole:</b> ${escapeHtml(blancoScorersLine)}</div>`
+      : `<div class="history-goals-line">Sin goleadores cargados</div>`;
+    const hasScore = h.score.negro>0 || h.score.blanco>0 || h.hasScore;
     const resultLine = hasScore
       ? `Roca Juniors ${h.score.negro} - ${h.score.blanco} La Cole`
       : 'Resultado sin cargar';
@@ -1296,7 +1352,7 @@ function renderHistory(){
         <div class="history-summary-main">
           <div class="h-date">${escapeHtml(dateLabel)} ${h.matchInfo.time ? '· '+escapeHtml(h.matchInfo.time):''}</div>
           <div class="history-result">${resultLine}</div>
-          <div class="history-goals-line">${scorersLine}</div>
+          ${goleadoresHtml}
         </div>
         <span class="h-chevron">▼</span>
       </summary>
@@ -1345,6 +1401,7 @@ function renderHistory(){
       const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
       if(!h.score) h.score = {negro:0, blanco:0};
       h.score[inp.dataset.team] = val ? parseInt(val) : 0;
+      h.hasScore = true;
       render();
       await persist();
     };
