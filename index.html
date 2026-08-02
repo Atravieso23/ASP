@@ -318,10 +318,38 @@
 
   .history-item{
     background:var(--white); border:1px solid var(--card-border); border-radius:10px;
-    padding:12px 14px; margin-bottom:10px; font-size:13.5px;
+    padding:0; margin-bottom:10px; font-size:13.5px; overflow:hidden;
   }
   .history-item .h-date{font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.06em; color:var(--celeste-deep); font-weight:700; margin-bottom:6px;}
   .history-item .h-row{color:var(--muted); margin-top:2px;}
+  .history-summary{
+    list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; gap:10px;
+  }
+  .history-summary::-webkit-details-marker{display:none;}
+  .history-summary .h-chevron{
+    margin-left:auto; flex-shrink:0; color:var(--muted); font-size:12px; transition:transform 0.15s ease;
+  }
+  .history-item[open] .h-chevron{transform:rotate(180deg);}
+  .history-summary-main{min-width:0; flex:1;}
+  .history-result{
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--navy); margin:4px 0 2px;
+  }
+  .history-goals-line{font-size:12px; color:var(--muted);}
+  .history-details{
+    padding:0 14px 14px; border-top:1px solid var(--card-border); margin-top:0;
+  }
+  .history-edit-field{margin-top:12px;}
+  .history-edit-field label{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:5px; font-weight:700;}
+  .history-edit-field input{
+    background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:7px;
+    padding:8px 10px; font-size:13px; color:var(--navy); font-family:'Inter',sans-serif;
+  }
+  .score-row{display:flex; align-items:center; gap:8px;}
+  .score-row input{width:52px; text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700;}
+  .score-row span{color:var(--muted); font-weight:700;}
+  .goals-list{list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .goals-list li{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px;}
+  .goals-list input{width:44px; text-align:center;}
 
   /* MODAL */
   .modal-overlay{
@@ -771,7 +799,8 @@ async function refreshFromServer(){
   const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','pay-confirm-overlay','manage-sedes-overlay','manage-roster-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
-  if(anyModalOpen || addingNewPlayer || saving) return;
+  const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
+  if(anyModalOpen || addingNewPlayer || editingHistory || saving) return;
   const fresh = await fetchServerState();
   if(!fresh) return;
   fresh.players = mergePlayers(fresh.players, state ? state.players : []);
@@ -1222,29 +1251,116 @@ function renderHistory(){
     listEl.innerHTML = '<p class="empty-state">Todavía no finalizaste ninguna fecha.</p>';
     return;
   }
+  const openSet = new Set();
+  listEl.querySelectorAll('details.history-item').forEach(d=>{ if(d.open) openSet.add(d.dataset.hidx); });
   listEl.innerHTML = '';
   [...state.history].reverse().forEach((h, idx)=>{
+    const originalIndex = state.history.length - 1 - idx;
     const isLatest = idx === 0;
-    const div = document.createElement('div');
-    div.className = 'history-item';
-    const negros = h.players.filter(p=>p.status==='in' && p.team==='negro').map(p=>p.name).join(', ') || '—';
-    const blancos = h.players.filter(p=>p.status==='in' && p.team==='blanco').map(p=>p.name).join(', ') || '—';
+    if(!h.score) h.score = {negro:0, blanco:0};
+    if(!h.goals) h.goals = {};
+
+    const negrosPlayers = h.players.filter(p=>p.status==='in' && p.team==='negro');
+    const blancosPlayers = h.players.filter(p=>p.status==='in' && p.team==='blanco');
+    const negros = negrosPlayers.map(p=>p.name).join(', ') || '—';
+    const blancos = blancosPlayers.map(p=>p.name).join(', ') || '—';
     const paidCount = h.players.filter(p=>p.status==='in' && p.paid).length;
     const totalConfirmed = h.players.filter(p=>p.status==='in').length;
     const totalPrice = parsePrice(h.matchInfo.priceTotal);
     const divisor = DIVISOR_MAP[h.matchInfo.type] || 10;
     const perPerson = totalPrice>0 ? totalPrice/divisor : 0;
     const dateLabel = formatDateDisplay(h.matchInfo.date) || h.matchInfo.date || 'Sin fecha';
-    div.innerHTML = `
-      <div class="h-date">${escapeHtml(dateLabel)} ${h.matchInfo.time ? '· '+escapeHtml(h.matchInfo.time):''}</div>
-      <div class="h-row">${escapeHtml(h.matchInfo.loc || 'Cancha sin definir')} · ${fieldTypeLabel(h.matchInfo.type)}</div>
-      <div class="h-row"><b>Roca Juniors:</b> ${escapeHtml(negros)}</div>
-      <div class="h-row"><b>La Cole:</b> ${escapeHtml(blancos)}</div>
-      <div class="h-row">Pagaron ${paidCount} de ${totalConfirmed} · Recaudado ${perPerson>0?formatMoney(perPerson*paidCount):'$0'}</div>
-      ${isLatest ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
+
+    const scorers = Object.entries(h.goals).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+    const scorersLine = scorers.length ? '⚽ ' + scorers.map(([n,c])=>`${n} x${c}`).join(', ') : 'Sin goleadores cargados';
+    const hasScore = h.score.negro>0 || h.score.blanco>0;
+    const resultLine = hasScore
+      ? `Roca Juniors ${h.score.negro} - ${h.score.blanco} La Cole`
+      : 'Resultado sin cargar';
+
+    const details = document.createElement('details');
+    details.className = 'history-item';
+    details.dataset.hidx = String(originalIndex);
+    if(openSet.has(String(originalIndex))) details.open = true;
+
+    const allPlayed = h.players.filter(p=>p.status==='in');
+    const goalsRowsHtml = allPlayed.length ? allPlayed.map(p=>`
+      <li>
+        <span>${escapeHtml(p.name)}${p.team?(' · '+(p.team==='negro'?'Roca':'Cole')):''}</span>
+        <input type="text" class="jersey-input goals-input" data-hidx="${originalIndex}" data-goal-name="${escapeHtml(p.name)}"
+               value="${h.goals[p.name]||''}" placeholder="0" maxlength="2" inputmode="numeric">
+      </li>`).join('') : '<li style="color:var(--muted); font-style:italic;">No hay jugadores confirmados en esta fecha.</li>';
+
+    details.innerHTML = `
+      <summary class="history-summary">
+        <div class="history-summary-main">
+          <div class="h-date">${escapeHtml(dateLabel)} ${h.matchInfo.time ? '· '+escapeHtml(h.matchInfo.time):''}</div>
+          <div class="history-result">${resultLine}</div>
+          <div class="history-goals-line">${scorersLine}</div>
+        </div>
+        <span class="h-chevron">▼</span>
+      </summary>
+      <div class="history-details">
+        <div class="h-row">${escapeHtml(h.matchInfo.loc || 'Cancha sin definir')} · ${fieldTypeLabel(h.matchInfo.type)}</div>
+        <div class="h-row"><b>Roca Juniors:</b> ${escapeHtml(negros)}</div>
+        <div class="h-row"><b>La Cole:</b> ${escapeHtml(blancos)}</div>
+        <div class="h-row">Pagaron ${paidCount} de ${totalConfirmed} · Recaudado ${perPerson>0?formatMoney(perPerson*paidCount):'$0'}</div>
+
+        <div class="history-edit-field">
+          <label>Cuánto salió la cancha</label>
+          <input type="text" class="edit-price-input" data-hidx="${originalIndex}" value="${h.matchInfo.priceTotal||''}" placeholder="50000">
+        </div>
+
+        <div class="history-edit-field">
+          <label>Resultado</label>
+          <div class="score-row">
+            <input type="text" class="score-input" data-hidx="${originalIndex}" data-team="negro" value="${h.score.negro||0}" maxlength="2" inputmode="numeric">
+            <span>Roca Juniors — La Cole</span>
+            <input type="text" class="score-input" data-hidx="${originalIndex}" data-team="blanco" value="${h.score.blanco||0}" maxlength="2" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="history-edit-field">
+          <label>Goles (cuántos hizo cada uno)</label>
+          <ul class="goals-list">${goalsRowsHtml}</ul>
+        </div>
+
+        ${isLatest ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
+      </div>
     `;
-    listEl.appendChild(div);
+    listEl.appendChild(details);
   });
+
+  listEl.querySelectorAll('.edit-price-input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const h = state.history[parseInt(inp.dataset.hidx)];
+      h.matchInfo.priceTotal = inp.value.trim();
+      render();
+      await persist();
+    };
+  });
+  listEl.querySelectorAll('.score-input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const h = state.history[parseInt(inp.dataset.hidx)];
+      const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
+      if(!h.score) h.score = {negro:0, blanco:0};
+      h.score[inp.dataset.team] = val ? parseInt(val) : 0;
+      render();
+      await persist();
+    };
+  });
+  listEl.querySelectorAll('.goals-input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const h = state.history[parseInt(inp.dataset.hidx)];
+      const name = inp.dataset.goalName;
+      const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
+      if(!h.goals) h.goals = {};
+      if(val && parseInt(val)>0){ h.goals[name] = parseInt(val); } else { delete h.goals[name]; }
+      render();
+      await persist();
+    };
+  });
+
   const undoBtn = document.getElementById('undo-finalize-btn');
   if(undoBtn){
     undoBtn.onclick = async ()=>{
