@@ -10,8 +10,24 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    --celeste:#4D8FAF;
-    --celeste-deep:#65A2C2;
+    --celeste:#4FA6DE;
+    --celeste-deep:#1D6FA5;
+    --navy:#0E2A3D;
+    --bg-top:#BEE3FA;
+    --bg-bottom:#EAF6FD;
+    --page-bg:#CDEBFC;
+    --white:#FFFFFF;
+    --card-border:#CDE4F4;
+    --muted:#5C7A8C;
+    --roca:#16161A;
+    --lacole:#FBFBF8;
+    --lacole-border:#D8D4C4;
+    --danger:#C1432A;
+    --ok:#2D8659;
+  }
+  [data-theme="dark"]{
+    --celeste:#5FB2E8;
+    --celeste-deep:#7FC4EF;
     --navy:#EAF4FB;
     --bg-top:#0B1F30;
     --bg-bottom:#0E2739;
@@ -20,11 +36,14 @@
     --card-border:#1F4258;
     --muted:#8CA9BB;
     --roca:#050506;
-    --lacole:#DEDCD4;
-    --lacole-border:#ECEAE3;
+    --lacole:#1B2126;
+    --lacole-border:#33393F;
     --danger:#E4634B;
     --ok:#3FAE7A;
   }
+  [data-theme="dark"] .split-col.blanco li{color:#e7e7e4;}
+  [data-theme="dark"] .team-square.blanco{color:#e7e7e4;}
+  [data-theme="dark"] .btn-duda{color:#241800;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -36,6 +55,13 @@
     min-height:100vh;
     padding:0 0 60px 0;
     transition:background 0.25s ease, color 0.25s ease;
+  }
+  .theme-toggle{
+    position:fixed; top:14px; right:14px; z-index:40;
+    background:var(--white); border:1px solid var(--card-border);
+    color:var(--navy); border-radius:999px; width:42px; height:42px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; cursor:pointer; box-shadow:0 6px 16px -8px rgba(14,42,61,0.35);
   }
   .wrap{max-width:720px;margin:0 auto;padding:22px 16px 0;}
 
@@ -74,20 +100,13 @@
     font-size:11px; letter-spacing:.18em; text-transform:uppercase;
     color:var(--celeste-deep); margin:0 0 6px; font-weight:700;
   }
-  .ticket-heading-row{
-    display:flex; align-items:center; gap:10px; white-space:nowrap;
-    border-bottom:2px dashed var(--card-border); padding-bottom:14px; margin-bottom:18px;
-  }
-  .ticket-heading-row .eyebrow{
-    margin:0; display:flex; align-items:center; gap:4px; min-width:0;
-    font-size:clamp(8px,2.4vw,11px); letter-spacing:clamp(.08em,1.4vw,.18em);
-  }
-  .ticket-heading-separator{color:var(--card-border); font-weight:700;}
   h1.team-name{
     font-family:'Oswald', sans-serif;
-    font-weight:700; font-size:clamp(24px,7vw,38px);
-    margin:0; letter-spacing:.01em; color:var(--navy); flex-shrink:0;
+    font-weight:700; font-size:clamp(28px,7vw,40px);
+    margin:0 0 18px; letter-spacing:.01em; color:var(--navy);
     text-transform:uppercase;
+    border-bottom:2px dashed var(--card-border);
+    padding-bottom:16px;
   }
   .scoreboard{
     display:grid;
@@ -153,14 +172,12 @@
   .status-btns button:active{transform:scale(0.97);}
   .hint{font-size:12px; color:var(--muted); margin:8px 2px 0;}
 
-  .player-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
-  @media(min-width:600px){.player-list{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  .player-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
   .player-row{
     display:flex; align-items:center; gap:5px;
     background:var(--white); border:1px solid var(--card-border);
     border-radius:10px; padding:9px 8px;
   }
-  .player-row .captain-star, .player-row .icon-btn{display:none;}
   .player-name{
     flex:1 1 auto; font-weight:600; font-size:14px; min-width:30px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -194,13 +211,10 @@
   .icon-btn.danger{color:var(--danger);}
   .empty-state{
     color:var(--muted); font-size:13.5px; font-style:italic; padding:14px 4px;
-    grid-column:1/-1;
   }
 
   /* SWITCH LISTA / FORMACION */
   .view-switch{display:flex; gap:8px; margin-bottom:14px;}
-  .view-switch[hidden]{display:none !important;}
-  #teams-view-formacion[hidden]{display:none !important;}
   .view-switch button{
     flex:1; padding:9px; border-radius:9px; border:1px solid var(--card-border);
     background:var(--white); color:var(--muted); font-weight:700; font-size:13px; cursor:pointer;
@@ -217,7 +231,6 @@
   }
   @media(min-width:480px){ .status-switch-btn{flex:1 1 auto;} }
   .status-switch-btn.active{background:var(--celeste-deep); color:#fff; border-color:transparent;}
-  .status-switch-btn[hidden]{display:none !important;}
   .status-switch-btn .count{
     background:rgba(0,0,0,0.08); color:inherit; font-family:'JetBrains Mono',monospace;
     font-weight:700; font-size:11px; padding:1px 7px; border-radius:999px;
@@ -299,7 +312,7 @@
     padding:16px; text-align:center;
   }
   .finalize-btn{
-    background:#315F78; color:#fff; border:none; border-radius:10px;
+    background:var(--navy); color:#fff; border:none; border-radius:10px;
     padding:12px 20px; font-weight:700; font-size:14px; cursor:pointer; font-family:'Inter',sans-serif;
   }
   .finalize-hint{font-size:12px; color:var(--muted); margin-top:8px;}
@@ -363,7 +376,7 @@
   }
   .modal-overlay.open{display:flex;}
   .modal{
-    background:var(--white); border:1px solid var(--card-border); border-radius:16px;
+    background:#fff; border:1px solid var(--card-border); border-radius:16px;
     padding:22px; width:100%; max-width:420px; max-height:90vh; overflow-y:auto;
   }
   .modal h2{font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:18px; margin:0 0 16px; color:var(--navy);}
@@ -396,12 +409,6 @@
     color:var(--celeste-deep); background:var(--bg-bottom); border:1px solid var(--card-border);
     padding:2px 9px; border-radius:999px; margin-left:8px; text-transform:none; letter-spacing:0;
   }
-  @media(max-width:420px){
-    .ticket{padding-left:16px; padding-right:16px;}
-    .ticket-heading-row{gap:6px;}
-    .ticket-heading-row .eyebrow{letter-spacing:.06em;}
-    .countdown-badge{font-size:9px; padding:2px 5px; margin-left:2px;}
-  }
   .alias-row, .loc-row{display:flex; align-items:center; gap:6px;}
   .copy-alias-btn{
     background:transparent; border:1px solid var(--card-border); color:var(--celeste-deep);
@@ -418,89 +425,6 @@
   }
   .new-loc-field{margin-top:8px;}
 
-  /* MI ESTADO (maqueta local, sin persistencia) */
-  .my-status-card{
-    background:var(--white); border:1px solid var(--card-border); border-radius:16px;
-    padding:18px; margin-bottom:16px; box-shadow:0 14px 30px -24px rgba(14,42,61,0.45);
-  }
-  .my-status-heading{
-    display:flex; align-items:center; gap:10px; margin:0 0 16px;
-    font-family:'Oswald',sans-serif; font-size:17px; letter-spacing:.08em;
-    text-transform:uppercase; color:var(--navy);
-  }
-  .my-status-heading::before{
-    content:""; width:9px; height:9px; border-radius:50%; background:var(--celeste);
-    box-shadow:0 0 0 4px rgba(79,166,222,.14);
-  }
-  .my-status-field{margin-bottom:14px;}
-  .my-status-field label, .my-status-label{
-    display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em;
-    color:var(--muted); margin-bottom:6px; font-weight:700;
-  }
-  .my-status-field select, .my-status-field input{
-    width:100%; background:var(--bg-bottom); border:1px solid var(--card-border);
-    color:var(--navy); border-radius:9px; padding:11px 12px; font:14px 'Inter',sans-serif;
-  }
-  .my-status-choice, .my-status-paid{display:flex; gap:8px;}
-  .my-status-choice button, .my-status-paid button{
-    flex:1; border:1px solid var(--card-border); border-radius:9px; background:var(--bg-bottom);
-    color:var(--muted); padding:10px 12px; font:700 13px 'Inter',sans-serif; cursor:pointer;
-  }
-  .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff;}
-  .my-status-choice button[data-value="doubt"].active{background:#E8A93B; border-color:#E8A93B; color:#3a2500;}
-  .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
-  .my-status-times{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
-  .my-status-confirm{
-    width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
-    background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
-  }
-  .my-status-summary{display:none;}
-  .my-status-card.collapsed .my-status-form{display:none;}
-  .my-status-card.collapsed .my-status-summary{display:block;}
-  .my-status-summary-top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
-  .my-status-summary-title{font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); font-weight:700;}
-  .my-status-summary-value{margin-top:5px; font:700 15px 'JetBrains Mono',monospace; color:var(--navy);}
-  .my-status-edit{
-    border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
-    background:transparent; color:var(--celeste-deep); font:700 12px 'Inter',sans-serif; cursor:pointer;
-  }
-  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:16px; padding-top:14px;}
-  .my-status-paid button.active{background:var(--celeste-deep); border-color:var(--celeste-deep); color:#fff;}
-
-  /* VISTAS PRINCIPALES */
-  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:rgba(255,255,255,.38);border:1px solid var(--card-border);border-radius:13px;}
-  .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
-  .main-view-btn.active{background:var(--celeste-deep);color:#fff;box-shadow:0 6px 16px -10px rgba(14,42,61,.65);}
-  .organizer-view{display:none;}
-  .organizer-header{margin:4px 0 18px;}
-  .organizer-header h1{margin:0 0 5px;font:700 clamp(25px,6vw,34px) 'Oswald',sans-serif;text-transform:uppercase;color:var(--navy);}
-  .organizer-header p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;}
-  .organizer-card{background:var(--white);border:1px solid var(--card-border);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 14px 30px -24px rgba(14,42,61,.45);}
-  .organizer-card-title{margin:0 0 15px;font:700 16px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
-  .availability-chart{display:flex;flex-direction:column;gap:7px;}
-  .availability-row{display:grid;grid-template-columns:48px 1fr 86px;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;color:var(--muted);font-size:12px;}
-  .availability-time{font:700 12px 'JetBrains Mono',monospace;color:var(--navy);}
-  .availability-track{height:8px;background:var(--bg-bottom);border-radius:999px;overflow:hidden;}
-  .availability-fill{height:100%;width:var(--availability);background:var(--celeste);border-radius:inherit;}
-  .availability-count{text-align:right;white-space:nowrap;}
-  .availability-row.peak{background:linear-gradient(135deg,var(--celeste),var(--celeste-deep));color:#fff;box-shadow:0 8px 20px -13px rgba(29,111,165,.8);}
-  .availability-row.peak .availability-time{color:#fff;}
-  .availability-row.peak .availability-track{background:rgba(255,255,255,.28);}
-  .availability-row.peak .availability-fill{background:#fff;}
-  .organizer-table-wrap{overflow-x:auto;}
-  .organizer-table{width:100%;border-collapse:collapse;min-width:510px;font-size:13px;}
-  .organizer-table th{padding:9px 10px;text-align:left;border-bottom:2px solid var(--card-border);color:var(--muted);font-size:10px;letter-spacing:.09em;text-transform:uppercase;}
-  .organizer-table td{padding:11px 10px;border-bottom:1px solid var(--card-border);color:var(--navy);}
-  .organizer-table tr:last-child td{border-bottom:0;}
-  .status-pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;}
-  .status-pill.in{background:rgba(45,134,89,.13);color:var(--ok);}
-  .status-pill.doubt{background:rgba(232,169,59,.18);color:#9A6300;}
-  .status-pill.out{background:rgba(193,67,42,.12);color:var(--danger);}
-  .payment-mark{font-weight:700;font-size:16px;}
-  .payment-mark.yes{color:var(--ok);}
-  .payment-mark.no{color:var(--danger);}
-  .organizer-empty{color:var(--muted);font-size:13px;font-style:italic;padding:10px 4px;line-height:1.5;}
-
   .manage-list{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto;}
   .manage-row{display:flex; gap:6px; align-items:center; background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px; padding:8px;}
   .manage-row input{flex:1; background:var(--white); border:1px solid var(--card-border); border-radius:6px; padding:7px 8px; font-size:13px; min-width:0;}
@@ -511,14 +435,8 @@
 </style>
 </head>
 <body>
+<button class="theme-toggle" id="theme-toggle" title="Cambiar tema">🌙</button>
 <div class="wrap">
-
-  <nav class="main-view-switch" aria-label="Vista principal">
-    <button type="button" class="main-view-btn active" id="main-view-user-btn" aria-pressed="true">Usuario</button>
-    <button type="button" class="main-view-btn" id="main-view-organizer-btn" aria-pressed="false">Organizador</button>
-  </nav>
-
-  <div id="main-view-user">
 
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-partido">⚽ Partido</button>
@@ -527,86 +445,11 @@
 
   <div id="tab-partido">
 
-  <section class="my-status-card" id="my-status-card" aria-labelledby="my-status-title">
-    <h2 class="my-status-heading" id="my-status-title">Mi estado</h2>
-    <div class="my-status-form">
-      <div class="my-status-field">
-        <label for="my-player-name">Nombre del jugador</label>
-        <input type="text" id="my-player-name" placeholder="Escribí tu nombre" maxlength="40" autocomplete="name">
-      </div>
-      <span class="my-status-label">Disponibilidad</span>
-      <div class="my-status-choice" role="group" aria-label="Disponibilidad">
-        <button type="button" class="active" data-value="in" aria-pressed="true">Estoy</button>
-        <button type="button" data-value="doubt" aria-pressed="false">En duda</button>
-        <button type="button" data-value="out" aria-pressed="false">No estoy</button>
-      </div>
-      <div class="my-status-times" id="my-status-times">
-        <div class="my-status-field">
-          <label for="my-status-from">Desde</label>
-          <select id="my-status-from">
-            <option value="09:00">09:00</option>
-            <option value="10:00">10:00</option>
-            <option value="11:00">11:00</option>
-            <option value="12:00">12:00</option>
-            <option value="13:00">13:00</option>
-            <option value="14:00">14:00</option>
-            <option value="15:00">15:00</option>
-            <option value="16:00" selected>16:00</option>
-            <option value="17:00">17:00</option>
-            <option value="18:00">18:00</option>
-            <option value="19:00">19:00</option>
-            <option value="20:00">20:00</option>
-            <option value="21:00">21:00</option>
-          </select>
-        </div>
-        <div class="my-status-field">
-          <label for="my-status-to">Hasta</label>
-          <select id="my-status-to">
-            <option value="09:00">09:00</option>
-            <option value="10:00">10:00</option>
-            <option value="11:00">11:00</option>
-            <option value="12:00">12:00</option>
-            <option value="13:00">13:00</option>
-            <option value="14:00">14:00</option>
-            <option value="15:00">15:00</option>
-            <option value="16:00">16:00</option>
-            <option value="17:00">17:00</option>
-            <option value="18:00">18:00</option>
-            <option value="19:00">19:00</option>
-            <option value="20:00" selected>20:00</option>
-            <option value="21:00">21:00</option>
-            <option value="22:00">22:00</option>
-          </select>
-        </div>
-      </div>
-      <button type="button" class="my-status-confirm" id="my-status-confirm">Confirmar</button>
-    </div>
-    <div class="my-status-summary" aria-live="polite">
-      <div class="my-status-summary-top">
-        <div>
-          <div class="my-status-summary-title">Mi disponibilidad</div>
-          <div class="my-status-summary-value" id="my-status-summary-value">Estoy · 16:00–20:00</div>
-        </div>
-        <button type="button" class="my-status-edit" id="my-status-edit">Editar respuesta</button>
-      </div>
-      <div class="my-status-payment">
-        <span class="my-status-label">¿Ya pagué?</span>
-        <div class="my-status-paid" role="group" aria-label="Estado de pago">
-          <button type="button" data-value="yes" aria-pressed="false">Sí</button>
-          <button type="button" class="active" data-value="no" aria-pressed="true">No</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <div class="ticket">
     <span class="ticket-notch left"></span>
     <span class="ticket-notch right"></span>
-    <div class="ticket-heading-row">
-      <h1 class="team-name" id="team-name">ASP</h1>
-      <span class="ticket-heading-separator">·</span>
-      <p class="eyebrow">⚽ próximo picado <span class="countdown-badge" id="countdown-badge" style="display:none;"></span></p>
-    </div>
+    <p class="eyebrow">⚽ próximo picado <span class="countdown-badge" id="countdown-badge" style="display:none;"></span></p>
+    <h1 class="team-name" id="team-name">ASP</h1>
     <div class="scoreboard">
       <div class="sb-item"><div class="sb-label">Día</div><div class="sb-value" id="sb-date">—</div></div>
       <div class="sb-item"><div class="sb-label">Hora</div><div class="sb-value" id="sb-time">—</div></div>
@@ -631,7 +474,7 @@
     <button class="edit-btn" id="edit-match-btn">✏️ Editar datos del partido</button>
   </div>
 
-  <div class="section" id="legacy-join-section" hidden aria-hidden="true">
+  <div class="section">
     <div class="section-title">Anotarse</div>
     <div class="join-row">
       <select id="name-select"></select>
@@ -654,7 +497,7 @@
     <div class="section-title">Jugadores</div>
     <div class="status-switch">
       <button class="status-switch-btn active" data-status-view="in">Confirmados <span class="count" id="count-in">0</span></button>
-      <button class="status-switch-btn" data-status-view="espera" hidden aria-hidden="true">Espera <span class="count" id="count-espera">0</span></button>
+      <button class="status-switch-btn" data-status-view="espera">Espera <span class="count" id="count-espera">0</span></button>
       <button class="status-switch-btn" data-status-view="duda">Duda <span class="count" id="count-duda">0</span></button>
       <button class="status-switch-btn" data-status-view="out">No van <span class="count" id="count-out">0</span></button>
     </div>
@@ -666,7 +509,7 @@
 
   <div class="section">
     <div class="section-title">Equipos</div>
-    <div class="view-switch" hidden aria-hidden="true">
+    <div class="view-switch">
       <button id="view-lista-btn" class="active">📋 Lista</button>
       <button id="view-formacion-btn">⚽ Formación</button>
     </div>
@@ -674,21 +517,21 @@
     <div id="teams-view-lista">
       <div class="split">
         <div class="split-col negro">
-          <h3 id="negro-team-label">Equipo Negro</h3>
+          <h3 id="negro-team-label">Roca Juniors</h3>
           <ul id="team-negro-list"></ul>
         </div>
         <div class="split-col blanco">
-          <h3 id="blanco-team-label">Equipo Blanco</h3>
+          <h3 id="blanco-team-label">La Cole</h3>
           <ul id="team-blanco-list"></ul>
         </div>
       </div>
-      <p class="hint">Tocá el chip de color al lado de cada confirmado para mandarlo al Equipo Negro o al Equipo Blanco (tocá de nuevo para sacarlo).</p>
+      <p class="hint">Tocá el chip de color al lado de cada confirmado para mandarlo a Roca Juniors o La Cole (tocá de nuevo para sacarlo).</p>
     </div>
 
-    <div id="teams-view-formacion" style="display:none;" hidden aria-hidden="true">
+    <div id="teams-view-formacion" style="display:none;">
       <div class="pitch-wrap">
         <div class="pitch-header">
-          <h3 style="color:var(--roca);">Equipo Negro</h3>
+          <h3 style="color:var(--roca);">Roca Juniors</h3>
           <select id="formation-select-negro"></select>
         </div>
         <div class="pitch" id="pitch-negro"></div>
@@ -697,7 +540,7 @@
       </div>
       <div class="pitch-wrap">
         <div class="pitch-header">
-          <h3 style="color:var(--navy);">Equipo Blanco</h3>
+          <h3 style="color:var(--navy);">La Cole</h3>
           <select id="formation-select-blanco"></select>
         </div>
         <div class="pitch" id="pitch-blanco"></div>
@@ -737,31 +580,6 @@
   </div>
 
   <p class="footer-note">Todo se guarda automáticamente y lo ve cualquiera que abra este mismo link.<br>Los datos son compartidos entre todos — no hay usuarios ni contraseñas.</p>
-  </div>
-
-  <div class="organizer-view" id="main-view-organizer">
-    <header class="organizer-header">
-      <h1>Panel del organizador</h1>
-      <p>Resumen visual de disponibilidad y respuestas del grupo.</p>
-    </header>
-
-    <section class="organizer-card" aria-labelledby="availability-summary-title">
-      <h2 class="organizer-card-title" id="availability-summary-title">Disponibilidad por horario</h2>
-      <div class="availability-chart" id="organizer-availability-chart"></div>
-    </section>
-
-    <section class="organizer-card" aria-labelledby="player-responses-title">
-      <h2 class="organizer-card-title" id="player-responses-title">Respuestas de jugadores</h2>
-      <div class="organizer-table-wrap">
-        <table class="organizer-table">
-          <thead><tr><th>Jugador</th><th>Estado</th><th>Disponibilidad</th><th>Pago</th></tr></thead>
-          <tbody id="organizer-responses-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <p class="footer-note">Modo de prueba · Datos guardados solo en este navegador</p>
-  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -889,7 +707,7 @@ try{
 const ROW_ID = 1; // todo el equipo comparte esta misma fila
 
 const DIVISOR_MAP = {F5:10, F7:14, F8:16, F9:18, F11:22};
-const TEAM_LABELS = {negro:'Equipo Negro', blanco:'Equipo Blanco'};
+const TEAM_LABELS = {negro:'Roca Juniors', blanco:'La Cole'};
 const FORMATIONS = {
   F5: ['1-2-1','2-1-1','2-2'],
   F7: ['2-3-1','3-2-1','2-2-2'],
@@ -1471,7 +1289,7 @@ function renderHistory(){
   standingsEl.innerHTML = `
     <div class="standings-item roca">
       <span class="standings-num">${st.negroWins}</span>
-      <span class="standings-label">Equipo Negro</span>
+      <span class="standings-label">Roca Juniors</span>
     </div>
     <div class="standings-item">
       <span class="standings-num">${st.draws}</span>
@@ -1479,7 +1297,7 @@ function renderHistory(){
     </div>
     <div class="standings-item cole">
       <span class="standings-num">${st.blancoWins}</span>
-      <span class="standings-label">Equipo Blanco</span>
+      <span class="standings-label">La Cole</span>
     </div>
   `;
   const openSet = new Set();
@@ -1510,11 +1328,11 @@ function renderHistory(){
     const negroScorersLine = negroScorers.length ? negroScorers.map(([n,c])=>`${n} x${c}`).join(', ') : '—';
     const blancoScorersLine = blancoScorers.length ? blancoScorers.map(([n,c])=>`${n} x${c}`).join(', ') : '—';
     const goleadoresHtml = allScorers.length
-      ? `<div class="history-goals-line"><b>Equipo Negro:</b> ${escapeHtml(negroScorersLine)}</div><div class="history-goals-line"><b>Equipo Blanco:</b> ${escapeHtml(blancoScorersLine)}</div>`
+      ? `<div class="history-goals-line"><b>Roca Juniors:</b> ${escapeHtml(negroScorersLine)}</div><div class="history-goals-line"><b>La Cole:</b> ${escapeHtml(blancoScorersLine)}</div>`
       : `<div class="history-goals-line">Sin goleadores cargados</div>`;
     const hasScore = h.score.negro>0 || h.score.blanco>0 || h.hasScore;
     const resultLine = hasScore
-      ? `Equipo Negro ${h.score.negro} - ${h.score.blanco} Equipo Blanco`
+      ? `Roca Juniors ${h.score.negro} - ${h.score.blanco} La Cole`
       : 'Resultado sin cargar';
 
     const details = document.createElement('details');
@@ -1541,8 +1359,8 @@ function renderHistory(){
       </summary>
       <div class="history-details">
         <div class="h-row">${escapeHtml(h.matchInfo.loc || 'Cancha sin definir')} · ${fieldTypeLabel(h.matchInfo.type)}</div>
-        <div class="h-row"><b>Equipo Negro:</b> ${escapeHtml(negros)}</div>
-        <div class="h-row"><b>Equipo Blanco:</b> ${escapeHtml(blancos)}</div>
+        <div class="h-row"><b>Roca Juniors:</b> ${escapeHtml(negros)}</div>
+        <div class="h-row"><b>La Cole:</b> ${escapeHtml(blancos)}</div>
         <div class="h-row">Pagaron ${paidCount} de ${totalConfirmed} · Recaudado ${perPerson>0?formatMoney(perPerson*paidCount):'$0'}</div>
 
         <div class="history-edit-field">
@@ -1554,7 +1372,7 @@ function renderHistory(){
           <label>Resultado</label>
           <div class="score-row">
             <input type="text" class="score-input" data-hidx="${originalIndex}" data-team="negro" value="${h.score.negro||0}" maxlength="2" inputmode="numeric">
-            <span>Equipo Negro — Equipo Blanco</span>
+            <span>Roca Juniors — La Cole</span>
             <input type="text" class="score-input" data-hidx="${originalIndex}" data-team="blanco" value="${h.score.blanco||0}" maxlength="2" inputmode="numeric">
           </div>
         </div>
@@ -1645,7 +1463,7 @@ let activeStatusView = 'in';
 function setStatusView(view){
   activeStatusView = view;
   ['in','espera','duda','out'].forEach(v=>{
-    document.getElementById('list-'+v).style.display = (v===view) ? 'grid' : 'none';
+    document.getElementById('list-'+v).style.display = (v===view) ? 'flex' : 'none';
   });
   document.querySelectorAll('.status-switch-btn').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.statusView === view);
@@ -1977,202 +1795,22 @@ document.getElementById('maps-btn').onclick = ()=>{
   window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query), '_blank');
 };
 
-/* ---------- DISPONIBILIDAD LOCAL DE PRUEBA ---------- */
-const LOCAL_AVAILABILITY_KEY = 'asp_availability_demo_v1';
-let localAvailabilityResponses = [];
-let currentLocalResponseName = '';
-
-function loadLocalAvailability(){
-  try{
-    const saved = JSON.parse(localStorage.getItem(LOCAL_AVAILABILITY_KEY) || '[]');
-    localAvailabilityResponses = Array.isArray(saved) ? saved : [];
-  }catch(e){
-    localAvailabilityResponses = [];
+/* ---------- TEMA ---------- */
+function applyTheme(theme){
+  if(theme === 'dark'){
+    document.body.setAttribute('data-theme','dark');
+    document.getElementById('theme-toggle').textContent = '☀️';
+  } else {
+    document.body.removeAttribute('data-theme');
+    document.getElementById('theme-toggle').textContent = '🌙';
   }
 }
-
-function saveLocalAvailability(){
-  try{ localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses)); }
-  catch(e){ console.error('No se pudo guardar la disponibilidad local', e); }
-}
-
-function upsertLocalAvailability(response){
-  const normalizedName = response.name.toLocaleLowerCase('es');
-  const index = localAvailabilityResponses.findIndex(item=>item.name.toLocaleLowerCase('es')===normalizedName);
-  if(index >= 0) localAvailabilityResponses[index] = response;
-  else localAvailabilityResponses.push(response);
-  saveLocalAvailability();
-  renderLocalOrganizer();
-}
-
-function renderLocalOrganizer(){
-  const chart = document.getElementById('organizer-availability-chart');
-  const body = document.getElementById('organizer-responses-body');
-  if(!chart || !body) return;
-
-  const hourly = [];
-  for(let hour=9; hour<22; hour++){
-    const label = String(hour).padStart(2,'0') + ':00';
-    const available = localAvailabilityResponses.filter(item=>
-      (item.status==='in' || item.status==='doubt') && item.from<=label && item.to>label
-    );
-    hourly.push({
-      label,
-      confirmed:available.filter(item=>item.status==='in').length,
-      doubt:available.filter(item=>item.status==='doubt').length,
-      total:available.length
-    });
-  }
-  const topHours = hourly.filter(item=>item.total>0)
-    .sort((a,b)=>b.total-a.total || b.confirmed-a.confirmed || a.label.localeCompare(b.label))
-    .slice(0,3);
-  if(topHours.length===0){
-    chart.innerHTML = '<p class="organizer-empty">Todavía no hay horarios para comparar. Confirmá respuestas desde “Mi estado”.</p>';
-  }else{
-    const maxTotal = topHours[0].total;
-    chart.innerHTML = topHours.map((item,index)=>`
-      <div class="availability-row ${index===0?'peak':''}">
-        <span class="availability-time">${item.label}</span>
-        <div class="availability-track"><div class="availability-fill" style="--availability:${(item.total/maxTotal)*100}%"></div></div>
-        <span class="availability-count" title="${item.confirmed} confirmados y ${item.doubt} en duda">${item.total} ${item.total===1?'jugador':'jugadores'}</span>
-      </div>`).join('');
-  }
-
-  if(localAvailabilityResponses.length===0){
-    body.innerHTML = '<tr><td colspan="4" class="organizer-empty">Todavía no hay respuestas guardadas en este navegador.</td></tr>';
-    return;
-  }
-  body.innerHTML = localAvailabilityResponses.map(item=>{
-    const statusLabel = item.status==='in' ? 'Estoy' : (item.status==='doubt' ? 'En duda' : 'No estoy');
-    const availability = item.status==='out' ? '—' : `${escapeHtml(item.from)}–${escapeHtml(item.to)}`;
-    const payment = item.status!=='in' ? '—' : (item.paid
-      ? '<span class="payment-mark yes" aria-label="Pagó">✓</span>'
-      : '<span class="payment-mark no" aria-label="No pagó">✕</span>');
-    return `<tr>
-      <td>${escapeHtml(item.name)}</td>
-      <td><span class="status-pill ${item.status}">${statusLabel}</span></td>
-      <td>${availability}</td>
-      <td>${payment}</td>
-    </tr>`;
-  }).join('');
-}
-
-loadLocalAvailability();
-renderLocalOrganizer();
-
-/* ---------- SELECTOR DE VISTA PRINCIPAL ---------- */
-const mainUserView = document.getElementById('main-view-user');
-const mainOrganizerView = document.getElementById('main-view-organizer');
-const mainUserButton = document.getElementById('main-view-user-btn');
-const mainOrganizerButton = document.getElementById('main-view-organizer-btn');
-
-function setMainView(view){
-  const showUser = view === 'user';
-  if(!showUser) renderLocalOrganizer();
-  mainUserView.style.display = showUser ? 'block' : 'none';
-  mainOrganizerView.style.display = showUser ? 'none' : 'block';
-  mainUserButton.classList.toggle('active', showUser);
-  mainOrganizerButton.classList.toggle('active', !showUser);
-  mainUserButton.setAttribute('aria-pressed', showUser ? 'true' : 'false');
-  mainOrganizerButton.setAttribute('aria-pressed', showUser ? 'false' : 'true');
-}
-
-mainUserButton.onclick = ()=> setMainView('user');
-mainOrganizerButton.onclick = ()=> setMainView('organizer');
-
-/* ---------- MI ESTADO: GUARDADO LOCAL DE PRUEBA ---------- */
-let mockAvailability = 'in';
-const mockStatusCard = document.getElementById('my-status-card');
-const mockTimes = document.getElementById('my-status-times');
-const mockPayment = document.querySelector('.my-status-payment');
-const mockFrom = document.getElementById('my-status-from');
-const mockTo = document.getElementById('my-status-to');
-const mockHourOptions = Array.from({length:14},(_,index)=>String(index+9).padStart(2,'0')+':00');
-
-function syncMockToOptions(){
-  const previousTo = mockTo.value;
-  const validHours = mockHourOptions.filter(hour=>hour>mockFrom.value);
-  mockTo.innerHTML = validHours.map(hour=>`<option value="${hour}">${hour}</option>`).join('');
-  mockTo.value = validHours.includes(previousTo) ? previousTo : validHours[0];
-}
-
-mockFrom.addEventListener('change', syncMockToOptions);
-syncMockToOptions();
-
-document.querySelectorAll('.my-status-choice button').forEach(btn=>{
-  btn.onclick = ()=>{
-    mockAvailability = btn.dataset.value;
-    document.querySelectorAll('.my-status-choice button').forEach(option=>{
-      const selected = option === btn;
-      option.classList.toggle('active', selected);
-      option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-    mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'grid';
-  };
-});
-
-document.getElementById('my-status-confirm').onclick = ()=>{
-  const nameInput = document.getElementById('my-player-name');
-  const playerName = nameInput.value.trim();
-  const from = document.getElementById('my-status-from').value || '16:00';
-  const to = document.getElementById('my-status-to').value || '20:00';
-  if(!playerName){
-    nameInput.setAttribute('aria-invalid','true');
-    nameInput.focus();
-    showToast('Escribí tu nombre para confirmar.');
-    return;
-  }
-  nameInput.removeAttribute('aria-invalid');
-  if(mockAvailability !== 'out' && to <= from){
-    showToast('El horario “Hasta” debe ser posterior a “Desde”.');
-    return;
-  }
-  const summary = mockAvailability === 'in'
-    ? `Estoy · ${from}–${to}`
-    : (mockAvailability === 'doubt' ? `En duda · ${from}–${to}` : 'No estoy');
-  document.getElementById('my-status-summary-value').textContent = summary;
-  mockPayment.style.display = mockAvailability === 'in' ? 'block' : 'none';
-  const existingResponse = localAvailabilityResponses.find(item=>
-    item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
-  );
-  const response = {
-    name:playerName,
-    status:mockAvailability,
-    from:mockAvailability==='out' ? '' : from,
-    to:mockAvailability==='out' ? '' : to,
-    paid:mockAvailability==='in' ? (existingResponse?.paid === true) : null,
-    updatedAt:new Date().toISOString()
-  };
-  currentLocalResponseName = playerName;
-  upsertLocalAvailability(response);
-  document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
-    option.classList.toggle('active', selected);
-    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
-  mockStatusCard.classList.add('collapsed');
+document.getElementById('theme-toggle').onclick = ()=>{
+  const isDark = document.body.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  applyTheme(next);
+  try{ localStorage.setItem('theme_pref', next); }catch(e){}
 };
-
-document.getElementById('my-status-edit').onclick = ()=> mockStatusCard.classList.remove('collapsed');
-
-document.querySelectorAll('.my-status-paid button').forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll('.my-status-paid button').forEach(option=>{
-      const selected = option === btn;
-      option.classList.toggle('active', selected);
-      option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-    const response = localAvailabilityResponses.find(item=>
-      item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
-    );
-    if(response && response.status==='in'){
-      response.paid = btn.dataset.value === 'yes';
-      response.updatedAt = new Date().toISOString();
-      saveLocalAvailability();
-      renderLocalOrganizer();
-    }
-  };
-});
 
 (async function init(){
   if(SUPABASE_URL.includes('PEGA_ACA') || SUPABASE_ANON_KEY.includes('PEGA_ACA')){
@@ -2192,6 +1830,12 @@ document.querySelectorAll('.my-status-paid button').forEach(btn=>{
       </div>`;
     return;
   }
+  let themePref = 'light';
+  try{
+    const t = localStorage.getItem('theme_pref');
+    if(t) themePref = t;
+  }catch(e){}
+  applyTheme(themePref);
   state = (await fetchServerState()) || defaultState();
   updateKnownSets(state);
   render();
