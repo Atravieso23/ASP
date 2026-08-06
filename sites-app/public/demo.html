@@ -472,8 +472,8 @@
   .my-status-card.collapsed .my-status-summary{display:block;}
   .my-status-card.collapsed .my-status-heading{display:none;}
   .my-status-summary-top{display:flex; align-items:center; justify-content:space-between; gap:12px;}
-  .my-status-summary-title{display:none;}
-  .my-status-summary-value{font:700 13px 'JetBrains Mono',monospace; color:var(--navy);}
+  .my-status-summary-title{font:700 15px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
+  .my-status-summary-value{margin-top:8px;font:700 12px 'JetBrains Mono',monospace;color:var(--navy);line-height:1.5;}
   .my-status-summary-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;}
   .my-status-edit{
     border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
@@ -481,8 +481,12 @@
   }
   .my-status-payment{border-top:1px dashed var(--card-border); margin-top:12px; padding-top:12px;}
   .my-status-payment[hidden]{display:none;}
-  .my-status-pay-now{width:100%;border:1px solid var(--ok);border-radius:9px;padding:9px 11px;background:rgba(31,143,78,.08);color:var(--ok);font:700 12px 'Inter',sans-serif;cursor:pointer;}
-  .guest-manager{margin-top:14px;padding-top:14px;border-top:1px dashed var(--card-border);}
+  .my-status-payment .my-status-label{display:block;margin-bottom:7px;}
+  .my-status-paid button.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
+  .guest-manager-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px;padding-top:13px;border-top:1px dashed var(--card-border);}
+  .guest-manager-toggle{border:0;background:transparent;color:var(--navy);padding:0;font:700 13px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+  .guest-manager{margin-top:10px;}
   .guest-manager[hidden]{display:none;}
   .guest-manager-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
   .guest-manager-head h3{margin:0;font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);}
@@ -665,24 +669,26 @@
     </div>
     <div class="my-status-summary" aria-live="polite">
       <div class="my-status-summary-top">
-        <div>
-          <div class="my-status-summary-title">Mi disponibilidad</div>
-          <div class="my-status-summary-value" id="my-status-summary-value">Estoy · 16:00–20:00</div>
-        </div>
+        <div class="my-status-summary-title">Mi estado</div>
         <div class="my-status-summary-actions">
-          <button type="button" class="my-status-edit" id="my-status-edit" aria-label="Abrir o cerrar edición de mi estado">Editar ▾</button>
-          <button type="button" class="my-status-edit" id="guest-manager-toggle" aria-expanded="false">Gestionar invitados · 0</button>
+          <button type="button" class="my-status-edit" id="my-status-edit" aria-label="Abrir o cerrar edición de mi estado">Editar respuesta</button>
         </div>
       </div>
+      <div class="my-status-summary-value" id="my-status-summary-value">Félix · Estoy · 16:00–20:00 · No pagado</div>
       <div class="my-status-payment">
-        <button type="button" class="my-status-pay-now" id="my-status-pay-now">✓ Marcar que ya pagué</button>
+        <span class="my-status-label">¿Ya pagué?</span>
+        <div class="my-status-paid" role="group" aria-label="Estado de pago">
+          <button type="button" data-value="yes" aria-pressed="false">Sí</button>
+          <button type="button" class="active" data-value="no" aria-pressed="true">No</button>
+        </div>
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
+      <div class="guest-manager-bar">
+        <button type="button" class="guest-manager-toggle" id="guest-manager-toggle" aria-expanded="false">Gestor de invitados ▾</button>
+        <span class="guest-manager-count" id="guest-manager-count">0 invitados</span>
+      </div>
       <section class="guest-manager" id="guest-manager" aria-labelledby="guest-manager-title" hidden>
-        <div class="guest-manager-head">
-          <h3 id="guest-manager-title">Gestión de invitados</h3>
-          <span class="guest-manager-count" id="guest-manager-count">0 invitados</span>
-        </div>
+        <h3 class="sr-only" id="guest-manager-title">Gestión de invitados</h3>
         <div class="guest-add-row">
           <input type="text" id="guest-name-input" maxlength="40" placeholder="Nombre del invitado" aria-label="Nombre del invitado">
           <button type="button" id="guest-add-btn">Agregar</button>
@@ -1912,7 +1918,7 @@ document.querySelectorAll('.status-btns button').forEach(btn=>{
     else {
       const rosterEntry = (state.roster||[]).find(r=>r.name.toLowerCase()===name.toLowerCase());
       const defaultNumber = (rosterEntry && rosterEntry.number) ? rosterEntry.number : null;
-      state.players.push({name, status, team:null, paid:false, number:defaultNumber, pos:null, isCaptain:false});
+      state.players.push({name, status, team:status==='in'?chooseBalancedTeam(name):null, paid:false, number:defaultNumber, pos:null, isCaptain:false});
     }
     document.getElementById('new-player-name').value = '';
     document.getElementById('new-player-wrap').style.display = 'none';
@@ -2420,6 +2426,16 @@ function getCurrentPlayerGuests(){
   );
 }
 
+function chooseBalancedTeam(excludeName=''){
+  const excluded = excludeName.toLocaleLowerCase('es');
+  const counts = {negro:0, blanco:0};
+  localAvailabilityResponses.forEach(item=>{
+    if(item.status!=='in' || item.name.toLocaleLowerCase('es')===excluded) return;
+    if(item.team==='negro' || item.team==='blanco') counts[item.team]++;
+  });
+  return counts.negro <= counts.blanco ? 'negro' : 'blanco';
+}
+
 function renderGuestManager(){
   const manager = document.getElementById('guest-manager');
   const toggle = document.getElementById('guest-manager-toggle');
@@ -2428,7 +2444,7 @@ function renderGuestManager(){
   if(!manager || !toggle || !list || !count) return;
   const guests = getCurrentPlayerGuests();
   const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
-  toggle.textContent = guests.length ? `Editar invitados · ${guests.length}` : 'Gestionar invitados · 0';
+  toggle.textContent = manager.hidden ? 'Gestor de invitados ▾' : 'Gestor de invitados ▴';
   count.textContent = label;
   list.innerHTML = guests.length ? guests.map(guest=>{
     return `<div class="guest-item">
@@ -2603,7 +2619,6 @@ let mockAvailability = 'in';
 const mockStatusCard = document.getElementById('my-status-card');
 const mockTimes = document.getElementById('my-status-times');
 const mockPayment = document.querySelector('.my-status-payment');
-const mockPayNow = document.getElementById('my-status-pay-now');
 const guestManager = document.getElementById('guest-manager');
 const guestManagerToggle = document.getElementById('guest-manager-toggle');
 const mockFrom = document.getElementById('my-status-from');
@@ -2650,7 +2665,12 @@ function updateMyStatusSummary(response){
   const payment = response.status === 'in' ? (response.paid ? 'Pagado' : 'No pagado') : '';
   document.getElementById('my-status-summary-value').textContent =
     `Mi estado · ${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;
-  mockPayment.hidden = response.status !== 'in' || response.paid === true;
+  mockPayment.hidden = response.status !== 'in';
+  document.querySelectorAll('.my-status-paid button').forEach(option=>{
+    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
 }
 
 function resetMyStatusCard(){
@@ -2669,6 +2689,11 @@ function resetMyStatusCard(){
   mockPayment.hidden = true;
   guestManager.hidden = true;
   guestManagerToggle.setAttribute('aria-expanded','false');
+  document.querySelectorAll('.my-status-paid button').forEach(option=>{
+    const selected = option.dataset.value === 'no';
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
   renderGuestManager();
   mockStatusCard.classList.remove('collapsed');
 }
@@ -2721,7 +2746,7 @@ document.getElementById('my-status-confirm').onclick = ()=>{
     from:mockAvailability==='out' ? '' : from,
     to:mockAvailability==='out' ? '' : to,
     paid:mockAvailability==='in' ? (existingResponse?.paid === true) : null,
-    team:mockAvailability==='in' ? (existingResponse?.team || null) : null,
+    team:mockAvailability==='in' ? (existingResponse?.team || chooseBalancedTeam(playerName)) : null,
     updatedAt:new Date().toISOString()
   };
   const previousCurrentName = currentLocalResponseName;
@@ -2750,8 +2775,8 @@ guestManagerToggle.onclick = ()=>{
   const willOpen = guestManager.hidden;
   guestManager.hidden = !willOpen;
   guestManagerToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  renderGuestManager();
   if(willOpen){
-    renderGuestManager();
     document.getElementById('guest-name-input').focus();
   }
 };
@@ -2772,7 +2797,7 @@ document.getElementById('guest-add-btn').onclick = ()=>{
     from:owner.from || '16:00',
     to:owner.to || '20:00',
     paid:false,
-    team:null,
+    team:chooseBalancedTeam(guestName),
     isGuest:true,
     invitedBy:owner.name,
     updatedAt:new Date().toISOString()
@@ -2788,20 +2813,21 @@ document.getElementById('guest-name-input').addEventListener('keydown', event=>{
   }
 });
 
-mockPayNow.onclick = ()=>{
-  const response = localAvailabilityResponses.find(item=>
-    item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
-  );
-  if(!response || response.status!=='in') return;
-  response.paid = true;
-  response.updatedAt = new Date().toISOString();
-  saveLocalAvailability();
-  syncLocalAvailabilityWithPlayers();
-  render();
-  renderLocalOrganizer();
-  updateMyStatusSummary(response);
-  showToast('Pago marcado como realizado.');
-};
+document.querySelectorAll('.my-status-paid button').forEach(button=>{
+  button.onclick = ()=>{
+    const response = localAvailabilityResponses.find(item=>
+      item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+    );
+    if(!response || response.status!=='in') return;
+    response.paid = button.dataset.value === 'yes';
+    response.updatedAt = new Date().toISOString();
+    saveLocalAvailability();
+    syncLocalAvailabilityWithPlayers();
+    render();
+    renderLocalOrganizer();
+    updateMyStatusSummary(response);
+  };
+});
 
 (async function init(){
   if(!supabaseClient){

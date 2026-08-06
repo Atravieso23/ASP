@@ -216,7 +216,7 @@ test("supports recurrent players and first-time registration", async () => {
 test("manages per-date guests from the collapsed player status", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /id="guest-manager-toggle"[^>]*>Gestionar invitados/);
+  assert.match(demo, /id="guest-manager-toggle"[^>]*>Gestor de invitados/);
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
@@ -240,12 +240,23 @@ test("keeps the user team summary compact", async () => {
   assert.doesNotMatch(demo, /@media\(min-width:680px\)\{\.organizer-formations\{grid-template-columns:1fr 1fr;/);
 });
 
-test("collapses my status into a quick summary with one-tap payment", async () => {
+test("collapses my status into a mobile-first quick summary with reversible payment", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /function updateMyStatusSummary\(response\)/);
   assert.match(demo, /`Mi estado · \$\{response\.name\} · \$\{availability\}/);
-  assert.match(demo, /id="my-status-pay-now"/);
-  assert.match(demo, /response\.paid = true/);
+  assert.match(demo, /class="my-status-summary-title">Mi estado/);
+  assert.match(demo, /class="my-status-paid"/);
+  assert.match(demo, /response\.paid = button\.dataset\.value === 'yes'/);
   assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
+});
+
+test("defaults to F8 and assigns every confirmed player to a balanced team", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /type:'F8'/);
+  assert.match(demo, /function chooseBalancedTeam\(excludeName=''\)/);
+  assert.match(demo, /counts\.negro <= counts\.blanco \? 'negro' : 'blanco'/);
+  assert.match(demo, /existingResponse\?\.team \|\| chooseBalancedTeam\(playerName\)/);
+  assert.match(demo, /team:chooseBalancedTeam\(guestName\)/);
 });
