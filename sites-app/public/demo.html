@@ -2328,8 +2328,8 @@ function showPlayerNameFeedback(kind,title,message){
 function showDuplicateNameFeedback(name){
   showPlayerNameFeedback(
     'error',
-    `“${name}” ya está en uso.`,
-    ` Si sos otro ${name}, escribí apellido o apodo para diferenciarte. Por ejemplo: “${name} A.” o “${name} Chaval”.`
+    'Nombre ya tomado.',
+    ` Si sos otro ${name}, agregá tu apellido o apodo para diferenciarte.`
   );
   const input = document.getElementById('my-player-name');
   input.setAttribute('aria-invalid','true');

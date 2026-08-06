@@ -238,8 +238,9 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /No se pudo guardar en Supabase/);
   assert.match(demo, /id="player-name-feedback" role="alert" aria-live="assertive"/);
   assert.match(demo, /function showDuplicateNameFeedback\(name\)/);
-  assert.match(demo, /“\$\{name\}” ya está en uso/);
-  assert.match(demo, /escribí apellido o apodo para diferenciarte/);
+  assert.match(demo, /'Nombre ya tomado\.'/);
+  assert.match(demo, /agregá tu apellido o apodo para diferenciarte/);
+  assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
   assert.match(demo, /Modo registro activado/);
   assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
 });
