@@ -231,7 +231,7 @@ test("waits for Supabase before confirming registration and rejects remote dupli
 
   assert.match(demo, /async function savePlayerRegistration\(response\)/);
   assert.match(demo, /const fresh = await fetchServerState\(\)/);
-  assert.match(demo, /item\.ownerId!==currentSessionUserId/);
+  assert.match(demo, /!responseBelongsToCurrentDevice\(item\)/);
   assert.match(demo, /document\.getElementById\('my-status-confirm'\)\.onclick = async/);
   assert.match(demo, /confirmButton\.textContent = 'Guardando…'/);
   assert.match(demo, /Respuesta guardada y sincronizada/);
@@ -243,6 +243,19 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
   assert.match(demo, /Modo registro activado/);
   assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
+});
+
+test("lets a trusted player reuse an existing profile on another device", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /<h2>Ya estoy registrado<\/h2>/);
+  assert.match(demo, /Sí, usar este jugador/);
+  assert.match(demo, /¿Sos \$\{selectedResponse\.name\}\?/);
+  assert.match(demo, /function responseBelongsToCurrentDevice\(response\)/);
+  assert.match(demo, /response\.ownerIds\|\|\[\]/);
+  assert.match(demo, /addCurrentDeviceToResponse\(target\)/);
+  assert.match(demo, /restoreCurrentLocalResponse\(\)/);
+  assert.match(demo, /quedó vinculado a este dispositivo/);
 });
 
 test("manages per-date guests from the collapsed player status", async () => {

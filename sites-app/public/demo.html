@@ -986,6 +986,18 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="claim-player-overlay">
+  <div class="modal">
+    <h2>Ya estoy registrado</h2>
+    <p id="claim-player-text" style="color:var(--muted); font-size:14px; line-height:1.5;">¿Sos este jugador?</p>
+    <p style="color:var(--muted); font-size:11.5px; line-height:1.45;">Este dispositivo recordará al jugador y podrá editar su asistencia, horario y pago.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="claim-player-cancel">No, volver</button>
+      <button class="btn-save" id="claim-player-confirm">Sí, usar este jugador</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
@@ -1018,6 +1030,16 @@ const FORMATIONS = {
 let state = null;
 let saving = false;
 let currentSessionUserId = '';
+function responseBelongsToCurrentDevice(response){
+  return Boolean(response && currentSessionUserId && (
+    response.ownerId===currentSessionUserId || (response.ownerIds||[]).includes(currentSessionUserId)
+  ));
+}
+function addCurrentDeviceToResponse(response){
+  if(!response || !currentSessionUserId) return response;
+  response.ownerIds = [...new Set([...(response.ownerIds||[]), response.ownerId, currentSessionUserId].filter(Boolean))];
+  return response;
+}
 const LOCAL_FORMATIONS_KEY = 'asp_formations_demo_v1';
 
 function defaultState(){
@@ -1120,7 +1142,7 @@ function mergeRosterArr(freshRoster, localRoster){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','pay-confirm-overlay','manage-sedes-overlay','manage-roster-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','pay-confirm-overlay','claim-player-overlay','manage-sedes-overlay','manage-roster-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
@@ -1133,7 +1155,7 @@ async function refreshFromServer(){
   if(state && state.formations) fresh.formations = {...fresh.formations, ...state.formations};
   state = fresh;
   localAvailabilityResponses = Array.isArray(state.responses) ? state.responses : [];
-  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   currentLocalResponseName = ownResponse?.name || '';
   recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))].sort((a,b)=>a.localeCompare(b,'es'));
   syncLocalAvailabilityWithPlayers();
@@ -1551,7 +1573,7 @@ function render(){
     .sort((a,b)=>{
       const responseA = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===a.name.toLocaleLowerCase('es'));
       const responseB = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===b.name.toLocaleLowerCase('es'));
-      const priority = response=>response?.ownerId===currentSessionUserId ? (response.isGuest ? 1 : 0) : 2;
+      const priority = response=>responseBelongsToCurrentDevice(response) ? (response.isGuest ? 1 : 0) : 2;
       return priority(responseA)-priority(responseB) || a.name.localeCompare(b.name,'es');
     })
     .map(p=>p.name);
@@ -2213,6 +2235,50 @@ const clearOverlay = document.getElementById('clear-overlay');
 document.getElementById('clear-btn').onclick = ()=> clearOverlay.classList.add('open');
 document.getElementById('c-cancel').onclick = ()=> clearOverlay.classList.remove('open');
 document.getElementById('pay-confirm-cancel').onclick = ()=> document.getElementById('pay-confirm-overlay').classList.remove('open');
+document.getElementById('claim-player-cancel').onclick = ()=>{
+  pendingClaimResponseId = '';
+  document.getElementById('claim-player-overlay').classList.remove('open');
+};
+document.getElementById('claim-player-confirm').onclick = async ()=>{
+  const button = document.getElementById('claim-player-confirm');
+  button.disabled = true;
+  button.textContent = 'Vinculando…';
+  saving = true;
+  const fresh = await fetchServerState();
+  const target = (fresh?.responses||[]).find(item=>item.responseId===pendingClaimResponseId && !item.isGuest);
+  if(!fresh || !target){
+    saving = false;
+    button.disabled = false;
+    button.textContent = 'Sí, usar este jugador';
+    showToast('No pudimos encontrar ese jugador. Actualizá e intentá nuevamente.');
+    return;
+  }
+  const originalOwnerId = target.ownerId;
+  addCurrentDeviceToResponse(target);
+  (fresh.responses||[]).forEach(item=>{
+    if(item.isGuest && (item.ownerId===originalOwnerId || item.invitedBy===target.name)) addCurrentDeviceToResponse(item);
+  });
+  const ok = await saveState(fresh);
+  saving = false;
+  button.disabled = false;
+  button.textContent = 'Sí, usar este jugador';
+  if(!ok){
+    showToast('No se pudo vincular este dispositivo. Intentá nuevamente.');
+    return;
+  }
+  state = fresh;
+  localAvailabilityResponses = state.responses;
+  currentLocalResponseName = target.name;
+  try{ localStorage.setItem(LOCAL_CURRENT_PLAYER_KEY, currentLocalResponseName); }catch(e){}
+  syncLocalAvailabilityWithPlayers();
+  updateKnownSets(state);
+  pendingClaimResponseId = '';
+  document.getElementById('claim-player-overlay').classList.remove('open');
+  render();
+  renderLocalOrganizer();
+  restoreCurrentLocalResponse();
+  showToast(`${target.name} quedó vinculado a este dispositivo.`);
+};
 document.getElementById('c-confirm').onclick = async ()=>{
   clearLocalOrganizerState();
   state.players = [];
@@ -2285,6 +2351,7 @@ let currentLocalResponseName = '';
 let recurrentPlayers = [];
 let registeringFirstTime = false;
 let changingRegisteredPlayer = false;
+let pendingClaimResponseId = '';
 
 function loadLocalAvailability(){
   try{
@@ -2357,7 +2424,7 @@ function setRegisteredPlayerNameMode(allowChange=false){
   const changeButton = document.getElementById('change-player-btn');
   const label = document.getElementById('my-player-name-label');
   const help = document.getElementById('player-picker-help');
-  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   changingRegisteredPlayer = Boolean(ownResponse && allowChange);
   input.readOnly = Boolean(ownResponse && !changingRegisteredPlayer);
   modeButton.hidden = Boolean(ownResponse);
@@ -2390,8 +2457,18 @@ function renderRecurrentPlayerMenu(){
   input.setAttribute('aria-expanded','true');
   menu.querySelectorAll('[data-recurrent-index]').forEach(button=>{
     button.onclick = ()=>{
-      input.value = recurrentPlayers[Number(button.dataset.recurrentIndex)] || '';
+      const selectedName = recurrentPlayers[Number(button.dataset.recurrentIndex)] || '';
+      input.value = selectedName;
       hideRecurrentPlayerMenu();
+      const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
+      const selectedResponse = localAvailabilityResponses.find(item=>
+        !item.isGuest && item.name.toLocaleLowerCase('es')===selectedName.toLocaleLowerCase('es')
+      );
+      if(!ownResponse && selectedResponse){
+        pendingClaimResponseId = selectedResponse.responseId;
+        document.getElementById('claim-player-text').textContent = `¿Sos ${selectedResponse.name}?`;
+        document.getElementById('claim-player-overlay').classList.add('open');
+      }
     };
   });
   menu.querySelectorAll('[data-delete-recurrent-index]').forEach(button=>{
@@ -2525,7 +2602,7 @@ async function savePlayerRegistration(response){
     const normalizedName = response.name.toLocaleLowerCase('es');
     const duplicate = remoteResponses.find(item=>
       item.responseId!==response.responseId &&
-      item.ownerId!==currentSessionUserId &&
+      !responseBelongsToCurrentDevice(item) &&
       item.name.toLocaleLowerCase('es')===normalizedName
     );
     if(duplicate){
@@ -2535,10 +2612,10 @@ async function savePlayerRegistration(response){
       return {ok:false, duplicate:true};
     }
     const combined = remoteResponses.filter(item=>
-      item.responseId!==response.responseId && !(item.ownerId===currentSessionUserId && !item.isGuest)
+      item.responseId!==response.responseId && !(responseBelongsToCurrentDevice(item) && !item.isGuest)
     );
     combined.forEach(item=>{
-      if(item.isGuest && item.ownerId===currentSessionUserId) item.invitedBy = response.name;
+      if(item.isGuest && responseBelongsToCurrentDevice(item)) item.invitedBy = response.name;
     });
     combined.push(response);
     nextState.responses = combined;
@@ -2555,7 +2632,7 @@ async function savePlayerRegistration(response){
 
 function getCurrentPlayerGuests(){
   if(!currentSessionUserId) return [];
-  return localAvailabilityResponses.filter(item=>item.isGuest === true && item.ownerId===currentSessionUserId);
+  return localAvailabilityResponses.filter(item=>item.isGuest === true && responseBelongsToCurrentDevice(item));
 }
 
 function chooseBalancedTeam(excludeName=''){
@@ -2775,7 +2852,7 @@ function syncMockToOptions(){
 function restoreCurrentLocalResponse(){
   if(!currentLocalResponseName) return;
   const response = localAvailabilityResponses.find(item=>
-    !item.isGuest && item.ownerId===currentSessionUserId
+    !item.isGuest && responseBelongsToCurrentDevice(item)
   );
   if(!response) return;
 
@@ -2881,7 +2958,7 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     showToast('El horario “Hasta” debe ser posterior a “Desde”.');
     return;
   }
-  const existingResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  const existingResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   const nameCollision = localAvailabilityResponses.find(item=>
     item.responseId!==existingResponse?.responseId && item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
   );
@@ -2893,6 +2970,7 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   const response = {
     responseId:existingResponse?.responseId || crypto.randomUUID(),
     ownerId:currentSessionUserId,
+    ownerIds:existingResponse?.ownerIds || [currentSessionUserId],
     name:playerName,
     status:mockAvailability,
     from:mockAvailability==='out' ? '' : from,
@@ -2964,7 +3042,7 @@ document.getElementById('guest-add-btn').onclick = ()=>{
   const input = document.getElementById('guest-name-input');
   const guestName = input.value.trim();
   const owner = localAvailabilityResponses.find(item=>
-    !item.isGuest && item.ownerId===currentSessionUserId
+    !item.isGuest && responseBelongsToCurrentDevice(item)
   );
   if(!owner){ showToast('Primero confirmá tu estado.'); return; }
   if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
@@ -2973,6 +3051,7 @@ document.getElementById('guest-add-btn').onclick = ()=>{
   upsertLocalAvailability({
     responseId:crypto.randomUUID(),
     ownerId:currentSessionUserId,
+    ownerIds:[currentSessionUserId],
     name:guestName,
     status:'in',
     from:owner.from || '16:00',
@@ -2997,7 +3076,7 @@ document.getElementById('guest-name-input').addEventListener('keydown', event=>{
 document.querySelectorAll('.my-status-paid button').forEach(button=>{
   button.onclick = ()=>{
     const response = localAvailabilityResponses.find(item=>
-      !item.isGuest && item.ownerId===currentSessionUserId
+      !item.isGuest && responseBelongsToCurrentDevice(item)
     );
     if(!response || response.status!=='in') return;
     response.paid = button.dataset.value === 'yes';
@@ -3033,7 +3112,7 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
     responseId:item.responseId || crypto.randomUUID()
   }));
   state.responses = localAvailabilityResponses;
-  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   currentLocalResponseName = ownResponse?.name || '';
   recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))]
     .sort((a,b)=>a.localeCompare(b,'es'));
