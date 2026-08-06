@@ -970,16 +970,17 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
    CONFIGURÁ ACÁ TU PROYECTO DE SUPABASE
    (Project Settings → API, en supabase.com)
    ============================================================ */
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://wzjlcbiyasxamkfjmidr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_jLCVsQsqHjEDMY_o8oKobg_wCsmCSXj';
 /* ============================================================ */
 
-const DEMO_MODE = true;
+const DEMO_MODE = false;
 let supabaseClient = null;
 if(!DEMO_MODE) try{
   if(!window.supabase) throw new Error('El script de Supabase no cargó (revisá tu conexión o si algo lo está bloqueando).');
@@ -1024,7 +1025,7 @@ async function fetchServerState(){
       .select('data')
       .eq('id', ROW_ID)
       .maybeSingle();
-    if(error || !data || !data.data) return null;
+    if(error || !data || !data.data || Object.keys(data.data).length === 0) return null;
     const parsed = data.data;
     if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'', priceTotal:'', alias:'' };
     if(!parsed.history) parsed.history = [];
@@ -2861,12 +2862,26 @@ document.querySelectorAll('.my-status-paid button').forEach(btn=>{
 });
 
 (async function init(){
-  state = defaultState();
+  if(!supabaseClient){
+    document.body.innerHTML = '<main style="max-width:560px;margin:64px auto;padding:24px;font-family:Arial,sans-serif"><h1>No se pudo conectar</h1><p>Revisá la conexión e intentá nuevamente.</p></main>';
+    return;
+  }
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if(!sessionData.session){
+    const { error } = await supabaseClient.auth.signInAnonymously();
+    if(error){
+      console.error('No se pudo iniciar la sesión anónima:', error);
+      document.body.innerHTML = '<main style="max-width:560px;margin:64px auto;padding:24px;font-family:Arial,sans-serif"><h1>No se pudo ingresar</h1><p>Revisá que el acceso anónimo esté activado en Supabase y recargá la página.</p></main>';
+      return;
+    }
+  }
+  state = (await fetchServerState()) || defaultState();
   syncLocalAvailabilityWithPlayers();
   loadLocalFormationState();
   updateKnownSets(state);
   render();
   restoreCurrentLocalResponse();
+  setInterval(refreshFromServer, 4000);
 })();
 </script>
 </body>

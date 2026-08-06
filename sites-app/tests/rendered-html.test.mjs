@@ -33,12 +33,14 @@ test("renders the ASP demo shell", async () => {
   assert.match(html, /src="\/demo\.html"/i);
 });
 
-test("keeps the hosted demo disconnected from Supabase", async () => {
+test("connects the hosted app to Supabase using anonymous authentication", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /const DEMO_MODE = true/);
-  assert.doesNotMatch(demo, /https:\/\/[a-z0-9-]+\.supabase\.co/i);
-  assert.doesNotMatch(demo, /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/);
+  assert.match(demo, /const DEMO_MODE = false/);
+  assert.match(demo, /https:\/\/[a-z0-9-]+\.supabase\.co/i);
+  assert.match(demo, /sb_publishable_[a-zA-Z0-9_-]+/);
+  assert.match(demo, /auth\.signInAnonymously\(\)/);
+  assert.doesNotMatch(demo, /sb_secret_|service_role/i);
 });
 
 test("reflects locally saved availability in the player lists", async () => {
