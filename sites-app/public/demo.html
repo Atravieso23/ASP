@@ -621,10 +621,10 @@
         <label for="my-player-name" id="my-player-name-label">Nombre del jugador</label>
         <div class="player-picker-row">
           <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
-          <button type="button" class="player-picker-mode" id="first-time-player-btn">Primera vez</button>
+          <button type="button" class="player-picker-mode" id="first-time-player-btn">Registrarme</button>
         </div>
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
-        <p class="player-picker-help" id="player-picker-help">Escribí para buscarte entre los jugadores recurrentes.</p>
+        <p class="player-picker-help" id="player-picker-help">Buscá tu nombre. Si no aparecés, tocá “Registrarme”.</p>
       </div>
       <span class="my-status-label">Disponibilidad</span>
       <div class="my-status-choice" role="group" aria-label="Disponibilidad">
@@ -2313,7 +2313,7 @@ function renderRecurrentPlayerMenu(){
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
       <button type="button" class="recurrent-player-delete" data-delete-recurrent-index="${item.index}" aria-label="Quitar a ${escapeHtml(item.name)} de jugadores recurrentes">×</button>
-    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Usá “Primera vez”.</p>';
+    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Tocá “Registrarme” para crear tu jugador.</p>';
   menu.hidden = false;
   input.setAttribute('aria-expanded','true');
   menu.querySelectorAll('[data-recurrent-index]').forEach(button=>{
@@ -2344,10 +2344,10 @@ function setFirstTimeRegistration(active,preserveValue=false){
   const confirm = document.getElementById('my-status-confirm');
   if(!preserveValue) input.value = '';
   button.classList.toggle('active', active);
-  button.textContent = active ? 'Cancelar' : 'Primera vez';
+  button.textContent = active ? 'Cancelar' : 'Registrarme';
   label.textContent = active ? 'Registrar jugador' : 'Nombre del jugador';
   input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
-  help.textContent = active ? 'Al confirmar, tu nombre quedará guardado para las próximas fechas.' : 'Escribí para buscarte entre los jugadores recurrentes.';
+  help.textContent = active ? 'Confirmá para registrarte y guardar tu nombre para las próximas fechas.' : 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
   confirm.textContent = active ? 'Registrarme y confirmar' : 'Confirmar';
   hideRecurrentPlayerMenu();
   if(active || !preserveValue) input.focus();
@@ -2600,7 +2600,7 @@ const recurrentPlayerField = document.querySelector('.recurrent-player-field');
 const recurrentPlayerInput = document.getElementById('my-player-name');
 recurrentPlayerInput.addEventListener('focus',renderRecurrentPlayerMenu);
 recurrentPlayerInput.addEventListener('input',renderRecurrentPlayerMenu);
-document.getElementById('first-time-player-btn').onclick = ()=>setFirstTimeRegistration(!registeringFirstTime);
+document.getElementById('first-time-player-btn').onclick = ()=>setFirstTimeRegistration(!registeringFirstTime,true);
 document.addEventListener('pointerdown',event=>{
   if(!recurrentPlayerField.contains(event.target)) hideRecurrentPlayerMenu();
 });
@@ -2745,7 +2745,7 @@ document.getElementById('my-status-confirm').onclick = ()=>{
   const recurrentMatch = recurrentPlayers.find(name=>name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
   if(!registeringFirstTime && !recurrentMatch){
     nameInput.setAttribute('aria-invalid','true');
-    showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Primera vez”.');
+    showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Registrarme”.');
     renderRecurrentPlayerMenu();
     return;
   }

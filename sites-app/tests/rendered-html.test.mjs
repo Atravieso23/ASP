@@ -202,11 +202,14 @@ test("supports recurrent players and first-time registration", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /LOCAL_RECURRENT_PLAYERS_KEY/);
-  assert.match(demo, /id="first-time-player-btn">Primera vez/);
+  assert.match(demo, /id="first-time-player-btn">Registrarme/);
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
   assert.match(demo, /data-delete-recurrent-index/);
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
+  assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
+  assert.match(demo, /Si no aparecés, tocá “Registrarme”/);
+  assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
 });
 
