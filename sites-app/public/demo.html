@@ -1,0 +1,2873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASP · Picado del Sábado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --celeste:#4D8FAF;
+    --celeste-deep:#65A2C2;
+    --navy:#EAF4FB;
+    --bg-top:#0B1F30;
+    --bg-bottom:#0E2739;
+    --page-bg:#0A1A28;
+    --white:#122E42;
+    --card-border:#1F4258;
+    --muted:#8CA9BB;
+    --roca:#050506;
+    --lacole:#DEDCD4;
+    --lacole-border:#ECEAE3;
+    --danger:#E4634B;
+    --ok:#3FAE7A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top left, rgba(255,255,255,0.5), transparent 55%),
+      linear-gradient(180deg, var(--bg-top) 0%, var(--page-bg) 100%);
+    color:var(--navy);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding:0 0 60px 0;
+    transition:background 0.25s ease, color 0.25s ease;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:22px 16px 0;}
+
+  /* TABS */
+  .tabs{display:flex; gap:8px; margin-bottom:18px;}
+  .tab-btn{
+    flex:1; padding:11px; border-radius:10px; border:1px solid var(--card-border);
+    background:var(--white); color:var(--muted); font-weight:700; font-family:'Oswald',sans-serif;
+    text-transform:uppercase; font-size:13px; letter-spacing:.08em; cursor:pointer;
+  }
+  .tab-btn.active{background:var(--celeste-deep); color:#fff; border-color:transparent;}
+
+  /* HERO TICKET */
+  .ticket{
+    position:relative;
+    background:var(--white);
+    border:1px solid var(--card-border);
+    border-radius:18px;
+    padding:26px 24px 22px;
+    overflow:hidden;
+    box-shadow:0 20px 45px -22px rgba(29,111,165,0.35);
+  }
+  .ticket::before{
+    content:"";
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(79,166,222,0.06), transparent 60%);
+    pointer-events:none;
+  }
+  .ticket-notch{
+    position:absolute; top:50%; width:22px; height:22px; border-radius:50%;
+    background:var(--bg-bottom); border:1px solid var(--card-border); transform:translateY(-50%);
+  }
+  .ticket-notch.left{left:-12px;} .ticket-notch.right{right:-12px;}
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--celeste-deep); margin:0 0 6px; font-weight:700;
+  }
+  .ticket-heading-row{
+    display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px 10px; white-space:normal;
+    border-bottom:2px dashed var(--card-border); padding-bottom:14px; margin-bottom:18px;
+  }
+  .ticket-heading-row .eyebrow{
+    margin:0; display:flex; align-items:center; gap:4px; min-width:0;
+    font-size:clamp(8px,2.4vw,11px); letter-spacing:clamp(.08em,1.4vw,.18em); white-space:nowrap;
+  }
+  .ticket-heading-separator{color:var(--card-border); font-weight:700;}
+  .ticket-type-badge{
+    font:700 clamp(9px,2.3vw,11px) 'JetBrains Mono',monospace;color:var(--navy);
+    background:var(--bg-bottom);border:1px solid var(--card-border);border-radius:999px;
+    padding:4px 8px;white-space:nowrap;flex-shrink:0;
+  }
+  h1.team-name{
+    font-family:'Oswald', sans-serif;
+    font-weight:700; font-size:clamp(24px,7vw,38px);
+    margin:0; letter-spacing:.01em; color:var(--navy); flex-shrink:0;
+    text-transform:uppercase;
+  }
+  .scoreboard{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:12px;
+  }
+  @media(min-width:520px){ .scoreboard{grid-template-columns:repeat(3,1fr);} }
+  .sb-item{
+    background:var(--bg-bottom);
+    border:1px solid var(--card-border);
+    border-radius:10px;
+    padding:10px 12px;
+    text-align:center;
+  }
+  .sb-item.highlight{background:linear-gradient(135deg, var(--celeste), var(--celeste-deep)); border-color:transparent;}
+  .sb-item.highlight .sb-label, .sb-item.highlight .sb-value{color:#fff;}
+  .sb-label{
+    font-size:10px; text-transform:uppercase; letter-spacing:.12em;
+    color:var(--muted); margin-bottom:4px; font-weight:700;
+  }
+  .sb-value{
+    font-family:'JetBrains Mono', monospace;
+    font-size:16px; font-weight:700; color:var(--navy);
+    word-break:break-word;
+  }
+  .sb-value.empty{color:var(--muted); font-weight:400; font-style:italic; font-size:13px;}
+  .edit-btn{
+    margin-top:16px;
+    background:transparent; border:1px solid var(--card-border);
+    color:var(--celeste-deep); font-family:'Inter',sans-serif; font-weight:700;
+    font-size:13px; padding:9px 14px; border-radius:8px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .edit-btn:hover{border-color:var(--celeste-deep); background:var(--bg-bottom);}
+
+  /* SECTIONS */
+  .section{margin-top:26px;}
+  .section-title{
+    font-family:'Oswald', sans-serif; text-transform:uppercase;
+    font-size:14px; letter-spacing:.14em; color:var(--celeste-deep);
+    display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  }
+  .section-title .count{
+    background:var(--celeste); color:#fff; font-family:'JetBrains Mono',monospace;
+    font-weight:700; font-size:12px; padding:2px 8px; border-radius:999px;
+  }
+  .section-title::after{content:""; flex:1; height:1px; background:var(--card-border);}
+
+  .join-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .join-row select, .join-row input{
+    flex:1 1 180px; background:var(--white); border:1px solid var(--card-border);
+    color:var(--navy); border-radius:10px; padding:12px 14px; font-size:15px;
+    font-family:'Inter',sans-serif;
+  }
+  .join-row select:focus, .join-row input:focus{outline:none; border-color:var(--celeste);}
+  .status-btns{display:flex; gap:6px; flex-wrap:wrap;}
+  .status-btns button{
+    border:none; border-radius:10px; padding:0 14px; height:44px; font-weight:700;
+    font-family:'Inter',sans-serif; font-size:13.5px; cursor:pointer; white-space:nowrap;
+  }
+  .btn-in{background:var(--ok); color:#fff;}
+  .btn-duda{background:#E8A93B; color:#3a2500;}
+  .btn-out{background:#E4E9EC; color:var(--muted);}
+  .status-btns button:active{transform:scale(0.97);}
+  .hint{font-size:12px; color:var(--muted); margin:8px 2px 0;}
+
+  .player-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
+  @media(min-width:600px){.player-list{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  .player-row{
+    display:flex; align-items:center; gap:5px;
+    background:var(--white); border:1px solid var(--card-border);
+    border-radius:10px; padding:9px 8px;
+  }
+  .player-row .captain-star, .player-row .icon-btn{display:none;}
+  .player-name{
+    flex:1 1 auto; font-weight:600; font-size:14px; min-width:30px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .captain-star{
+    width:18px; height:28px; flex-shrink:0; border:none; background:transparent; cursor:pointer;
+    font-size:15px; line-height:1; color:var(--card-border); display:flex; align-items:center;
+    justify-content:center; padding:0;
+  }
+  .captain-star.active{color:#E8A93B;}
+  .jersey-input{
+    width:28px; text-align:center; border:1px solid var(--card-border); border-radius:6px;
+    padding:5px 1px; font-family:'JetBrains Mono',monospace; font-size:12px;
+    background:var(--bg-bottom); color:var(--navy); flex-shrink:0;
+  }
+  .icon-btn{
+    width:28px; height:28px; border-radius:7px; border:1px solid var(--card-border);
+    background:var(--bg-bottom); cursor:pointer; font-size:13px; display:flex;
+    align-items:center; justify-content:center; flex-shrink:0; color:var(--navy);
+  }
+  .icon-btn.paid{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .icon-btn.danger{color:var(--danger);}
+  .empty-state{
+    color:var(--muted); font-size:13.5px; font-style:italic; padding:14px 4px;
+    grid-column:1/-1;
+  }
+
+  /* SWITCH CONFIRMADOS / ESPERA / DUDA / NO VAN */
+  .status-switch{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .status-switch-btn{
+    flex:1 1 calc(50% - 6px); padding:9px 8px; border-radius:9px; border:1px solid var(--card-border);
+    background:var(--white); color:var(--muted); font-weight:700; font-size:12.5px; cursor:pointer;
+    font-family:'Inter',sans-serif; display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;
+  }
+  @media(min-width:480px){ .status-switch-btn{flex:1 1 auto;} }
+  .status-switch-btn.active{background:var(--celeste-deep); color:#fff; border-color:transparent;}
+  .status-switch-btn[hidden]{display:none !important;}
+  .status-switch-btn .count{
+    background:rgba(0,0,0,0.08); color:inherit; font-family:'JetBrains Mono',monospace;
+    font-weight:700; font-size:11px; padding:1px 7px; border-radius:999px;
+  }
+  .status-switch-btn.active .count{background:rgba(255,255,255,0.28); color:#fff;}
+
+  /* TEAMS SPLIT (vista lista) */
+  .split{display:grid; grid-template-columns:1fr; gap:8px;}
+  .split-col{padding:10px 12px;text-align:center;border-radius:10px;border:1px solid var(--card-border);}
+  .split-col.negro{background:var(--roca);border-color:#34343A;}
+  .split-col.blanco{background:var(--lacole);border-color:var(--lacole-border);}
+  .split-col h3{
+    font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:14px; letter-spacing:.08em;
+    margin:0 0 6px;
+  }
+  .split-col.negro h3{color:#fff;}
+  .split-col.blanco h3{color:#1a1a1a;}
+  .split-col ul{list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; justify-content:center; gap:4px 14px;}
+  .split-col li{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .split-col.negro li{color:#e8e6df; font-size:14px;}
+  .split-col.blanco li{color:#222; font-size:14px;}
+  .split-name{display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .captain-band{
+    flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    width:17px; height:17px; border-radius:3px; background:#E8A93B; color:#3a2500;
+    font-size:10px; font-weight:800; font-family:'JetBrains Mono',monospace;
+  }
+  .split-number{
+    flex-shrink:0; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; opacity:0.85;
+  }
+
+  /* VISTA FORMACION */
+  .pitch-wrap{margin-bottom:24px;}
+  .pitch-header{display:flex; justify-content:center; align-items:center; flex-wrap:wrap; margin-bottom:8px; gap:8px;}
+  .pitch-header h3{margin:0; font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:14px; letter-spacing:.06em;}
+  .pitch-header select{
+    padding:7px 8px; font-size:12px; border-radius:7px; border:1px solid var(--card-border);
+    background:var(--bg-bottom); color:var(--navy); font-family:'Inter',sans-serif;
+  }
+  .pitch{
+    position:relative; width:100%; aspect-ratio:3/4; border-radius:12px; overflow:hidden;
+    background: repeating-linear-gradient(0deg, #2E8B57 0, #2E8B57 10%, #34965F 10%, #34965F 20%);
+    border:3px solid rgba(255,255,255,0.55); touch-action:none;
+  }
+  .pitch-slot{
+    position:absolute; width:15%; aspect-ratio:1; transform:translate(-50%,-50%);
+    border:2px dashed rgba(255,255,255,0.55); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; color:rgba(255,255,255,0.75); font-weight:700; text-transform:uppercase;
+    font-family:'JetBrains Mono',monospace; pointer-events:none;
+  }
+  .field-chip{
+    position:absolute; width:15%; aspect-ratio:1; transform:translate(-50%,-50%);
+    border-radius:50%; background:var(--roca); color:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; font-size:10px; font-weight:700; cursor:grab;
+    box-shadow:0 4px 10px rgba(0,0,0,0.35); user-select:none; touch-action:none;
+    border:2px solid rgba(255,255,255,0.7); line-height:1.15; padding:2px; text-align:center; z-index:5;
+  }
+  .field-chip.blanco{background:var(--lacole); color:#1a1a1a;}
+  .field-chip.extra{width:11%;border-style:dashed;opacity:.92;}
+  .field-chip.extra::after{content:"SUP";position:absolute;right:-5px;bottom:-5px;padding:1px 3px;border-radius:4px;background:#E8A93B;color:#3a2500;font:700 7px 'JetBrains Mono',monospace;}
+  .field-chip .num{font-family:'JetBrains Mono',monospace; font-size:11px;}
+  .field-chip.dragging{cursor:grabbing; z-index:10; opacity:0.88;}
+  .organizer-formations{display:grid;grid-template-columns:1fr;gap:22px;}
+  .organizer-formation-team{min-width:0;}
+  .organizer-formation-team .pitch-wrap{margin-bottom:0;}
+  .formation-team-title{display:flex;align-items:center;gap:8px;color:var(--navy)!important;}
+  .formation-team-title::before{content:"";width:12px;height:12px;border-radius:4px;border:1px solid var(--card-border);background:var(--roca);}
+  .organizer-formation-team.blanco .formation-team-title::before{background:var(--lacole);border-color:var(--lacole-border);}
+  .organizer-formation-help{margin:14px 0 0;text-align:center;color:var(--muted);font-size:12px;line-height:1.5;}
+  @media(min-width:680px){.organizer-formations{grid-template-columns:1fr 1fr;}}
+
+  .money-summary{
+    display:grid;grid-template-columns:1fr 1fr auto;align-items:center;gap:8px;
+    border-top:1px dashed var(--card-border);padding:14px 0 0;margin-top:16px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;
+  }
+  .cash-metric{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;}
+  .cash-metric-value{color:var(--navy);font-size:12px;text-transform:none;letter-spacing:0;white-space:nowrap;}
+  .money-summary b{color:var(--celeste-deep); font-size:15px;}
+  .money-summary .edit-btn{margin:0;padding:8px 10px;font-size:11px;white-space:nowrap;justify-self:center;}
+
+  .finalize-box{
+    background:var(--white); border:1px dashed var(--card-border); border-radius:12px;
+    padding:16px; text-align:center;
+  }
+  .finalize-btn{
+    background:#315F78; color:#fff; border:none; border-radius:10px;
+    padding:12px 20px; font-weight:700; font-size:14px; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .finalize-hint{font-size:12px; color:var(--muted); margin-top:8px;}
+
+  .history-item{
+    background:var(--white); border:1px solid var(--card-border); border-radius:10px;
+    padding:0; margin-bottom:10px; font-size:13.5px; overflow:hidden;
+  }
+  .history-item .h-date{font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.06em; color:var(--celeste-deep); font-weight:700; margin-bottom:6px;}
+  .history-item .h-row{color:var(--muted); margin-top:2px;}
+  .history-standings{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
+  }
+  .standings-item{
+    background:var(--white); border:1px solid var(--card-border); border-radius:10px;
+    padding:10px 8px; text-align:center;
+  }
+  .standings-item.roca{background:var(--roca);}
+  .standings-item.cole{background:var(--lacole); border-color:var(--lacole-border);}
+  .standings-num{
+    display:block; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:20px; color:var(--navy);
+  }
+  .standings-item.roca .standings-num, .standings-item.roca .standings-label{color:#fff;}
+  .standings-item.cole .standings-num, .standings-item.cole .standings-label{color:#1a1a1a;}
+  .standings-label{
+    display:block; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-top:2px; font-weight:700;
+  }
+  .history-summary{
+    list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; gap:10px;
+  }
+  .history-summary::-webkit-details-marker{display:none;}
+  .history-summary .h-chevron{
+    margin-left:auto; flex-shrink:0; color:var(--muted); font-size:12px; transition:transform 0.15s ease;
+  }
+  .history-item[open] .h-chevron{transform:rotate(180deg);}
+  .history-summary-main{min-width:0; flex:1;}
+  .history-result{
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--navy); margin:4px 0 2px;
+  }
+  .history-goals-line{font-size:12px; color:var(--muted);}
+  .history-details{
+    padding:0 14px 14px; border-top:1px solid var(--card-border); margin-top:0;
+  }
+  .history-edit-field{margin-top:12px;}
+  .history-edit-field label{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:5px; font-weight:700;}
+  .history-edit-field input{
+    background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:7px;
+    padding:8px 10px; font-size:13px; color:var(--navy); font-family:'Inter',sans-serif;
+  }
+  .score-row{display:flex; align-items:center; gap:8px;}
+  .score-row input{width:52px; text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700;}
+  .score-row span{color:var(--muted); font-weight:700;}
+  .goals-list{list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .goals-list li{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px;}
+  .goals-list input{width:44px; text-align:center;}
+
+  /* MODAL */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(14,42,61,0.55); display:none;
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--white); border:1px solid var(--card-border); border-radius:16px;
+    padding:22px; width:100%; max-width:420px; max-height:90vh; overflow-y:auto;
+  }
+  .modal h2{font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:18px; margin:0 0 16px; color:var(--navy);}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:6px; font-weight:700;}
+  .field input, .field select{
+    width:100%; background:var(--bg-bottom); border:1px solid var(--card-border);
+    color:var(--navy); border-radius:8px; padding:10px 12px; font-size:14px; font-family:'Inter',sans-serif;
+  }
+  .field-note{font-size:11.5px; color:var(--muted); margin-top:5px;}
+  .modal-actions{display:flex; gap:10px; margin-top:18px;}
+  .modal-actions button{flex:1; padding:11px; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer; border:none; font-family:'Inter',sans-serif;}
+  .btn-cancel{background:transparent; border:1px solid var(--card-border) !important; color:var(--navy);}
+  .btn-save{background:var(--celeste-deep); color:#fff;}
+  .btn-confirm-danger{background:var(--danger); color:#fff;}
+  .link-btn{background:none; border:none; color:var(--celeste-deep); font-size:12px; font-weight:700; cursor:pointer; text-decoration:underline; padding:0; font-family:'Inter',sans-serif;}
+
+  .footer-note{text-align:center; color:var(--muted); font-size:11.5px; margin-top:34px; line-height:1.6;}
+
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
+    background:var(--navy); color:#fff; padding:10px 18px; border-radius:999px;
+    font-size:13px; font-weight:600; opacity:0; pointer-events:none; z-index:60;
+    transition:opacity 0.25s ease, transform 0.25s ease; box-shadow:0 10px 30px -10px rgba(0,0,0,0.4);
+    max-width:88vw; text-align:center;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .countdown-badge{
+    font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:700;
+    color:var(--celeste-deep); background:var(--bg-bottom); border:1px solid var(--card-border);
+    padding:2px 9px; border-radius:999px; margin-left:8px; text-transform:none; letter-spacing:0; white-space:nowrap;
+  }
+  @media(max-width:420px){
+    .ticket{padding-left:16px; padding-right:16px;}
+    .ticket-heading-row{gap:6px;}
+    h1.team-name{font-size:22px;}
+    .ticket-heading-row .eyebrow{letter-spacing:.06em;}
+    .countdown-badge{font-size:9px; padding:2px 5px; margin-left:2px;}
+    .ticket-type-badge{padding:3px 6px;}
+    .money-summary{gap:5px;padding:12px 0 0;}
+    .money-summary .edit-btn{padding:8px;}
+    .money-summary .edit-label{display:none;}
+  }
+  .alias-row, .loc-row{display:flex; align-items:center; justify-content:center; gap:6px;}
+  .copy-alias-btn{
+    background:transparent; border:1px solid var(--card-border); color:var(--celeste-deep);
+    border-radius:6px; width:24px; height:24px; font-size:12px; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .faltan-pagar{
+    font:600 11.5px/1.45 'Inter',sans-serif;color:#B85B4D;margin:10px 0 0;padding:7px 9px;
+    background:rgba(42,23,24,.72);border:0;border-radius:6px;
+  }
+  .faltan-pagar:empty{display:none;}
+  .faltan-pagar b{color:#C76C5E;font-weight:700;}
+  .faltan-pagar.all-paid{color:#76B99A;background:rgba(63,174,122,.06);border-color:rgba(63,174,122,.18);}
+  .capacity-note{font-size:11.5px; color:var(--muted); margin:6px 2px 0;}
+  .undo-btn{
+    margin-top:8px; background:transparent; border:1px solid var(--card-border);
+    color:var(--celeste-deep); font-size:12px; font-weight:700; padding:6px 10px;
+    border-radius:7px; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .new-loc-field{margin-top:8px;}
+
+  /* MI ESTADO (maqueta local, sin persistencia) */
+  .my-status-card{
+    background:var(--white); border:1px solid var(--card-border); border-radius:16px;
+    padding:18px; margin-bottom:16px; box-shadow:0 14px 30px -24px rgba(14,42,61,0.45);
+  }
+  .my-status-heading{
+    display:flex; align-items:center; gap:10px; margin:0 0 16px;
+    font-family:'Oswald',sans-serif; font-size:17px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--navy);
+  }
+  .my-status-heading::before{
+    content:""; width:9px; height:9px; border-radius:50%; background:var(--celeste);
+    box-shadow:0 0 0 4px rgba(79,166,222,.14);
+  }
+  .my-status-field{margin-bottom:14px;}
+  .my-status-field label, .my-status-label{
+    display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--muted); margin-bottom:6px; font-weight:700;
+  }
+  .my-status-field select, .my-status-field input{
+    width:100%; background:var(--bg-bottom); border:1px solid var(--card-border);
+    color:var(--navy); border-radius:9px; padding:11px 12px; font:14px 'Inter',sans-serif;
+  }
+  .recurrent-player-field{position:relative;}
+  .player-picker-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;}
+  .player-picker-mode{border:1px solid var(--card-border);border-radius:9px;background:var(--bg-bottom);color:var(--celeste-deep);padding:0 10px;font:700 11px 'Inter',sans-serif;cursor:pointer;white-space:nowrap;}
+  .player-picker-mode.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
+  .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
+  .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:220px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
+  .recurrent-player-menu[hidden]{display:none;}
+  .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;padding:4px;border-radius:8px;}
+  .recurrent-player-option:hover{background:var(--bg-bottom);}
+  .recurrent-player-select{min-width:0;border:0;background:transparent;color:var(--navy);padding:7px 8px;text-align:left;font:600 12px 'Inter',sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .recurrent-player-delete{width:28px;height:28px;border:1px solid rgba(193,67,42,.35);border-radius:7px;background:transparent;color:var(--danger);font-size:13px;cursor:pointer;}
+  .recurrent-player-empty{margin:0;padding:9px;color:var(--muted);font-size:11px;text-align:center;}
+  .my-status-choice, .my-status-paid{display:flex; gap:8px;}
+  .my-status-choice button, .my-status-paid button{
+    flex:1; border:1px solid var(--card-border); border-radius:9px; background:var(--bg-bottom);
+    color:var(--muted); padding:10px 12px; font:700 13px 'Inter',sans-serif; cursor:pointer;
+  }
+  .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
+  .my-status-times{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .my-status-confirm{
+    width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
+    background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
+  }
+  .my-status-summary{display:none;}
+  .my-status-card.collapsed .my-status-form{display:none;}
+  .my-status-card.collapsed .my-status-summary{display:block;}
+  .my-status-summary-top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
+  .my-status-summary-title{font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); font-weight:700;}
+  .my-status-summary-value{margin-top:5px; font:700 15px 'JetBrains Mono',monospace; color:var(--navy);}
+  .my-status-summary-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;}
+  .my-status-edit{
+    border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
+    background:transparent; color:var(--celeste-deep); font:700 12px 'Inter',sans-serif; cursor:pointer;
+  }
+  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:16px; padding-top:14px;}
+  .my-status-payment.has-guests .my-status-paid{max-width:210px;}
+  .my-status-paid button.active{background:var(--celeste-deep); border-color:var(--celeste-deep); color:#fff;}
+  .guest-manager{margin-top:14px;padding-top:14px;border-top:1px dashed var(--card-border);}
+  .guest-manager[hidden]{display:none;}
+  .guest-manager-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+  .guest-manager-head h3{margin:0;font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);}
+  .guest-manager-count{font:700 10px 'JetBrains Mono',monospace;color:var(--muted);}
+  .guest-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-bottom:10px;}
+  .guest-add-row input{min-width:0;background:var(--bg-bottom);border:1px solid var(--card-border);color:var(--navy);border-radius:9px;padding:10px 11px;font:13px 'Inter',sans-serif;}
+  .guest-add-row button{border:0;border-radius:9px;padding:9px 12px;background:var(--celeste-deep);color:#fff;font:700 12px 'Inter',sans-serif;cursor:pointer;}
+  .guest-list{display:grid;gap:7px;}
+  .guest-item{border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);overflow:hidden;}
+  .guest-item summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;cursor:pointer;list-style:none;}
+  .guest-item summary::-webkit-details-marker{display:none;}
+  .guest-item summary::after{content:'›';font-size:20px;color:var(--muted);transform:rotate(90deg);transition:transform .18s;}
+  .guest-item[open] summary::after{transform:rotate(-90deg);}
+  .guest-summary-main{min-width:0;display:flex;align-items:center;gap:7px;flex:1;}
+  .guest-name{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .guest-payment-state{margin-left:auto;font:700 10px 'JetBrains Mono',monospace;color:var(--danger);white-space:nowrap;}
+  .guest-payment-state.paid{color:var(--ok);}
+  .guest-payment-state.absent{color:var(--muted);}
+  .guest-controls{padding:0 11px 11px;display:grid;gap:9px;}
+  .guest-control-row{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:8px;}
+  .guest-control-row>span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;}
+  .guest-toggle{display:flex;gap:6px;}
+  .guest-toggle button{flex:1;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--muted);padding:7px 8px;font:700 11px 'Inter',sans-serif;cursor:pointer;}
+  .guest-toggle button.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
+  .guest-remove{justify-self:end;border:0;background:transparent;color:var(--danger);font:700 11px 'Inter',sans-serif;cursor:pointer;padding:4px;}
+  .guest-empty{margin:4px 0 0;color:var(--muted);font-size:11px;text-align:center;}
+  .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:9px;white-space:nowrap;}
+
+  /* VISTAS PRINCIPALES */
+  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:rgba(255,255,255,.38);border:1px solid var(--card-border);border-radius:13px;}
+  .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
+  .main-view-btn.active{background:var(--celeste-deep);color:#fff;box-shadow:0 6px 16px -10px rgba(14,42,61,.65);}
+  .organizer-view{display:none;}
+  .organizer-header{margin:4px 0 18px;text-align:center;}
+  .organizer-header h1{margin:0 0 5px;font:700 clamp(25px,6vw,34px) 'Oswald',sans-serif;text-transform:uppercase;color:var(--navy);}
+  .organizer-header p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;}
+  .organizer-card{background:var(--white);border:1px solid var(--card-border);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 14px 30px -24px rgba(14,42,61,.45);}
+  .organizer-card-title{margin:0 0 15px;text-align:center;font:700 16px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
+  .organizer-player-list-details{margin-top:4px;}
+  .organizer-responses-summary{display:grid;grid-template-columns:auto minmax(90px,1fr) auto auto;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);font:700 12px 'Inter',sans-serif;color:var(--navy);}
+  .organizer-responses-summary::-webkit-details-marker{display:none;}
+  .organizer-responses-count{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:24px;padding:0 8px;border-radius:999px;background:var(--bg-bottom);color:var(--celeste-deep);font:700 11px 'JetBrains Mono',monospace;}
+  .organizer-responses-chevron{color:var(--muted);font-size:18px;line-height:1;transition:transform .18s ease;}
+  .organizer-player-list-details[open] .organizer-responses-chevron{transform:rotate(180deg);}
+  .organizer-responses-content{padding-top:12px;}
+  .organizer-response-search{width:100%;min-width:0;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--navy);padding:7px 9px;font:11px 'Inter',sans-serif;}
+  .organizer-response-search:focus{outline:none;border-color:var(--celeste-deep);}
+  .organizer-status-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+  .organizer-status-stat{display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 6px;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);text-align:center;}
+  .organizer-status-stat strong{font:700 21px 'JetBrains Mono',monospace;line-height:1;}
+  .organizer-status-stat span{font-size:10px;font-weight:700;color:var(--muted);}
+  .organizer-status-stat.confirmed strong{color:var(--ok);}
+  .organizer-status-stat.out strong{color:var(--danger);}
+  .availability-chart{display:flex;flex-direction:column;gap:7px;}
+  .availability-row{display:grid;grid-template-columns:48px 1fr 86px;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;color:var(--muted);font-size:12px;}
+  .availability-time{font:700 12px 'JetBrains Mono',monospace;color:var(--navy);}
+  .availability-track{height:8px;background:var(--bg-bottom);border-radius:999px;overflow:hidden;}
+  .availability-fill{height:100%;width:var(--availability);background:var(--celeste);border-radius:inherit;}
+  .availability-count{text-align:right;white-space:nowrap;}
+  .availability-row.peak{background:linear-gradient(135deg,var(--celeste),var(--celeste-deep));color:#fff;box-shadow:0 8px 20px -13px rgba(29,111,165,.8);}
+  .availability-row.peak .availability-time{color:#fff;}
+  .availability-row.peak .availability-track{background:rgba(255,255,255,.28);}
+  .availability-row.peak .availability-fill{background:#fff;}
+  .organizer-table-wrap{overflow:visible;}
+  .organizer-table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0;font-size:12px;}
+  .organizer-table th{padding:9px 5px;text-align:center;border-bottom:2px solid var(--card-border);color:var(--muted);font-size:9px;letter-spacing:.06em;text-transform:uppercase;}
+  .organizer-table td{padding:10px 5px;text-align:center;border-bottom:1px solid var(--card-border);color:var(--navy);word-break:break-word;}
+  .organizer-table th:nth-child(1),.organizer-table td:nth-child(1){width:17%;}
+  .organizer-table th:nth-child(2),.organizer-table td:nth-child(2){width:28%;}
+  .organizer-table th:nth-child(3),.organizer-table td:nth-child(3){width:18%;}
+  .organizer-table th:nth-child(4),.organizer-table td:nth-child(4){width:25%;}
+  .organizer-table th:nth-child(5),.organizer-table td:nth-child(5){width:12%;}
+  .organizer-table tr:last-child td{border-bottom:0;}
+  .status-pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;}
+  .status-pill.in{background:rgba(45,134,89,.13);color:var(--ok);}
+  .status-pill.out{background:rgba(193,67,42,.12);color:var(--danger);}
+  .payment-mark{font-weight:700;font-size:16px;}
+  .payment-mark.yes{color:var(--ok);}
+  .payment-mark.no{color:var(--danger);}
+  .organizer-player-static{display:block;font-weight:600;text-align:center;word-break:break-word;}
+  .team-choice-group{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;width:100%;}
+  .team-choice{
+    flex:1;border-radius:8px;padding:7px 8px;font:700 10px 'Inter',sans-serif;cursor:pointer;
+    opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s ease;
+  }
+  .team-choice.negro{background:#050506;border:1px solid #34343A;color:#fff;}
+  .team-choice.blanco{background:var(--lacole);border:1px solid var(--lacole-border);color:#17202a;}
+  .team-choice.active{opacity:1;box-shadow:0 0 0 2px var(--celeste-deep);transform:translateY(-1px);}
+  .organizer-assignment-hint{margin:11px 2px 0;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.5;}
+  .teams-section .hint{text-align:center;}
+  .organizer-actions .finalize-box{background:var(--bg-bottom);}
+  .organizer-actions .danger-zone{margin-top:12px;border-color:rgba(193,67,42,.45);}
+  .organizer-actions .danger-zone .finalize-btn{background:var(--danger);}
+  .organizer-empty{color:var(--muted);font-size:13px;font-style:italic;padding:10px 4px;line-height:1.5;}
+  @media(max-width:560px){
+    .organizer-card{padding:14px 10px;}
+    .organizer-responses-summary{padding:9px 10px;font-size:11px;}
+    .organizer-response-search{font-size:10px;padding:6px 7px;}
+    .organizer-responses-content{padding-top:10px;}
+    .organizer-table th{padding:7px 2px;font-size:8px;letter-spacing:.02em;}
+    .organizer-table td{padding:8px 2px;font-size:10px;}
+    .team-choice-group{flex-direction:column;gap:3px;}
+    .team-choice{width:100%;padding:5px 2px;font-size:8px;}
+    .status-pill{padding:3px 4px;font-size:9px;}
+  }
+
+  .manage-list{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto;}
+  .manage-row{display:flex; gap:6px; align-items:center; background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px; padding:8px;}
+  .manage-row input{flex:1; background:var(--white); border:1px solid var(--card-border); border-radius:6px; padding:7px 8px; font-size:13px; min-width:0;}
+  .manage-add-row{display:flex; gap:6px; margin-bottom:10px;}
+  .manage-add-row input{flex:1; background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px; padding:9px 10px; font-size:13px;}
+
+  ::selection{background:var(--celeste); color:#fff;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="main-view-switch" aria-label="Vista principal">
+    <button type="button" class="main-view-btn active" id="main-view-user-btn" aria-pressed="true">Usuario</button>
+    <button type="button" class="main-view-btn" id="main-view-organizer-btn" aria-pressed="false">Organizador</button>
+  </nav>
+
+  <div id="main-view-user">
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-partido">⚽ Partido</button>
+    <button class="tab-btn" id="tab-btn-historial">🕘 Historial</button>
+  </div>
+
+  <div id="tab-partido">
+
+  <section class="my-status-card" id="my-status-card" aria-labelledby="my-status-title">
+    <h2 class="my-status-heading" id="my-status-title">Mi estado</h2>
+    <div class="my-status-form">
+      <div class="my-status-field recurrent-player-field">
+        <label for="my-player-name" id="my-player-name-label">Nombre del jugador</label>
+        <div class="player-picker-row">
+          <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
+          <button type="button" class="player-picker-mode" id="first-time-player-btn">Primera vez</button>
+        </div>
+        <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
+        <p class="player-picker-help" id="player-picker-help">Escribí para buscarte entre los jugadores recurrentes.</p>
+      </div>
+      <span class="my-status-label">Disponibilidad</span>
+      <div class="my-status-choice" role="group" aria-label="Disponibilidad">
+        <button type="button" class="active" data-value="in" aria-pressed="true">Estoy</button>
+        <button type="button" data-value="out" aria-pressed="false">No estoy</button>
+      </div>
+      <div class="my-status-times" id="my-status-times">
+        <div class="my-status-field">
+          <label for="my-status-from">Desde</label>
+          <select id="my-status-from">
+            <option value="09:00">09:00</option>
+            <option value="10:00">10:00</option>
+            <option value="11:00">11:00</option>
+            <option value="12:00">12:00</option>
+            <option value="13:00">13:00</option>
+            <option value="14:00">14:00</option>
+            <option value="15:00">15:00</option>
+            <option value="16:00" selected>16:00</option>
+            <option value="17:00">17:00</option>
+            <option value="18:00">18:00</option>
+            <option value="19:00">19:00</option>
+            <option value="20:00">20:00</option>
+            <option value="21:00">21:00</option>
+          </select>
+        </div>
+        <div class="my-status-field">
+          <label for="my-status-to">Hasta</label>
+          <select id="my-status-to">
+            <option value="09:00">09:00</option>
+            <option value="10:00">10:00</option>
+            <option value="11:00">11:00</option>
+            <option value="12:00">12:00</option>
+            <option value="13:00">13:00</option>
+            <option value="14:00">14:00</option>
+            <option value="15:00">15:00</option>
+            <option value="16:00">16:00</option>
+            <option value="17:00">17:00</option>
+            <option value="18:00">18:00</option>
+            <option value="19:00">19:00</option>
+            <option value="20:00" selected>20:00</option>
+            <option value="21:00">21:00</option>
+            <option value="22:00">22:00</option>
+          </select>
+        </div>
+      </div>
+      <button type="button" class="my-status-confirm" id="my-status-confirm">Confirmar</button>
+    </div>
+    <div class="my-status-summary" aria-live="polite">
+      <div class="my-status-summary-top">
+        <div>
+          <div class="my-status-summary-title">Mi disponibilidad</div>
+          <div class="my-status-summary-value" id="my-status-summary-value">Estoy · 16:00–20:00</div>
+        </div>
+        <div class="my-status-summary-actions">
+          <button type="button" class="my-status-edit" id="my-status-edit">Editar respuesta</button>
+          <button type="button" class="my-status-edit" id="guest-manager-toggle" aria-expanded="false">Gestionar invitados · 0</button>
+        </div>
+      </div>
+      <div class="my-status-payment">
+        <span class="my-status-label">¿Ya pagué?</span>
+        <div class="my-status-paid" role="group" aria-label="Estado de pago">
+          <button type="button" data-value="yes" aria-pressed="false">Sí</button>
+          <button type="button" class="active" data-value="no" aria-pressed="true">No</button>
+        </div>
+        <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
+      </div>
+      <section class="guest-manager" id="guest-manager" aria-labelledby="guest-manager-title" hidden>
+        <div class="guest-manager-head">
+          <h3 id="guest-manager-title">Gestión de invitados</h3>
+          <span class="guest-manager-count" id="guest-manager-count">0 invitados</span>
+        </div>
+        <div class="guest-add-row">
+          <input type="text" id="guest-name-input" maxlength="40" placeholder="Nombre del invitado" aria-label="Nombre del invitado">
+          <button type="button" id="guest-add-btn">Agregar</button>
+        </div>
+        <div class="guest-list" id="guest-list"></div>
+      </section>
+    </div>
+  </section>
+
+  <div class="ticket">
+    <span class="ticket-notch left"></span>
+    <span class="ticket-notch right"></span>
+    <div class="ticket-heading-row">
+      <h1 class="team-name" id="team-name">ASP</h1>
+      <span class="ticket-heading-separator">·</span>
+      <p class="eyebrow">⚽ próximo picado <span class="countdown-badge" id="countdown-badge" style="display:none;"></span></p>
+      <span class="ticket-type-badge" id="sb-type">Fútbol 8</span>
+    </div>
+    <div class="scoreboard">
+      <div class="sb-item"><div class="sb-label">Día</div><div class="sb-value" id="sb-date">—</div></div>
+      <div class="sb-item"><div class="sb-label">Hora</div><div class="sb-value" id="sb-time">—</div></div>
+      <div class="sb-item">
+        <div class="sb-label">Cancha</div>
+        <div class="loc-row">
+          <div class="sb-value" id="sb-loc">—</div>
+          <button class="copy-alias-btn" id="maps-btn" title="Cómo llegar">📍</button>
+        </div>
+      </div>
+      <div class="sb-item"><div class="sb-label">Cancha (total)</div><div class="sb-value" id="sb-price-total">—</div></div>
+      <div class="sb-item highlight"><div class="sb-label">Cuota x persona</div><div class="sb-value" id="sb-price-person">—</div></div>
+      <div class="sb-item">
+        <div class="sb-label">Alias</div>
+        <div class="alias-row">
+          <div class="sb-value" id="sb-alias">—</div>
+          <button class="copy-alias-btn" id="copy-alias-btn" title="Copiar alias">📋</button>
+        </div>
+      </div>
+    </div>
+    <div class="money-summary" aria-label="Resumen de pagos y edición del partido">
+      <span class="cash-metric">Pagaron <span class="cash-metric-value"><b id="paid-count">0</b> de <span id="confirmed-count-2">0</span></span></span>
+      <span class="cash-metric">Recaudado <span class="cash-metric-value"><b id="total-collected">$0</b></span></span>
+      <button class="edit-btn" id="edit-match-btn" aria-label="Editar datos del partido"><span aria-hidden="true">✏️</span><span class="edit-label">Editar partido</span></button>
+    </div>
+  </div>
+
+  <div class="section" id="legacy-join-section" hidden aria-hidden="true">
+    <div class="section-title">Anotarse</div>
+    <div class="join-row">
+      <select id="name-select"></select>
+      <div class="status-btns">
+        <button class="btn-in" data-status="in">Juego</button>
+        <button class="btn-duda" data-status="duda">Duda</button>
+        <button class="btn-out" data-status="out">No juego</button>
+      </div>
+    </div>
+    <div class="new-loc-field" id="new-player-wrap" style="display:none;">
+      <input type="text" id="new-player-name" placeholder="Escribí tu nombre" maxlength="30">
+      <p class="field-note">Se anota solo para esta fecha, como invitado. Si es alguien fijo del grupo, mejor cargalo en "Gestionar plantel" de una vez.</p>
+    </div>
+    <p class="hint">Elegí tu nombre de la lista (o "No estoy en la lista" si sos invitado) y tocá tu estado.</p>
+    <p class="capacity-note" id="capacity-note"></p>
+    <button class="link-btn" id="manage-roster-btn" style="margin-top:4px;">⚙️ Gestionar plantel del grupo</button>
+  </div>
+
+  <div class="section teams-section">
+    <div id="teams-view-lista">
+      <div class="split">
+        <div class="split-col negro">
+          <h3 id="negro-team-label">Equipo Negro</h3>
+          <ul id="team-negro-list"></ul>
+        </div>
+        <div class="split-col blanco">
+          <h3 id="blanco-team-label">Equipo Blanco</h3>
+          <ul id="team-blanco-list"></ul>
+        </div>
+      </div>
+      <p class="hint">Los equipos se asignan desde la vista Organizador.</p>
+    </div>
+  </div>
+
+  </div>
+
+  <div id="tab-historial" style="display:none;">
+    <div class="section-title">Historial de fechas</div>
+    <div class="history-standings" id="history-standings"></div>
+    <div id="history-list"></div>
+  </div>
+
+  <p class="footer-note">Prueba local: tu respuesta queda guardada solamente en este navegador.<br>La sincronización entre teléfonos se incorporará al conectar Supabase.</p>
+  </div>
+
+  <div class="organizer-view" id="main-view-organizer">
+    <header class="organizer-header">
+      <h1>Panel del organizador</h1>
+      <p>Resumen visual de disponibilidad y respuestas del grupo.</p>
+    </header>
+
+    <section class="organizer-card" aria-labelledby="availability-summary-title">
+      <h2 class="organizer-card-title" id="availability-summary-title">Disponibilidad por horario</h2>
+      <div class="availability-chart" id="organizer-availability-chart"></div>
+    </section>
+
+    <section class="organizer-card" aria-labelledby="player-responses-title">
+      <h2 class="organizer-card-title" id="player-responses-title">Respuestas de jugadores</h2>
+      <div class="organizer-status-summary" aria-label="Resumen de respuestas">
+        <div class="organizer-status-stat confirmed"><strong id="count-in">0</strong><span>Confirmados</span></div>
+        <div class="organizer-status-stat out"><strong id="count-out">0</strong><span>No van</span></div>
+      </div>
+      <details class="organizer-player-list-details">
+        <summary class="organizer-responses-summary">
+          <span>Listado de jugadores</span>
+          <input type="search" class="organizer-response-search" id="organizer-response-search" placeholder="Buscar jugador" aria-label="Buscar jugador en las respuestas">
+          <span class="organizer-responses-count" id="organizer-responses-count" aria-label="Cantidad de respuestas">0</span>
+          <span class="organizer-responses-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="organizer-responses-content">
+          <div class="organizer-table-wrap">
+            <table class="organizer-table">
+              <thead><tr><th>Jugador</th><th>Equipo</th><th>Estado</th><th>Disponibilidad</th><th>Pago</th></tr></thead>
+              <tbody id="organizer-responses-body"></tbody>
+            </table>
+          </div>
+          <p class="organizer-assignment-hint">Elegí Negro o Blanco. Si tocás nuevamente el equipo activo, el jugador queda sin equipo.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="organizer-card" aria-labelledby="team-formations-title">
+      <h2 class="organizer-card-title" id="team-formations-title">Formaciones de equipos</h2>
+      <div class="organizer-formations">
+        <div class="organizer-formation-team negro">
+          <div class="pitch-wrap">
+            <div class="pitch-header">
+              <h3 class="formation-team-title">Equipo Negro</h3>
+              <select id="formation-select-negro" aria-label="Formación del Equipo Negro"></select>
+            </div>
+            <div class="pitch" id="pitch-negro"></div>
+          </div>
+        </div>
+        <div class="organizer-formation-team blanco">
+          <div class="pitch-wrap">
+            <div class="pitch-header">
+              <h3 class="formation-team-title">Equipo Blanco</h3>
+              <select id="formation-select-blanco" aria-label="Formación del Equipo Blanco"></select>
+            </div>
+            <div class="pitch" id="pitch-blanco"></div>
+          </div>
+        </div>
+      </div>
+      <p class="organizer-formation-help">Tocá una ficha para pasarla al otro equipo o arrastrala para cambiarla de posición. Al cambiar de equipo busca automáticamente un lugar libre.</p>
+    </section>
+
+    <section class="organizer-card organizer-actions" aria-labelledby="organizer-actions-title">
+      <h2 class="organizer-card-title" id="organizer-actions-title">Cerrar o reiniciar la fecha</h2>
+      <div class="finalize-box">
+        <button class="finalize-btn" id="finalize-btn">🏁 Finalizar esta fecha</button>
+        <p class="finalize-hint">Guarda las respuestas actuales en el historial y deja el panel listo para la próxima fecha.</p>
+      </div>
+      <div class="finalize-box danger-zone">
+        <button class="finalize-btn" id="clear-btn">🧹 Limpiar todo</button>
+        <p class="finalize-hint">Borra respuestas, equipos, formaciones y datos del partido actual sin guardarlos en el historial.</p>
+      </div>
+    </section>
+
+    <p class="footer-note">Modo de prueba · Datos guardados solo en este navegador</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>Editar partido</h2>
+    <div class="field"><label>Nombre del grupo</label><input type="text" id="m-teamname"></div>
+    <div class="field"><label>Día</label><input type="date" id="m-date"></div>
+    <div class="field"><label>Hora</label><input type="text" id="m-time" placeholder="18:00"></div>
+    <div class="field">
+      <label>Cancha / lugar</label>
+      <select id="m-loc"></select>
+      <div class="new-loc-field" id="new-loc-wrap" style="display:none;">
+        <input type="text" id="m-loc-new" placeholder="Nombre de la cancha nueva">
+      </div>
+      <p style="margin:8px 0 0;"><button type="button" class="link-btn" id="open-manage-sedes-btn">✏️ Editar / eliminar canchas guardadas</button></p>
+    </div>
+    <div class="field"><label>Tipo de fútbol</label>
+      <select id="m-type">
+        <option value="">Sin asignar</option>
+        <option value="F5">Fútbol 5</option>
+        <option value="F7">Fútbol 7</option>
+        <option value="F8">Fútbol 8</option>
+        <option value="F9">Fútbol 9</option>
+        <option value="F11">Fútbol 11</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Precio total de la cancha</label>
+      <input type="text" id="m-price" placeholder="50000">
+      <p class="field-note">Se divide sola entre la cantidad de gente según la cancha (F5 ÷10, F7 ÷14, F8 ÷16, F9 ÷18, F11 ÷22).</p>
+    </div>
+    <div class="field"><label>Alias para pagar</label><input type="text" id="m-alias" placeholder="juan.futbol.mp"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="m-cancel">Cancelar</button>
+      <button class="btn-save" id="m-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-sedes-overlay">
+  <div class="modal">
+    <h2>Canchas guardadas</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Editá el nombre o la dirección, o borrá las que no usan más.</p>
+    <ul class="manage-list" id="sedes-manage-list"></ul>
+    <div class="manage-add-row">
+      <input type="text" id="new-sede-name" placeholder="Nombre de la cancha">
+    </div>
+    <div class="manage-add-row">
+      <input type="text" id="new-sede-address" placeholder="Dirección (opcional, para el botón de mapa)">
+      <button class="btn-save" id="add-sede-btn" style="flex:0 0 auto;padding:10px 14px;">Agregar</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-sedes-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-roster-overlay">
+  <div class="modal">
+    <h2>Plantel del grupo</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Estos son los que aparecen en el desplegable de "Anotarse". El dorsal es opcional y se puede volver a cambiar después en la lista de Confirmados. Sacar a alguien de acá no borra su anotación de esta semana.</p>
+    <ul class="manage-list" id="roster-manage-list"></ul>
+    <div class="manage-add-row">
+      <input type="text" id="new-roster-name" placeholder="Nombre del jugador">
+      <input type="text" id="new-roster-number" placeholder="#" maxlength="2" inputmode="numeric" style="max-width:50px; flex:0 0 auto; text-align:center;">
+      <button class="btn-save" id="add-roster-btn" style="flex:0 0 auto;padding:10px 14px;">Agregar</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-roster-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="finalize-overlay">
+  <div class="modal">
+    <h2>Finalizar fecha</h2>
+    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto guarda el partido de hoy en el historial (equipos, pagos y quién jugó) y deja todo "Sin asignar" para anotar la próxima fecha (cancha, tipo de fútbol, precio, alias, día y hora).</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="f-cancel">Cancelar</button>
+      <button class="btn-confirm-danger" id="f-confirm">Sí, finalizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="clear-overlay">
+  <div class="modal">
+    <h2>Limpiar todo</h2>
+    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto borra los confirmados, equipos, pagos y los datos del partido actual (cancha, tipo, precio, día, hora, alias) y <b>no lo guarda en el historial</b>. No se puede deshacer. ¿Seguro que querés continuar?</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="c-cancel">Cancelar</button>
+      <button class="btn-confirm-danger" id="c-confirm">Sí, limpiar todo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pay-confirm-overlay">
+  <div class="modal">
+    <h2>Confirmar pago</h2>
+    <p id="pay-confirm-text" style="color:var(--muted); font-size:14px; line-height:1.5;">¿Confirmás que pagó?</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="pay-confirm-cancel">Cancelar</button>
+      <button class="btn-save" id="pay-confirm-ok">Sí, ya pagó</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURÁ ACÁ TU PROYECTO DE SUPABASE
+   (Project Settings → API, en supabase.com)
+   ============================================================ */
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+/* ============================================================ */
+
+const DEMO_MODE = true;
+let supabaseClient = null;
+if(!DEMO_MODE) try{
+  if(!window.supabase) throw new Error('El script de Supabase no cargó (revisá tu conexión o si algo lo está bloqueando).');
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}catch(e){
+  console.error('No se pudo inicializar Supabase:', e);
+}
+const ROW_ID = 1; // todo el equipo comparte esta misma fila
+
+const DIVISOR_MAP = {F5:10, F7:14, F8:16, F9:18, F11:22};
+const TEAM_LABELS = {negro:'Equipo Negro', blanco:'Equipo Blanco'};
+const FORMATIONS = {
+  F5: ['1-2-1','2-1-1','2-2'],
+  F7: ['2-3-1','3-2-1','2-2-2'],
+  F8: ['3-2-2','2-3-2','3-3-1'],
+  F9: ['3-3-2','3-2-3','4-3-1'],
+  F11: ['4-4-2','4-3-3','3-5-2']
+};
+let state = null;
+let saving = false;
+const LOCAL_FORMATIONS_KEY = 'asp_formations_demo_v1';
+
+function defaultState(){
+  return {
+    matchInfo:{ teamName:'ASP', date:nextSaturdayISO(), time:'16:00', loc:'Cancha del barrio', type:'F8', priceTotal:'190000', alias:'picado.demo' },
+    players: [],
+    history: [],
+    sedes: [{name:'Cancha del barrio',address:''}],
+    roster: [],
+    formations: {}
+  };
+}
+
+// Devuelve el estado guardado, o null si todavía no hay nada / falló el pedido.
+// IMPORTANTE: nunca devuelve un estado vacío "de emergencia", para no pisar
+// datos reales con un vacío cuando falla una lectura (ej: sin conexión).
+async function fetchServerState(){
+  if(!supabaseClient) return null;
+  try{
+    const { data, error } = await supabaseClient
+      .from('match_data')
+      .select('data')
+      .eq('id', ROW_ID)
+      .maybeSingle();
+    if(error || !data || !data.data) return null;
+    const parsed = data.data;
+    if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'', priceTotal:'', alias:'' };
+    if(!parsed.history) parsed.history = [];
+    if(!parsed.players) parsed.players = [];
+    parsed.players.forEach(p=>{ if(p.isCaptain === undefined) p.isCaptain = false; });
+    if(!parsed.sedes) parsed.sedes = [];
+    if(parsed.sedes.length && typeof parsed.sedes[0] === 'string'){
+      parsed.sedes = parsed.sedes.map(s=>({name:s, address:''}));
+    }
+    if(!parsed.roster) parsed.roster = [];
+    if(parsed.roster.length && typeof parsed.roster[0] === 'string'){
+      parsed.roster = parsed.roster.map(n=>({name:n, number:null}));
+    }
+    if(!parsed.formations) parsed.formations = {};
+    return parsed;
+  }catch(e){
+    console.error('Error leyendo de Supabase', e);
+    return null;
+  }
+}
+
+async function saveState(s){
+  if(!supabaseClient) return false;
+  try{
+    const { error } = await supabaseClient
+      .from('match_data')
+      .upsert({ id: ROW_ID, data: s, updated_at: new Date().toISOString() });
+    if(error){ console.error('No se pudo guardar', error); return false; }
+    return true;
+  }catch(e){
+    console.error('No se pudo guardar', e);
+    return false;
+  }
+}
+
+// Estas listas guardan qué nombres ya conocíamos la última vez que sincronizamos
+// con el servidor. Sirven para distinguir "esto lo agregó otra persona recién"
+// (hay que sumarlo) de "esto ya lo conocía y ahora no está en mi lista local"
+// (lo borré yo a propósito, no hay que resucitarlo).
+let knownPlayerNames = new Set();
+let knownSedeNames = new Set();
+let knownRosterNames = new Set();
+function updateKnownSets(s){
+  knownPlayerNames = new Set((s.players||[]).map(p=>p.name.toLowerCase()));
+  knownSedeNames = new Set((s.sedes||[]).map(x=>x.name.toLowerCase()));
+  knownRosterNames = new Set((s.roster||[]).map(r=>r.name.toLowerCase()));
+}
+
+// Combina lo nuevo del servidor con lo local: si un nombre ya lo conocíamos y
+// ahora no está en la lista local, es porque lo borramos a propósito (no se
+// reincorpora). Si es un nombre que nunca vimos, es una alta nueva de otra
+// persona y sí se suma.
+function mergeKeepingDeletions(freshItems, localItems, knownNames, getKey){
+  const localMap = new Map((localItems||[]).map(item=>[getKey(item), item]));
+  (freshItems||[]).forEach(item=>{
+    const key = getKey(item);
+    if(!localMap.has(key) && !knownNames.has(key)){
+      localMap.set(key, item);
+    }
+  });
+  return Array.from(localMap.values());
+}
+function mergePlayers(freshPlayers, localPlayers){
+  return mergeKeepingDeletions(freshPlayers, localPlayers, knownPlayerNames, p=>p.name.toLowerCase());
+}
+function mergeSedesArr(freshSedes, localSedes){
+  return mergeKeepingDeletions(freshSedes, localSedes, knownSedeNames, s=>s.name.toLowerCase());
+}
+function mergeRosterArr(freshRoster, localRoster){
+  return mergeKeepingDeletions(freshRoster, localRoster, knownRosterNames, r=>r.name.toLowerCase());
+}
+
+async function refreshFromServer(){
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','pay-confirm-overlay','manage-sedes-overlay','manage-roster-overlay']
+    .some(id=> document.getElementById(id).classList.contains('open'));
+  const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
+  const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
+  if(anyModalOpen || addingNewPlayer || editingHistory || saving) return;
+  const fresh = await fetchServerState();
+  if(!fresh) return;
+  fresh.players = mergePlayers(fresh.players, state ? state.players : []);
+  fresh.sedes = mergeSedesArr(fresh.sedes, state ? state.sedes : []);
+  fresh.roster = mergeRosterArr(fresh.roster, state ? state.roster : []);
+  if(state && state.formations) fresh.formations = {...fresh.formations, ...state.formations};
+  state = fresh;
+  updateKnownSets(state);
+  render();
+}
+
+function fieldTypeLabel(t){
+  const map = {F5:'Fútbol 5', F7:'Fútbol 7', F8:'Fútbol 8', F9:'Fútbol 9', F11:'Fútbol 11'};
+  return map[t] || 'Sin asignar';
+}
+function formatMoney(n){
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+function parsePrice(str){
+  const n = parseFloat((str||'').replace(/[^0-9.,]/g,'').replace(/\./g,'').replace(',','.'));
+  return isNaN(n) ? 0 : n;
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function shortNameForChip(fullName){
+  const parts = fullName.trim().split(/\s+/);
+  if(parts.length <= 1) return parts[0] || '';
+  return parts[0] + ' ' + parts[1].charAt(0).toUpperCase();
+}
+function buildTeamListRow(p){
+  const li = document.createElement('li');
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'split-name';
+  nameSpan.innerHTML = escapeHtml(p.name) + (p.isCaptain ? ' <span class="captain-band">C</span>' : '');
+  const numSpan = document.createElement('span');
+  numSpan.className = 'split-number';
+  numSpan.textContent = p.number ? ('#'+p.number) : '';
+  li.appendChild(nameSpan);
+  li.appendChild(numSpan);
+  return li;
+}
+
+let toastTimer = null;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 3200);
+}
+
+function capacityFor(type){ return DIVISOR_MAP[type] || 10; }
+function playersPerTeam(type){ return capacityFor(type) / 2; }
+
+function formatDateDisplay(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if(isNaN(d.getTime())) return iso;
+  let s = d.toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function daysUntilLabel(iso){
+  if(!iso) return null;
+  const target = new Date(iso + 'T00:00:00');
+  if(isNaN(target.getTime())) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffDays = Math.round((target - today) / 86400000);
+  if(diffDays === 0) return 'es hoy';
+  if(diffDays === 1) return 'falta 1 día';
+  if(diffDays > 1) return `faltan ${diffDays} días`;
+  return 'ya pasó';
+}
+function nextSaturdayISO(){
+  const d = new Date();
+  const day = d.getDay();
+  const diff = (6 - day + 7) % 7;
+  d.setDate(d.getDate() + diff);
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+/* ---------- FORMACIÓN ---------- */
+function getFormationOptions(type){ return FORMATIONS[type] || FORMATIONS.F5; }
+function computeSlots(formationStr){
+  const lines = formationStr.split('-').map(Number);
+  const allLines = [1, ...lines];
+  const n = allLines.length;
+  const slots = [];
+  allLines.forEach((count, li)=>{
+    const y = n===1 ? 50 : 90 - li*(78/(n-1));
+    for(let i=0;i<count;i++){
+      const x = (100/(count+1))*(i+1);
+      let label = 'ARQ';
+      if(li===1) label='DEF'; else if(li>1 && li<n-1) label='MED'; else if(li===n-1 && li!==0) label='DEL';
+      slots.push({x, y, label});
+    }
+  });
+  return slots;
+}
+function ensureFormationDefaults(){
+  if(!state.formations) state.formations = {};
+  ['negro','blanco'].forEach(team=>{
+    const opts = getFormationOptions(state.matchInfo.type);
+    if(!state.formations[team] || !opts.includes(state.formations[team])){
+      state.formations[team] = opts[0];
+    }
+  });
+}
+function pitchDistance(a, b){
+  return Math.hypot(a.x-b.x, a.y-b.y);
+}
+function findOpenPitchPosition(occupied){
+  const candidates = [];
+  for(let y=14; y<=86; y+=12){
+    for(let x=12; x<=88; x+=12){
+      candidates.push({x, y});
+    }
+  }
+  return candidates.reduce((best, candidate)=>{
+    const clearance = occupied.length
+      ? Math.min(...occupied.map(position=>pitchDistance(candidate, position)))
+      : Infinity;
+    return !best || clearance>best.clearance ? {position:candidate, clearance} : best;
+  }, null)?.position || {x:50, y:50};
+}
+function findOpenSidelinePosition(occupied, minimumDistance){
+  const candidates = [];
+  for(let y=10; y<=90; y+=13){
+    candidates.push({x:94,y},{x:6,y});
+  }
+  return candidates.find(candidate=>
+    occupied.every(position=>pitchDistance(candidate,position)>=minimumDistance)
+  ) || findOpenPitchPosition(occupied);
+}
+function autoAssignPositions(teamPlayers, formationStr){
+  const slots = computeSlots(formationStr);
+  const minimumDistance = 14;
+  const extraMinimumDistance = 12;
+  const rankedPlayers = teamPlayers.map((player,index)=>{
+    const slotDistance = player.pos && slots.length
+      ? Math.min(...slots.map(slot=>pitchDistance(player.pos,slot)))
+      : Infinity;
+    return {player,index,nearSlot:slotDistance<10};
+  }).sort((a,b)=>Number(b.nearSlot)-Number(a.nearSlot) || a.index-b.index);
+  const starterSet = new Set(rankedPlayers.slice(0,slots.length).map(item=>item.player));
+  const starters = teamPlayers.filter(player=>starterSet.has(player));
+  const extras = teamPlayers.filter(player=>!starterSet.has(player));
+  teamPlayers.forEach(player=>{ player.isFormationExtra = !starterSet.has(player); });
+
+  const occupied = [];
+
+  starters.forEach(player=>{
+    if(!player.pos) return;
+    const position = {
+      x:Math.max(6, Math.min(94, Number(player.pos.x))),
+      y:Math.max(6, Math.min(94, Number(player.pos.y)))
+    };
+    if(!Number.isFinite(position.x) || !Number.isFinite(position.y) || occupied.some(other=>pitchDistance(position, other)<minimumDistance)){
+      player.pos = null;
+      return;
+    }
+    player.pos = position;
+    occupied.push(position);
+  });
+
+  starters.forEach(p=>{
+    if(!p.pos){
+      const freeSlot = slots.find(slot=>occupied.every(position=>pitchDistance(slot, position)>=minimumDistance));
+      const position = freeSlot || findOpenPitchPosition(occupied);
+      p.pos = {x:position.x, y:position.y};
+      occupied.push(p.pos);
+    }
+  });
+
+  extras.forEach(player=>{
+    const current = player.pos && {x:Number(player.pos.x),y:Number(player.pos.y)};
+    const staysOnSideline = current && Number.isFinite(current.x) && Number.isFinite(current.y) &&
+      (current.x<=12 || current.x>=88) &&
+      occupied.every(position=>pitchDistance(current,position)>=extraMinimumDistance);
+    if(!staysOnSideline){
+      player.pos = findOpenSidelinePosition(occupied,extraMinimumDistance);
+    }else{
+      player.pos = current;
+    }
+    occupied.push(player.pos);
+  });
+}
+function saveLocalFormationState(){
+  if(!DEMO_MODE || !state) return;
+  const responseNames = new Set(localAvailabilityResponses.map(response=>response.name.toLocaleLowerCase('es')));
+  const positions = state.players
+    .filter(player=>responseNames.has(player.name.toLocaleLowerCase('es')))
+    .filter(player=>player.team && player.pos)
+    .map(player=>({name:player.name, team:player.team, pos:player.pos}));
+  const assignments = state.players
+    .filter(player=>player.status==='in' && responseNames.has(player.name.toLocaleLowerCase('es')))
+    .map(player=>({name:player.name, team:player.team || null, isCaptain:player.isCaptain===true}));
+  try{
+    localStorage.setItem(LOCAL_FORMATIONS_KEY, JSON.stringify({
+      formations: state.formations || {},
+      positions,
+      assignments
+    }));
+  }catch(error){
+    console.warn('No se pudo guardar la formación en este navegador:', error);
+  }
+}
+function loadLocalFormationState(){
+  if(!DEMO_MODE || !state) return;
+  try{
+    const saved = JSON.parse(localStorage.getItem(LOCAL_FORMATIONS_KEY) || 'null');
+    if(!saved) return;
+    state.formations = {...(state.formations || {}), ...(saved.formations || {})};
+    (saved.assignments || []).forEach(savedPlayer=>{
+      const player = state.players.find(item=>
+        item.name.toLocaleLowerCase('es')===String(savedPlayer.name).toLocaleLowerCase('es')
+      );
+      if(player && player.status==='in'){
+        player.team = savedPlayer.team==='negro' || savedPlayer.team==='blanco' ? savedPlayer.team : null;
+        player.isCaptain = Boolean(player.team && savedPlayer.isCaptain);
+      }
+    });
+    (saved.positions || []).forEach(savedPlayer=>{
+      const player = state.players.find(item=>
+        item.team===savedPlayer.team &&
+        item.name.toLocaleLowerCase('es')===String(savedPlayer.name).toLocaleLowerCase('es')
+      );
+      if(player && Number.isFinite(Number(savedPlayer.pos?.x)) && Number.isFinite(Number(savedPlayer.pos?.y))){
+        player.pos = {x:Number(savedPlayer.pos.x), y:Number(savedPlayer.pos.y)};
+      }
+    });
+  }catch(error){
+    console.warn('No se pudo recuperar la formación guardada:', error);
+  }
+}
+async function switchPlayerTeamFromPitch(name){
+  const player = state.players.find(item=>item.name===name && item.status==='in');
+  if(!player || (player.team!=='negro' && player.team!=='blanco')) return;
+  player.team = player.team==='negro' ? 'blanco' : 'negro';
+  player.pos = null;
+  const response = localAvailabilityResponses.find(item=>
+    item.name.toLocaleLowerCase('es')===name.toLocaleLowerCase('es')
+  );
+  if(response){
+    response.team = player.team;
+    response.updatedAt = new Date().toISOString();
+    saveLocalAvailability();
+  }
+  render();
+  saveLocalFormationState();
+  renderLocalOrganizer();
+  showToast(`${name} pasó al ${TEAM_LABELS[player.team]}.`);
+  await persist();
+}
+function attachDragHandlers(chip, team){
+  chip.addEventListener('pointerdown', (e)=>{
+    e.preventDefault();
+    chip.setPointerCapture(e.pointerId);
+    chip.classList.add('dragging');
+    const pitch = chip.parentElement;
+    const rect = pitch.getBoundingClientRect();
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const pressedAt = performance.now();
+    let moved = false;
+
+    const onMove = (ev)=>{
+      if(Math.hypot(ev.clientX-startClientX, ev.clientY-startClientY)>6) moved = true;
+      let x = ((ev.clientX - rect.left) / rect.width) * 100;
+      let y = ((ev.clientY - rect.top) / rect.height) * 100;
+      x = Math.max(4, Math.min(96, x));
+      y = Math.max(4, Math.min(96, y));
+      chip.style.left = x+'%';
+      chip.style.top = y+'%';
+    };
+    const onUp = async ()=>{
+      chip.classList.remove('dragging');
+      chip.removeEventListener('pointermove', onMove);
+      chip.removeEventListener('pointerup', onUp);
+      const name = chip.dataset.name;
+      if(!moved){
+        const wasQuickClick = performance.now()-pressedAt <= 300;
+        if(wasQuickClick) await switchPlayerTeamFromPitch(name);
+        return;
+      }
+      let x = parseFloat(chip.style.left);
+      let y = parseFloat(chip.style.top);
+      const p = state.players.find(pl=>pl.name===name);
+      if(!p){ return; }
+      // "Imán": si soltó cerca de un círculo punteado de la formación, se engancha ahí
+      const slots = computeSlots(state.formations[team]);
+      let nearestSlot = null, nearestSlotDist = Infinity;
+      slots.forEach(s=>{
+        const d = Math.hypot(s.x - x, s.y - y);
+        if(d < nearestSlotDist){ nearestSlotDist = d; nearestSlot = s; }
+      });
+      if(nearestSlot && nearestSlotDist < 9){
+        x = nearestSlot.x; y = nearestSlot.y;
+      }
+      const others = state.players.filter(pl=>pl.team===team && pl.status==='in' && pl.name!==name && pl.pos);
+      for(const other of others){
+        const dx = other.pos.x - x, dy = other.pos.y - y;
+        if(Math.sqrt(dx*dx+dy*dy) < 5){
+          other.pos = {x:p.pos.x, y:p.pos.y};
+          break;
+        }
+      }
+      p.pos = {x, y};
+      render();
+      saveLocalFormationState();
+      await persist();
+    };
+    chip.addEventListener('pointermove', onMove);
+    chip.addEventListener('pointerup', onUp);
+  });
+  chip.addEventListener('keydown', async e=>{
+    if(e.key!=='Enter' && e.key!==' ') return;
+    e.preventDefault();
+    await switchPlayerTeamFromPitch(chip.dataset.name);
+  });
+}
+function renderFormationView(inList){
+  ensureFormationDefaults();
+  ['negro','blanco'].forEach(team=>{
+    const teamPlayers = inList.filter(p=>p.team===team);
+    const sel = document.getElementById('formation-select-'+team);
+    const wasFocused = document.activeElement === sel;
+    if(!wasFocused){
+      sel.innerHTML = '';
+      getFormationOptions(state.matchInfo.type).forEach(f=>{
+        const opt = document.createElement('option'); opt.value=f; opt.textContent=f;
+        sel.appendChild(opt);
+      });
+      sel.value = state.formations[team];
+    }
+    autoAssignPositions(teamPlayers, state.formations[team]);
+
+    const pitch = document.getElementById('pitch-'+team);
+    pitch.innerHTML = '';
+    computeSlots(state.formations[team]).forEach(s=>{
+      const slotEl = document.createElement('div');
+      slotEl.className = 'pitch-slot';
+      slotEl.style.left = s.x+'%'; slotEl.style.top = s.y+'%';
+      slotEl.textContent = s.label;
+      pitch.appendChild(slotEl);
+    });
+    teamPlayers.filter(p=>p.pos).forEach(p=>{
+      const chip = document.createElement('div');
+      chip.className = 'field-chip ' + team + (p.isFormationExtra ? ' extra' : '');
+      chip.style.left = p.pos.x+'%'; chip.style.top = p.pos.y+'%';
+      chip.dataset.name = p.name;
+      chip.tabIndex = 0;
+      chip.setAttribute('role','button');
+      chip.setAttribute('aria-label',`${p.name}: pasar a ${TEAM_LABELS[team==='negro'?'blanco':'negro']}`);
+      const shortName = shortNameForChip(p.name);
+      const captainMark = p.isCaptain ? ' ★' : '';
+      chip.innerHTML = `<div class="num">${p.number ? escapeHtml(String(p.number)) : ''}</div><div>${escapeHtml(shortName)}${captainMark}</div>`;
+      attachDragHandlers(chip, team);
+      pitch.appendChild(chip);
+    });
+  });
+}
+
+/* ---------- RENDER PRINCIPAL ---------- */
+function render(){
+  const mi = state.matchInfo;
+  document.getElementById('team-name').textContent = mi.teamName || 'ASP';
+  setSb('sb-date', formatDateDisplay(mi.date));
+  setSb('sb-time', mi.time);
+  setSb('sb-loc', mi.loc);
+  document.getElementById('sb-type').textContent = fieldTypeLabel(mi.type);
+  const total = parsePrice(mi.priceTotal);
+  setSb('sb-price-total', total>0 ? formatMoney(total) : '');
+  const divisor = DIVISOR_MAP[mi.type] || 10;
+  const perPerson = total>0 ? total/divisor : 0;
+  document.getElementById('sb-price-person').textContent = perPerson>0 ? formatMoney(perPerson) : 'Sin asignar';
+  setSb('sb-alias', mi.alias);
+
+  const cd = document.getElementById('countdown-badge');
+  const cdLabel = daysUntilLabel(mi.date);
+  if(cdLabel){ cd.style.display='inline'; cd.textContent = cdLabel; } else { cd.style.display='none'; }
+
+  document.getElementById('negro-team-label').textContent = TEAM_LABELS.negro;
+  document.getElementById('blanco-team-label').textContent = TEAM_LABELS.blanco;
+
+  const inList = getResponsePlayers('in');
+  const outList = getResponsePlayers('out');
+
+  document.getElementById('count-in').textContent = inList.length;
+  document.getElementById('count-out').textContent = outList.length;
+  document.getElementById('confirmed-count-2').textContent = inList.length;
+
+  const cap = capacityFor(mi.type);
+  if(!mi.type){
+    document.getElementById('capacity-note').textContent = `Todavía no elegiste el tipo de cancha (Editar partido) — por ahora se usa un cupo de ${cap} jugadores como referencia.`;
+  } else {
+    document.getElementById('capacity-note').textContent = `Cupo de esta cancha: ${cap} jugadores (${inList.length}/${cap} confirmados, ${playersPerTeam(mi.type)} por equipo). El que se anota de más queda en lista de espera.`;
+  }
+
+  const negroListEl = document.getElementById('team-negro-list');
+  const blancoListEl = document.getElementById('team-blanco-list');
+  negroListEl.innerHTML=''; blancoListEl.innerHTML='';
+  const negros = inList.filter(p=>p.team==='negro');
+  const blancos = inList.filter(p=>p.team==='blanco');
+  if(negros.length===0) negroListEl.innerHTML = '<li style="opacity:.55">Sin jugadores todavía</li>';
+  negros.forEach(p=>{ negroListEl.appendChild(buildTeamListRow(p)); });
+  if(blancos.length===0) blancoListEl.innerHTML = '<li style="opacity:.55">Sin jugadores todavía</li>';
+  blancos.forEach(p=>{ blancoListEl.appendChild(buildTeamListRow(p)); });
+
+  renderFormationView(inList);
+
+  const paidCount = inList.filter(p=>p.paid).length;
+  document.getElementById('paid-count').textContent = paidCount;
+  document.getElementById('total-collected').textContent = perPerson>0 ? formatMoney(perPerson * paidCount) : '$0';
+  const unpaidNames = inList.filter(p=>!p.paid).map(p=>p.name);
+  const faltanEl = document.getElementById('faltan-pagar');
+  faltanEl.classList.toggle('all-paid', unpaidNames.length===0 && inList.length>0);
+  faltanEl.innerHTML = unpaidNames.length ? `Faltan pagar: <b>${escapeHtml(unpaidNames.join(', '))}</b>` : (inList.length ? 'Ya pagaron todos ✓' : '');
+
+  renderNameSelect();
+  renderHistory();
+}
+
+function setSb(id, val, emptyLabel){
+  const el = document.getElementById(id);
+  el.textContent = val || (emptyLabel !== undefined ? emptyLabel : 'Sin asignar');
+  el.className = 'sb-value' + ((val)? '':' empty');
+}
+
+function renderConfirmedList(inList){
+  const list = document.getElementById('list-in');
+  list.innerHTML = '';
+  if(inList.length===0){
+    list.innerHTML = '<li class="empty-state">Todavía no confirmó nadie. ¡Sé el primero!</li>';
+    return;
+  }
+  inList.forEach(p=>{
+    const li = document.createElement('li');
+    li.className = 'player-row';
+    li.innerHTML = `
+      <button class="captain-star ${p.isCaptain?'active':''}" data-action="captain" data-name="${escapeHtml(p.name)}" title="${p.isCaptain?'Es capitán':'Hacer capitán de su equipo'}">★</button>
+      <span class="player-name">${escapeHtml(p.name)}</span>
+      <input type="text" class="jersey-input" data-action="number" data-name="${escapeHtml(p.name)}" value="${p.number?escapeHtml(String(p.number)):''}" placeholder="#" maxlength="2" inputmode="numeric">
+      <button class="icon-btn ${p.paid?'paid':''}" data-action="pay" data-name="${escapeHtml(p.name)}" title="Marcar pagado">${p.paid?'✓':'$'}</button>
+      <button class="icon-btn danger" data-action="remove" data-name="${escapeHtml(p.name)}" title="Sacar de la lista">✕</button>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function renderSimpleList(elId, arr, emptyMsg){
+  const list = document.getElementById(elId);
+  list.innerHTML = '';
+  if(arr.length===0){
+    list.innerHTML = `<li class="empty-state">${emptyMsg}</li>`;
+    return;
+  }
+  arr.forEach(p=>{
+    const li = document.createElement('li');
+    li.className = 'player-row';
+    li.innerHTML = `
+      <span class="player-name">${escapeHtml(p.name)}</span>
+      <button class="icon-btn" data-action="setstatus" data-status="in" data-name="${escapeHtml(p.name)}" title="Confirmar">✓ Juega</button>
+      <button class="icon-btn danger" data-action="remove" data-name="${escapeHtml(p.name)}" title="Sacar de la lista">✕</button>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function renderNameSelect(){
+  const sel = document.getElementById('name-select');
+  const wasFocused = document.activeElement === sel;
+  const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
+  if(wasFocused || addingNewPlayer) return;
+  sel.innerHTML = '';
+  const taken = new Set(state.players.map(p=>p.name.toLowerCase()));
+  const available = (state.roster||[]).filter(r=>!taken.has(r.name.toLowerCase()));
+  if(available.length===0){
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = (state.roster||[]).length ? 'Ya respondieron todos ✓' : 'Todavía no hay plantel cargado';
+    sel.appendChild(opt);
+  } else {
+    const placeholder = document.createElement('option');
+    placeholder.value = ''; placeholder.textContent = 'Elegí tu nombre…';
+    sel.appendChild(placeholder);
+    available.sort((a,b)=>a.name.localeCompare(b.name,'es')).forEach(r=>{
+      const opt = document.createElement('option'); opt.value = r.name; opt.textContent = r.name;
+      sel.appendChild(opt);
+    });
+  }
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__'; newOpt.textContent = '➕ No estoy en la lista…';
+  sel.appendChild(newOpt);
+}
+
+function attachListEvents(){
+  document.querySelectorAll('[data-action="captain"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const name = el.getAttribute('data-name');
+      const p = state.players.find(pl=>pl.name===name);
+      if(!p) return;
+      if(!p.team){ showToast('Asignale un equipo antes de hacerlo capitán.'); return; }
+      const makingCaptain = !p.isCaptain;
+      state.players.filter(pl=>pl.team===p.team && pl.name!==p.name).forEach(pl=> pl.isCaptain=false);
+      p.isCaptain = makingCaptain;
+      render();
+      await persist();
+    };
+  });
+  document.querySelectorAll('[data-action="pay"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const name = el.getAttribute('data-name');
+      const p = state.players.find(pl=>pl.name===name);
+      if(!p) return;
+      if(!p.paid){
+        document.getElementById('pay-confirm-text').textContent = `¿Confirmás que ${p.name} ya pagó?`;
+        document.getElementById('pay-confirm-overlay').classList.add('open');
+        document.getElementById('pay-confirm-ok').onclick = async ()=>{
+          p.paid = true;
+          document.getElementById('pay-confirm-overlay').classList.remove('open');
+          render();
+          await persist();
+        };
+      } else {
+        p.paid = false;
+        render();
+        await persist();
+      }
+    };
+  });
+  document.querySelectorAll('[data-action="remove"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const name = el.getAttribute('data-name');
+      state.players = state.players.filter(pl=>pl.name!==name);
+      render();
+      await persist();
+    };
+  });
+  document.querySelectorAll('[data-action="setstatus"]').forEach(el=>{
+    el.onclick = async ()=>{
+      const name = el.getAttribute('data-name');
+      const status = el.getAttribute('data-status');
+      const p = state.players.find(pl=>pl.name===name);
+      if(!p) return;
+      if(status === 'in'){
+        const cap = capacityFor(state.matchInfo.type);
+        const currentlyIn = state.players.filter(pl=>pl.status==='in' && pl.name!==name).length;
+        if(currentlyIn >= cap){
+          showToast(`Ojo: el cupo (${cap}) ya está lleno, lo pasás igual a confirmado.`);
+        }
+      }
+      p.status = status;
+      render();
+      await persist();
+    };
+  });
+  document.querySelectorAll('[data-action="number"]').forEach(el=>{
+    el.onchange = async ()=>{
+      const name = el.getAttribute('data-name');
+      const p = state.players.find(pl=>pl.name===name);
+      if(!p) return;
+      const val = el.value.replace(/[^0-9]/g,'').slice(0,2);
+      p.number = val ? parseInt(val) : null;
+      await persist();
+    };
+  });
+}
+
+function computeStandings(){
+  let negroWins=0, blancoWins=0, draws=0;
+  (state.history||[]).forEach(h=>{
+    if(!h.score) return;
+    const hasScore = h.score.negro>0 || h.score.blanco>0 || h.hasScore;
+    if(!hasScore) return;
+    if(h.score.negro > h.score.blanco) negroWins++;
+    else if(h.score.blanco > h.score.negro) blancoWins++;
+    else draws++;
+  });
+  return {negroWins, blancoWins, draws};
+}
+
+function renderHistory(){
+  const listEl = document.getElementById('history-list');
+  const standingsEl = document.getElementById('history-standings');
+  if(!state.history || state.history.length===0){
+    listEl.innerHTML = '<p class="empty-state">Todavía no finalizaste ninguna fecha.</p>';
+    standingsEl.innerHTML = '';
+    return;
+  }
+  const st = computeStandings();
+  standingsEl.innerHTML = `
+    <div class="standings-item roca">
+      <span class="standings-num">${st.negroWins}</span>
+      <span class="standings-label">Equipo Negro</span>
+    </div>
+    <div class="standings-item">
+      <span class="standings-num">${st.draws}</span>
+      <span class="standings-label">Empates</span>
+    </div>
+    <div class="standings-item cole">
+      <span class="standings-num">${st.blancoWins}</span>
+      <span class="standings-label">Equipo Blanco</span>
+    </div>
+  `;
+  const openSet = new Set();
+  listEl.querySelectorAll('details.history-item').forEach(d=>{ if(d.open) openSet.add(d.dataset.hidx); });
+  listEl.innerHTML = '';
+  [...state.history].reverse().forEach((h, idx)=>{
+    const originalIndex = state.history.length - 1 - idx;
+    const isLatest = idx === 0;
+    if(!h.score) h.score = {negro:0, blanco:0};
+    if(!h.goals) h.goals = {};
+
+    const negrosPlayers = h.players.filter(p=>p.status==='in' && p.team==='negro');
+    const blancosPlayers = h.players.filter(p=>p.status==='in' && p.team==='blanco');
+    const negros = negrosPlayers.map(p=>p.name).join(', ') || '—';
+    const blancos = blancosPlayers.map(p=>p.name).join(', ') || '—';
+    const paidCount = h.players.filter(p=>p.status==='in' && p.paid).length;
+    const totalConfirmed = h.players.filter(p=>p.status==='in').length;
+    const totalPrice = parsePrice(h.matchInfo.priceTotal);
+    const divisor = DIVISOR_MAP[h.matchInfo.type] || 10;
+    const perPerson = totalPrice>0 ? totalPrice/divisor : 0;
+    const dateLabel = formatDateDisplay(h.matchInfo.date) || h.matchInfo.date || 'Sin fecha';
+
+    const negroNames = new Set(negrosPlayers.map(p=>p.name));
+    const blancoNames = new Set(blancosPlayers.map(p=>p.name));
+    const allScorers = Object.entries(h.goals).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+    const negroScorers = allScorers.filter(([n])=>negroNames.has(n));
+    const blancoScorers = allScorers.filter(([n])=>blancoNames.has(n));
+    const negroScorersLine = negroScorers.length ? negroScorers.map(([n,c])=>`${n} x${c}`).join(', ') : '—';
+    const blancoScorersLine = blancoScorers.length ? blancoScorers.map(([n,c])=>`${n} x${c}`).join(', ') : '—';
+    const goleadoresHtml = allScorers.length
+      ? `<div class="history-goals-line"><b>Equipo Negro:</b> ${escapeHtml(negroScorersLine)}</div><div class="history-goals-line"><b>Equipo Blanco:</b> ${escapeHtml(blancoScorersLine)}</div>`
+      : `<div class="history-goals-line">Sin goleadores cargados</div>`;
+    const hasScore = h.score.negro>0 || h.score.blanco>0 || h.hasScore;
+    const resultLine = hasScore
+      ? `Equipo Negro ${h.score.negro} - ${h.score.blanco} Equipo Blanco`
+      : 'Resultado sin cargar';
+
+    const details = document.createElement('details');
+    details.className = 'history-item';
+    details.dataset.hidx = String(originalIndex);
+    if(openSet.has(String(originalIndex))) details.open = true;
+
+    const allPlayed = h.players.filter(p=>p.status==='in');
+    const goalsRowsHtml = allPlayed.length ? allPlayed.map(p=>`
+      <li>
+        <span>${escapeHtml(p.name)}${p.team?(' · '+(p.team==='negro'?'Roca':'Cole')):''}</span>
+        <input type="text" class="jersey-input goals-input" data-hidx="${originalIndex}" data-goal-name="${escapeHtml(p.name)}"
+               value="${h.goals[p.name]||''}" placeholder="0" maxlength="2" inputmode="numeric">
+      </li>`).join('') : '<li style="color:var(--muted); font-style:italic;">No hay jugadores confirmados en esta fecha.</li>';
+
+    details.innerHTML = `
+      <summary class="history-summary">
+        <div class="history-summary-main">
+          <div class="h-date">${escapeHtml(dateLabel)} ${h.matchInfo.time ? '· '+escapeHtml(h.matchInfo.time):''}</div>
+          <div class="history-result">${resultLine}</div>
+          ${goleadoresHtml}
+        </div>
+        <span class="h-chevron">▼</span>
+      </summary>
+      <div class="history-details">
+        <div class="h-row">${escapeHtml(h.matchInfo.loc || 'Cancha sin definir')} · ${fieldTypeLabel(h.matchInfo.type)}</div>
+        <div class="h-row"><b>Equipo Negro:</b> ${escapeHtml(negros)}</div>
+        <div class="h-row"><b>Equipo Blanco:</b> ${escapeHtml(blancos)}</div>
+        <div class="h-row">Pagaron ${paidCount} de ${totalConfirmed} · Recaudado ${perPerson>0?formatMoney(perPerson*paidCount):'$0'}</div>
+
+        <div class="history-edit-field">
+          <label>Cuánto salió la cancha</label>
+          <input type="text" class="edit-price-input" data-hidx="${originalIndex}" value="${h.matchInfo.priceTotal||''}" placeholder="50000">
+        </div>
+
+        <div class="history-edit-field">
+          <label>Resultado</label>
+          <div class="score-row">
+            <input type="text" class="score-input" data-hidx="${originalIndex}" data-team="negro" value="${h.score.negro||0}" maxlength="2" inputmode="numeric">
+            <span>Equipo Negro — Equipo Blanco</span>
+            <input type="text" class="score-input" data-hidx="${originalIndex}" data-team="blanco" value="${h.score.blanco||0}" maxlength="2" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="history-edit-field">
+          <label>Goles (cuántos hizo cada uno)</label>
+          <ul class="goals-list">${goalsRowsHtml}</ul>
+        </div>
+
+        ${isLatest ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
+      </div>
+    `;
+    listEl.appendChild(details);
+  });
+
+  listEl.querySelectorAll('.edit-price-input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const h = state.history[parseInt(inp.dataset.hidx)];
+      h.matchInfo.priceTotal = inp.value.trim();
+      render();
+      await persist();
+    };
+  });
+  listEl.querySelectorAll('.score-input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const h = state.history[parseInt(inp.dataset.hidx)];
+      const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
+      if(!h.score) h.score = {negro:0, blanco:0};
+      h.score[inp.dataset.team] = val ? parseInt(val) : 0;
+      h.hasScore = true;
+      render();
+      await persist();
+    };
+  });
+  listEl.querySelectorAll('.goals-input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const h = state.history[parseInt(inp.dataset.hidx)];
+      const name = inp.dataset.goalName;
+      const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
+      if(!h.goals) h.goals = {};
+      if(val && parseInt(val)>0){ h.goals[name] = parseInt(val); } else { delete h.goals[name]; }
+      render();
+      await persist();
+    };
+  });
+
+  const undoBtn = document.getElementById('undo-finalize-btn');
+  if(undoBtn){
+    undoBtn.onclick = async ()=>{
+      const last = state.history[state.history.length-1];
+      state.players = last.players.map(p=>({...p}));
+      state.matchInfo.date = last.matchInfo.date;
+      state.matchInfo.time = last.matchInfo.time;
+      state.history = state.history.slice(0, -1);
+      render();
+      await persist();
+      showToast('Se deshizo la última finalización.');
+    };
+  }
+}
+
+async function persist(){
+  saving = true;
+  const fresh = await fetchServerState();
+  if(fresh){
+    state.players = mergePlayers(fresh.players, state.players);
+    state.sedes = mergeSedesArr(fresh.sedes, state.sedes);
+    state.roster = mergeRosterArr(fresh.roster, state.roster);
+    if(!state.formations) state.formations = fresh.formations || {};
+  }
+  await saveState(state);
+  updateKnownSets(state);
+  saving = false;
+}
+
+/* ---------- TABS ---------- */
+function setTab(tab){
+  document.getElementById('tab-partido').style.display = tab==='partido' ? 'block':'none';
+  document.getElementById('tab-historial').style.display = tab==='historial' ? 'block':'none';
+  document.getElementById('tab-btn-partido').classList.toggle('active', tab==='partido');
+  document.getElementById('tab-btn-historial').classList.toggle('active', tab==='historial');
+}
+document.getElementById('tab-btn-partido').onclick = ()=> setTab('partido');
+document.getElementById('tab-btn-historial').onclick = ()=> setTab('historial');
+
+/* ---------- SWITCH CONFIRMADOS / ESPERA / DUDA / NO VAN ---------- */
+let activeStatusView = 'in';
+function setStatusView(view){
+  activeStatusView = view;
+  ['in','espera','duda','out'].forEach(v=>{
+    document.getElementById('list-'+v).style.display = (v===view) ? 'grid' : 'none';
+  });
+  document.querySelectorAll('.status-switch-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.statusView === view);
+  });
+}
+document.querySelectorAll('.status-switch-btn').forEach(btn=>{
+  btn.onclick = ()=> setStatusView(btn.dataset.statusView);
+});
+
+/* ---------- FORMACIONES DEL ORGANIZADOR ---------- */
+document.getElementById('formation-select-negro').addEventListener('change', async (e)=>{
+  state.formations.negro = e.target.value;
+  state.players.filter(p=>p.team==='negro').forEach(p=> p.pos = null);
+  render(); saveLocalFormationState(); await persist();
+});
+document.getElementById('formation-select-blanco').addEventListener('change', async (e)=>{
+  state.formations.blanco = e.target.value;
+  state.players.filter(p=>p.team==='blanco').forEach(p=> p.pos = null);
+  render(); saveLocalFormationState(); await persist();
+});
+/* ---------- ANOTARSE ---------- */
+document.getElementById('name-select').addEventListener('change', (e)=>{
+  document.getElementById('new-player-wrap').style.display = e.target.value === '__new__' ? 'block':'none';
+});
+document.querySelectorAll('.status-btns button').forEach(btn=>{
+  btn.onclick = async ()=>{
+    const sel = document.getElementById('name-select');
+    let name = sel.value;
+    if(name === '__new__'){
+      name = document.getElementById('new-player-name').value.trim();
+      if(!name) return;
+      // Ojo: NO se agrega al plantel del grupo — son invitados de esta fecha,
+      // no queremos que aparezcan en el desplegable de las próximas semanas.
+    }
+    if(!name) return;
+    let status = btn.getAttribute('data-status');
+    let p = state.players.find(pl=>pl.name.toLowerCase()===name.toLowerCase());
+    if(status === 'in'){
+      const cap = capacityFor(state.matchInfo.type);
+      const currentlyIn = state.players.filter(pl=>pl.status==='in' && pl.name.toLowerCase()!==name.toLowerCase()).length;
+      if(currentlyIn >= cap){
+        status = 'espera';
+        showToast(`Cupo lleno (${cap}). ${name} queda en lista de espera.`);
+      }
+    }
+    if(p){ p.status = status; }
+    else {
+      const rosterEntry = (state.roster||[]).find(r=>r.name.toLowerCase()===name.toLowerCase());
+      const defaultNumber = (rosterEntry && rosterEntry.number) ? rosterEntry.number : null;
+      state.players.push({name, status, team:null, paid:false, number:defaultNumber, pos:null, isCaptain:false});
+    }
+    document.getElementById('new-player-name').value = '';
+    document.getElementById('new-player-wrap').style.display = 'none';
+    render();
+    await persist();
+  };
+});
+
+/* ---------- GESTIONAR PLANTEL ---------- */
+function renderRosterManageList(){
+  const ul = document.getElementById('roster-manage-list');
+  ul.innerHTML = '';
+  (state.roster||[]).forEach((r, idx)=>{
+    const li = document.createElement('li');
+    li.className = 'manage-row';
+    li.innerHTML = `
+      <input type="text" data-idx="${idx}" data-field="name" value="${escapeHtml(r.name)}" placeholder="Nombre">
+      <input type="text" data-idx="${idx}" data-field="number" value="${r.number?escapeHtml(String(r.number)):''}" placeholder="#" maxlength="2" inputmode="numeric" style="max-width:50px; flex:0 0 auto; text-align:center;">
+      <button class="icon-btn danger" data-idx="${idx}" data-action="delete-roster" title="Eliminar">✕</button>
+    `;
+    ul.appendChild(li);
+  });
+  ul.querySelectorAll('input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const idx = parseInt(inp.dataset.idx);
+      if(inp.dataset.field === 'name'){
+        state.roster[idx].name = inp.value.trim();
+      } else {
+        const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
+        state.roster[idx].number = val ? parseInt(val) : null;
+      }
+      await persist();
+    };
+  });
+  ul.querySelectorAll('[data-action="delete-roster"]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const idx = parseInt(btn.dataset.idx);
+      state.roster.splice(idx,1);
+      renderRosterManageList();
+      render();
+      await persist();
+    };
+  });
+}
+document.getElementById('manage-roster-btn').onclick = ()=>{
+  renderRosterManageList();
+  document.getElementById('manage-roster-overlay').classList.add('open');
+};
+document.getElementById('manage-roster-close').onclick = ()=>{
+  document.getElementById('manage-roster-overlay').classList.remove('open');
+  render();
+};
+document.getElementById('add-roster-btn').onclick = async ()=>{
+  const name = document.getElementById('new-roster-name').value.trim();
+  const numberRaw = document.getElementById('new-roster-number').value.replace(/[^0-9]/g,'').slice(0,2);
+  const number = numberRaw ? parseInt(numberRaw) : null;
+  if(!name) return;
+  if(!state.roster) state.roster = [];
+  if(!state.roster.some(r=>r.name.toLowerCase()===name.toLowerCase())) state.roster.push({name, number});
+  document.getElementById('new-roster-name').value = '';
+  document.getElementById('new-roster-number').value = '';
+  renderRosterManageList();
+  await persist();
+};
+
+/* ---------- GESTIONAR CANCHAS ---------- */
+function renderSedesManageList(){
+  const ul = document.getElementById('sedes-manage-list');
+  ul.innerHTML = '';
+  if(!state.sedes || state.sedes.length===0){
+    ul.innerHTML = '<li class="empty-state">Todavía no agregaste ninguna cancha.</li>';
+    return;
+  }
+  state.sedes.forEach((s, idx)=>{
+    const li = document.createElement('li');
+    li.className = 'manage-row';
+    li.innerHTML = `
+      <input type="text" data-idx="${idx}" data-field="name" value="${escapeHtml(s.name)}" placeholder="Nombre">
+      <input type="text" data-idx="${idx}" data-field="address" value="${escapeHtml(s.address||'')}" placeholder="Dirección">
+      <button class="icon-btn danger" data-idx="${idx}" data-action="delete-sede" title="Eliminar">✕</button>
+    `;
+    ul.appendChild(li);
+  });
+  ul.querySelectorAll('input').forEach(inp=>{
+    inp.onchange = async ()=>{
+      const idx = parseInt(inp.dataset.idx);
+      state.sedes[idx][inp.dataset.field] = inp.value.trim();
+      await persist();
+      render();
+    };
+  });
+  ul.querySelectorAll('[data-action="delete-sede"]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const idx = parseInt(btn.dataset.idx);
+      state.sedes.splice(idx,1);
+      renderSedesManageList();
+      populateLocSelect(state.matchInfo.loc);
+      await persist();
+    };
+  });
+}
+document.getElementById('open-manage-sedes-btn').onclick = ()=>{
+  renderSedesManageList();
+  document.getElementById('manage-sedes-overlay').classList.add('open');
+};
+document.getElementById('manage-sedes-close').onclick = ()=>{
+  document.getElementById('manage-sedes-overlay').classList.remove('open');
+  populateLocSelect(state.matchInfo.loc);
+};
+document.getElementById('add-sede-btn').onclick = async ()=>{
+  const name = document.getElementById('new-sede-name').value.trim();
+  const address = document.getElementById('new-sede-address').value.trim();
+  if(!name) return;
+  if(!state.sedes) state.sedes = [];
+  state.sedes.push({name, address});
+  document.getElementById('new-sede-name').value = '';
+  document.getElementById('new-sede-address').value = '';
+  renderSedesManageList();
+  await persist();
+};
+
+/* ---------- MODAL EDITAR PARTIDO ---------- */
+const overlay = document.getElementById('modal-overlay');
+function populateLocSelect(selected){
+  const sel = document.getElementById('m-loc');
+  sel.innerHTML = '';
+  const sedes = state.sedes || [];
+  const sinAsignarOpt = document.createElement('option');
+  sinAsignarOpt.value = ''; sinAsignarOpt.textContent = 'Sin asignar';
+  sel.appendChild(sinAsignarOpt);
+  sedes.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.name; opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__'; newOpt.textContent = '➕ Agregar cancha nueva…';
+  sel.appendChild(newOpt);
+
+  const names = sedes.map(s=>s.name);
+  if(selected && names.includes(selected)){
+    sel.value = selected;
+  } else if(selected){
+    const opt = document.createElement('option');
+    opt.value = selected; opt.textContent = selected;
+    sel.insertBefore(opt, newOpt);
+    sel.value = selected;
+  } else {
+    sel.value = '';
+  }
+  document.getElementById('new-loc-wrap').style.display = sel.value === '__new__' ? 'block' : 'none';
+}
+document.getElementById('m-loc').addEventListener('change', (e)=>{
+  document.getElementById('new-loc-wrap').style.display = e.target.value === '__new__' ? 'block' : 'none';
+});
+document.getElementById('edit-match-btn').onclick = ()=>{
+  const mi = state.matchInfo;
+  document.getElementById('m-teamname').value = mi.teamName||'';
+  document.getElementById('m-date').value = mi.date || nextSaturdayISO();
+  document.getElementById('m-time').value = mi.time||'';
+  populateLocSelect(mi.loc);
+  document.getElementById('m-loc-new').value = '';
+  document.getElementById('m-type').value = mi.type||'';
+  document.getElementById('m-price').value = mi.priceTotal||'';
+  document.getElementById('m-alias').value = mi.alias||'';
+  overlay.classList.add('open');
+};
+document.getElementById('m-cancel').onclick = ()=> overlay.classList.remove('open');
+document.getElementById('m-save').onclick = async ()=>{
+  const previousFieldType = state.matchInfo.type;
+  const nextFieldType = document.getElementById('m-type').value;
+  let loc = document.getElementById('m-loc').value;
+  if(loc === '__new__'){
+    const newLoc = document.getElementById('m-loc-new').value.trim();
+    if(newLoc){
+      loc = newLoc;
+      if(!state.sedes) state.sedes = [];
+      if(!state.sedes.some(s=>s.name.toLowerCase()===newLoc.toLowerCase())) state.sedes.push({name:newLoc, address:''});
+    } else { loc = ''; }
+  }
+  state.matchInfo = {
+    teamName: document.getElementById('m-teamname').value.trim() || 'ASP',
+    date: document.getElementById('m-date').value.trim(),
+    time: document.getElementById('m-time').value.trim(),
+    loc: loc,
+    type: nextFieldType,
+    priceTotal: document.getElementById('m-price').value.trim(),
+    alias: document.getElementById('m-alias').value.trim(),
+  };
+  if(previousFieldType!==nextFieldType){
+    state.formations = {};
+    state.players.forEach(player=>{ player.pos = null; });
+    ensureFormationDefaults();
+  }
+  overlay.classList.remove('open');
+  render();
+  if(previousFieldType!==nextFieldType) saveLocalFormationState();
+  await persist();
+};
+
+/* ---------- FINALIZAR / LIMPIAR ---------- */
+function blankMatchInfo(){
+  return {
+    teamName: state.matchInfo.teamName || 'ASP',
+    date: '', time: '', loc: '', type: '', priceTotal: '', alias: ''
+  };
+}
+
+const finalizeOverlay = document.getElementById('finalize-overlay');
+document.getElementById('finalize-btn').onclick = ()=> finalizeOverlay.classList.add('open');
+document.getElementById('f-cancel').onclick = ()=> finalizeOverlay.classList.remove('open');
+document.getElementById('f-confirm').onclick = async ()=>{
+  const fresh = await fetchServerState();
+  if(fresh){
+    state.players = mergePlayers(fresh.players, state.players);
+    if(fresh.history && fresh.history.length > (state.history||[]).length) state.history = fresh.history;
+  }
+  const responsePlayers = getResponsePlayers();
+  state.history.push({
+    finalizedAt: new Date().toISOString(),
+    matchInfo: {...state.matchInfo},
+    players: responsePlayers.map(p=>({...p}))
+  });
+  clearLocalOrganizerState();
+  state.players = [];
+  state.matchInfo = blankMatchInfo();
+  finalizeOverlay.classList.remove('open');
+  render();
+  renderLocalOrganizer();
+  resetMyStatusCard();
+  await persist();
+  showToast('Fecha finalizada. Arrancás de cero para la próxima 👌');
+};
+
+const clearOverlay = document.getElementById('clear-overlay');
+document.getElementById('clear-btn').onclick = ()=> clearOverlay.classList.add('open');
+document.getElementById('c-cancel').onclick = ()=> clearOverlay.classList.remove('open');
+document.getElementById('pay-confirm-cancel').onclick = ()=> document.getElementById('pay-confirm-overlay').classList.remove('open');
+document.getElementById('c-confirm').onclick = async ()=>{
+  clearLocalOrganizerState();
+  state.players = [];
+  state.matchInfo = blankMatchInfo();
+  clearOverlay.classList.remove('open');
+  render();
+  renderLocalOrganizer();
+  resetMyStatusCard();
+  await persist();
+  showToast('Se limpió todo (sin guardar en el historial).');
+};
+
+/* ---------- ALIAS Y MAPA ---------- */
+document.getElementById('copy-alias-btn').onclick = async ()=>{
+  const alias = (state.matchInfo && state.matchInfo.alias) ? state.matchInfo.alias : '';
+  if(!alias){ showToast('Todavía no cargaste un alias.'); return; }
+  try{
+    await navigator.clipboard.writeText(alias);
+    showToast('Alias copiado: ' + alias);
+  }catch(e){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = alias; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Alias copiado: ' + alias);
+    }catch(e2){
+      showToast('No se pudo copiar. El alias es: ' + alias);
+    }
+  }
+};
+document.getElementById('maps-btn').onclick = ()=>{
+  const mi = state.matchInfo;
+  if(!mi.loc){ showToast('Todavía no elegiste una cancha.'); return; }
+  const sede = (state.sedes||[]).find(s=>s.name.toLowerCase()===mi.loc.toLowerCase());
+  const query = (sede && sede.address) ? sede.address : mi.loc;
+  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query), '_blank');
+};
+
+/* ---------- DISPONIBILIDAD LOCAL DE PRUEBA ---------- */
+const LOCAL_AVAILABILITY_KEY = 'asp_availability_demo_v1';
+const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
+const LOCAL_DEMO_SEEDED_KEY = 'asp_demo_responses_seeded_v3';
+const LOCAL_RECURRENT_PLAYERS_KEY = 'asp_recurrent_players_demo_v1';
+const DEFAULT_DEMO_RESPONSES = [
+  {name:'Clara', status:'in', from:'16:00', to:'20:00', paid:true, team:'negro'},
+  {name:'Fede', status:'in', from:'17:00', to:'21:00', paid:false, team:'blanco'},
+  {name:'Sol', status:'in', from:'18:00', to:'22:00', paid:false, team:'negro'},
+  {name:'Tomás', status:'in', from:'16:00', to:'19:00', paid:true, team:'blanco'},
+  {name:'Pablo', status:'in', from:'16:00', to:'22:00', paid:true, team:'negro'},
+  {name:'Juan', status:'in', from:'17:00', to:'22:00', paid:false, team:'blanco'},
+  {name:'Luca', status:'in', from:'18:00', to:'22:00', paid:true, team:'negro'},
+  {name:'Martín', status:'in', from:'16:00', to:'20:00', paid:false, team:'blanco'},
+  {name:'Agus', status:'in', from:'17:00', to:'21:00', paid:true, team:'negro'},
+  {name:'Fran', status:'in', from:'18:00', to:'22:00', paid:false, team:'blanco'},
+  {name:'Nico', status:'in', from:'16:00', to:'21:00', paid:true, team:'negro'},
+  {name:'Roca', status:'in', from:'17:00', to:'20:00', paid:false, team:'blanco'},
+  {name:'Santi', status:'in', from:'18:00', to:'22:00', paid:true, team:'negro'},
+  {name:'Nacho', status:'in', from:'16:00', to:'20:00', paid:false, team:'blanco'},
+  {name:'Vale', status:'in', from:'17:00', to:'21:00', paid:true, team:'negro'},
+  {name:'Juli', status:'in', from:'18:00', to:'22:00', paid:false, team:'blanco'},
+  {name:'Mica', status:'out', from:'', to:'', paid:null, team:null},
+  {name:'Emi', status:'out', from:'', to:'', paid:null, team:null}
+];
+let localAvailabilityResponses = [];
+let currentLocalResponseName = '';
+let recurrentPlayers = [];
+let registeringFirstTime = false;
+
+function loadLocalAvailability(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(LOCAL_AVAILABILITY_KEY) || '[]');
+    localAvailabilityResponses = Array.isArray(saved) ? saved : [];
+    let migratedDoubt = false;
+    localAvailabilityResponses = localAvailabilityResponses.map(item=>{
+      if(item.status!=='doubt') return item;
+      migratedDoubt = true;
+      return {...item,status:'out',from:'',to:'',paid:null,team:null};
+    });
+    if(migratedDoubt) localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses));
+    currentLocalResponseName = localStorage.getItem(LOCAL_CURRENT_PLAYER_KEY) || '';
+    const alreadySeeded = localStorage.getItem(LOCAL_DEMO_SEEDED_KEY) === 'true';
+    if(!alreadySeeded){
+      if(localAvailabilityResponses.length < 18){
+        const existingNames = new Set(localAvailabilityResponses.map(item=>item.name.toLocaleLowerCase('es')));
+        for(const example of DEFAULT_DEMO_RESPONSES){
+          if(localAvailabilityResponses.length >= 18) break;
+          if(existingNames.has(example.name.toLocaleLowerCase('es'))) continue;
+          localAvailabilityResponses.push({...example, updatedAt:new Date().toISOString()});
+          existingNames.add(example.name.toLocaleLowerCase('es'));
+        }
+        localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses));
+      }
+      localStorage.setItem(LOCAL_DEMO_SEEDED_KEY, 'true');
+    }
+  }catch(e){
+    localAvailabilityResponses = [];
+    currentLocalResponseName = '';
+  }
+}
+
+function saveLocalAvailability(){
+  try{ localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses)); }
+  catch(e){ console.error('No se pudo guardar la disponibilidad local', e); }
+}
+
+function saveRecurrentPlayers(){
+  try{ localStorage.setItem(LOCAL_RECURRENT_PLAYERS_KEY, JSON.stringify(recurrentPlayers)); }
+  catch(e){ console.error('No se pudo guardar la lista de jugadores recurrentes', e); }
+}
+function loadRecurrentPlayers(){
+  try{
+    const stored = localStorage.getItem(LOCAL_RECURRENT_PLAYERS_KEY);
+    if(stored!==null){
+      const parsed = JSON.parse(stored);
+      recurrentPlayers = Array.isArray(parsed) ? parsed.filter(name=>typeof name==='string' && name.trim()) : [];
+    }else{
+      recurrentPlayers = localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name);
+      saveRecurrentPlayers();
+    }
+  }catch(e){
+    recurrentPlayers = localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name);
+  }
+}
+function addRecurrentPlayer(name){
+  const existing = recurrentPlayers.find(item=>item.toLocaleLowerCase('es')===name.toLocaleLowerCase('es'));
+  if(existing) return existing;
+  recurrentPlayers.push(name);
+  recurrentPlayers.sort((a,b)=>a.localeCompare(b,'es'));
+  saveRecurrentPlayers();
+  return name;
+}
+function hideRecurrentPlayerMenu(){
+  const menu = document.getElementById('recurrent-player-menu');
+  menu.hidden = true;
+  document.getElementById('my-player-name').setAttribute('aria-expanded','false');
+}
+function renderRecurrentPlayerMenu(){
+  const input = document.getElementById('my-player-name');
+  const menu = document.getElementById('recurrent-player-menu');
+  if(registeringFirstTime){ hideRecurrentPlayerMenu(); return; }
+  const query = input.value.trim().toLocaleLowerCase('es');
+  const filtered = recurrentPlayers
+    .map((name,index)=>({name,index}))
+    .filter(item=>item.name.toLocaleLowerCase('es').includes(query))
+    .slice(0,12);
+  menu.innerHTML = filtered.length ? filtered.map(item=>`
+    <div class="recurrent-player-option" role="option">
+      <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
+      <button type="button" class="recurrent-player-delete" data-delete-recurrent-index="${item.index}" aria-label="Quitar a ${escapeHtml(item.name)} de jugadores recurrentes">×</button>
+    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Usá “Primera vez”.</p>';
+  menu.hidden = false;
+  input.setAttribute('aria-expanded','true');
+  menu.querySelectorAll('[data-recurrent-index]').forEach(button=>{
+    button.onclick = ()=>{
+      input.value = recurrentPlayers[Number(button.dataset.recurrentIndex)] || '';
+      hideRecurrentPlayerMenu();
+    };
+  });
+  menu.querySelectorAll('[data-delete-recurrent-index]').forEach(button=>{
+    button.onclick = event=>{
+      event.stopPropagation();
+      const index = Number(button.dataset.deleteRecurrentIndex);
+      const removed = recurrentPlayers[index];
+      if(!removed) return;
+      recurrentPlayers.splice(index,1);
+      saveRecurrentPlayers();
+      renderRecurrentPlayerMenu();
+      showToast(`${removed} se quitó de jugadores recurrentes.`);
+    };
+  });
+}
+function setFirstTimeRegistration(active,preserveValue=false){
+  registeringFirstTime = active;
+  const input = document.getElementById('my-player-name');
+  const button = document.getElementById('first-time-player-btn');
+  const label = document.getElementById('my-player-name-label');
+  const help = document.getElementById('player-picker-help');
+  const confirm = document.getElementById('my-status-confirm');
+  if(!preserveValue) input.value = '';
+  button.classList.toggle('active', active);
+  button.textContent = active ? 'Cancelar' : 'Primera vez';
+  label.textContent = active ? 'Registrar jugador' : 'Nombre del jugador';
+  input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
+  help.textContent = active ? 'Al confirmar, tu nombre quedará guardado para las próximas fechas.' : 'Escribí para buscarte entre los jugadores recurrentes.';
+  confirm.textContent = active ? 'Registrarme y confirmar' : 'Confirmar';
+  hideRecurrentPlayerMenu();
+  if(active || !preserveValue) input.focus();
+}
+
+function clearLocalOrganizerState(){
+  localAvailabilityResponses = [];
+  currentLocalResponseName = '';
+  try{
+    localStorage.removeItem(LOCAL_AVAILABILITY_KEY);
+    localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY);
+    localStorage.removeItem(LOCAL_FORMATIONS_KEY);
+  }catch(e){
+    console.error('No se pudieron limpiar los datos locales', e);
+  }
+  if(state) state.formations = {};
+}
+
+function syncLocalAvailabilityWithPlayers(){
+  if(!state) return;
+  const responseNames = new Set(localAvailabilityResponses.map(response=>response.name.toLocaleLowerCase('es')));
+  state.players = state.players.filter(player=>responseNames.has(player.name.toLocaleLowerCase('es')));
+  localAvailabilityResponses.forEach(response=>{
+    const normalizedName = response.name.toLocaleLowerCase('es');
+    const playerStatus = response.status;
+    let player = state.players.find(item=>item.name.toLocaleLowerCase('es')===normalizedName);
+    if(player){
+      player.status = playerStatus;
+      player.paid = response.status === 'in' && response.paid === true;
+      if(playerStatus==='in' && !player.team && (response.team==='negro' || response.team==='blanco')){
+        player.team = response.team;
+      }
+    }else{
+      player = {
+        name:response.name,
+        status:playerStatus,
+        number:null,
+        team:playerStatus==='in' && (response.team==='negro' || response.team==='blanco') ? response.team : null,
+        paid:response.status === 'in' && response.paid === true,
+        isCaptain:false
+      };
+      state.players.push(player);
+    }
+    if(playerStatus!=='in'){
+      player.team = null;
+      player.pos = null;
+      player.isCaptain = false;
+    }
+    if(!(state.roster||[]).some(item=>item.name.toLocaleLowerCase('es')===normalizedName)){
+      state.roster.push({name:response.name, number:null});
+    }
+  });
+}
+
+function getResponsePlayers(status){
+  if(!state) return [];
+  return localAvailabilityResponses
+    .filter(response=>!status || response.status===status)
+    .map(response=>state.players.find(player=>
+      player.name.toLocaleLowerCase('es')===response.name.toLocaleLowerCase('es')
+    ))
+    .filter(Boolean);
+}
+
+function upsertLocalAvailability(response){
+  const normalizedName = response.name.toLocaleLowerCase('es');
+  const index = localAvailabilityResponses.findIndex(item=>item.name.toLocaleLowerCase('es')===normalizedName);
+  if(index >= 0) localAvailabilityResponses[index] = response;
+  else localAvailabilityResponses.push(response);
+  saveLocalAvailability();
+  syncLocalAvailabilityWithPlayers();
+  render();
+  renderLocalOrganizer();
+}
+
+function getCurrentPlayerGuests(){
+  if(!currentLocalResponseName) return [];
+  const owner = currentLocalResponseName.toLocaleLowerCase('es');
+  return localAvailabilityResponses.filter(item=>
+    item.isGuest === true && (item.invitedBy||'').toLocaleLowerCase('es')===owner
+  );
+}
+
+function renderGuestManager(){
+  const manager = document.getElementById('guest-manager');
+  const toggle = document.getElementById('guest-manager-toggle');
+  const list = document.getElementById('guest-list');
+  const count = document.getElementById('guest-manager-count');
+  if(!manager || !toggle || !list || !count) return;
+  const guests = getCurrentPlayerGuests();
+  const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
+  toggle.textContent = guests.length ? `Editar invitados · ${guests.length}` : 'Gestionar invitados · 0';
+  count.textContent = label;
+  document.querySelector('.my-status-payment')?.classList.toggle('has-guests', guests.length>0);
+  list.innerHTML = guests.length ? guests.map(guest=>{
+    const paymentText = guest.status!=='in' ? 'No viene' : (guest.paid ? 'Pagó' : 'No pagó');
+    const paymentClass = guest.status!=='in' ? 'absent' : (guest.paid ? 'paid' : '');
+    return `<details class="guest-item">
+      <summary>
+        <span class="guest-summary-main"><span class="guest-name">${escapeHtml(guest.name)}</span><span class="guest-payment-state ${paymentClass}">${paymentText}</span></span>
+      </summary>
+      <div class="guest-controls">
+        <div class="guest-control-row"><span>Asistencia</span><div class="guest-toggle" role="group" aria-label="Asistencia de ${escapeHtml(guest.name)}">
+          <button type="button" class="${guest.status==='in'?'active':''}" data-guest-status="in" data-guest-name="${escapeHtml(guest.name)}">Estoy</button>
+          <button type="button" class="${guest.status==='out'?'active':''}" data-guest-status="out" data-guest-name="${escapeHtml(guest.name)}">No estoy</button>
+        </div></div>
+        ${guest.status==='in' ? `<div class="guest-control-row"><span>Pago</span><div class="guest-toggle" role="group" aria-label="Pago de ${escapeHtml(guest.name)}">
+          <button type="button" class="${guest.paid?'active':''}" data-guest-paid="yes" data-guest-name="${escapeHtml(guest.name)}">Sí</button>
+          <button type="button" class="${!guest.paid?'active':''}" data-guest-paid="no" data-guest-name="${escapeHtml(guest.name)}">No</button>
+        </div></div>` : ''}
+        <button type="button" class="guest-remove" data-remove-guest="${escapeHtml(guest.name)}">Quitar invitado</button>
+      </div>
+    </details>`;
+  }).join('') : '<p class="guest-empty">Todavía no agregaste invitados para esta fecha.</p>';
+
+  list.querySelectorAll('[data-guest-status]').forEach(button=>{
+    button.onclick = ()=>{
+      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.name===button.dataset.guestName);
+      const owner = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es'));
+      if(!guest) return;
+      guest.status = button.dataset.guestStatus;
+      guest.from = guest.status==='in' ? (owner?.from || '16:00') : '';
+      guest.to = guest.status==='in' ? (owner?.to || '20:00') : '';
+      guest.paid = guest.status==='in' ? guest.paid===true : null;
+      guest.team = guest.status==='in' ? guest.team : null;
+      guest.updatedAt = new Date().toISOString();
+      upsertLocalAvailability(guest);
+      renderGuestManager();
+    };
+  });
+  list.querySelectorAll('[data-guest-paid]').forEach(button=>{
+    button.onclick = ()=>{
+      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.name===button.dataset.guestName);
+      if(!guest || guest.status!=='in') return;
+      guest.paid = button.dataset.guestPaid==='yes';
+      guest.updatedAt = new Date().toISOString();
+      upsertLocalAvailability(guest);
+      renderGuestManager();
+    };
+  });
+  list.querySelectorAll('[data-remove-guest]').forEach(button=>{
+    button.onclick = ()=>{
+      const name = button.dataset.removeGuest;
+      localAvailabilityResponses = localAvailabilityResponses.filter(item=>!(item.isGuest && item.name===name));
+      saveLocalAvailability();
+      syncLocalAvailabilityWithPlayers();
+      render();
+      renderLocalOrganizer();
+      renderGuestManager();
+      showToast(`${name} se quitó de tus invitados.`);
+    };
+  });
+}
+
+function renderLocalOrganizer(){
+  const chart = document.getElementById('organizer-availability-chart');
+  const body = document.getElementById('organizer-responses-body');
+  if(!chart || !body) return;
+  document.getElementById('organizer-responses-count').textContent = localAvailabilityResponses.length;
+
+  const hourly = [];
+  for(let hour=9; hour<22; hour++){
+    const label = String(hour).padStart(2,'0') + ':00';
+    const available = localAvailabilityResponses.filter(item=>
+      item.status==='in' && item.from<=label && item.to>label
+    );
+    hourly.push({
+      label,
+      confirmed:available.length,
+      total:available.length
+    });
+  }
+  const topHours = hourly.filter(item=>item.total>0)
+    .sort((a,b)=>b.total-a.total || b.confirmed-a.confirmed || a.label.localeCompare(b.label))
+    .slice(0,3);
+  if(topHours.length===0){
+    chart.innerHTML = '<p class="organizer-empty">Todavía no hay horarios para comparar. Confirmá respuestas desde “Mi estado”.</p>';
+  }else{
+    const maxTotal = topHours[0].total;
+    chart.innerHTML = topHours.map((item,index)=>`
+      <div class="availability-row ${index===0?'peak':''}">
+        <span class="availability-time">${item.label}</span>
+        <div class="availability-track"><div class="availability-fill" style="--availability:${(item.total/maxTotal)*100}%"></div></div>
+        <span class="availability-count" title="${item.confirmed} confirmados">${item.total} ${item.total===1?'jugador':'jugadores'}</span>
+      </div>`).join('');
+  }
+
+  if(localAvailabilityResponses.length===0){
+    body.innerHTML = '<tr><td colspan="5" class="organizer-empty">Todavía no hay respuestas guardadas en este navegador.</td></tr>';
+    return;
+  }
+  const responseSearch = document.getElementById('organizer-response-search').value.trim().toLocaleLowerCase('es');
+  const visibleResponses = localAvailabilityResponses.filter(item=>
+    item.name.toLocaleLowerCase('es').includes(responseSearch)
+  );
+  if(visibleResponses.length===0){
+    body.innerHTML = '<tr><td colspan="5" class="organizer-empty">No encontramos jugadores con ese nombre.</td></tr>';
+    return;
+  }
+  body.innerHTML = visibleResponses.map(item=>{
+    const statusLabel = item.status==='in' ? 'Estoy' : 'No estoy';
+    const availability = item.status==='out' ? '—' : `${escapeHtml(item.from)}–${escapeHtml(item.to)}`;
+    const payment = item.status!=='in' ? '—' : (item.paid
+      ? '<span class="payment-mark yes" aria-label="Pagó">✓</span>'
+      : '<span class="payment-mark no" aria-label="No pagó">✕</span>');
+    const player = state?.players.find(candidate=>candidate.name.toLocaleLowerCase('es')===item.name.toLocaleLowerCase('es'));
+    const team = item.status==='in' && (player?.team==='negro' || player?.team==='blanco') ? player.team : null;
+    const teamControls = item.status==='in' ? `
+      <div class="team-choice-group" role="group" aria-label="Equipo de ${escapeHtml(item.name)}">
+        <button type="button" class="team-choice negro ${team==='negro'?'active':''}" data-player-name="${escapeHtml(item.name)}" data-team-choice="negro" aria-pressed="${team==='negro'}">Negro</button>
+        <button type="button" class="team-choice blanco ${team==='blanco'?'active':''}" data-player-name="${escapeHtml(item.name)}" data-team-choice="blanco" aria-pressed="${team==='blanco'}">Blanco</button>
+      </div>` : '—';
+    return `<tr>
+      <td><span class="organizer-player-static">${escapeHtml(item.name)}</span>${item.isGuest ? `<span class="organizer-guest-note">Invitado de ${escapeHtml(item.invitedBy||'—')}</span>` : ''}</td>
+      <td>${teamControls}</td>
+      <td><span class="status-pill ${item.status}">${statusLabel}</span></td>
+      <td>${availability}</td>
+      <td>${payment}</td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('[data-team-choice]').forEach(button=>{
+    button.onclick = async ()=>{
+      const name = button.getAttribute('data-player-name');
+      const selectedTeam = button.getAttribute('data-team-choice');
+      const player = state.players.find(candidate=>candidate.name===name && candidate.status==='in');
+      if(!player) return;
+      player.team = player.team===selectedTeam ? null : selectedTeam;
+      player.pos = null;
+      if(!player.team) player.isCaptain = false;
+      const response = localAvailabilityResponses.find(item=>
+        item.name.toLocaleLowerCase('es')===name.toLocaleLowerCase('es')
+      );
+      if(response){
+        response.team = player.team;
+        response.updatedAt = new Date().toISOString();
+        saveLocalAvailability();
+      }
+      render();
+      saveLocalFormationState();
+      renderLocalOrganizer();
+      await persist();
+    };
+  });
+}
+
+loadLocalAvailability();
+loadRecurrentPlayers();
+renderLocalOrganizer();
+const recurrentPlayerField = document.querySelector('.recurrent-player-field');
+const recurrentPlayerInput = document.getElementById('my-player-name');
+recurrentPlayerInput.addEventListener('focus',renderRecurrentPlayerMenu);
+recurrentPlayerInput.addEventListener('input',renderRecurrentPlayerMenu);
+document.getElementById('first-time-player-btn').onclick = ()=>setFirstTimeRegistration(!registeringFirstTime);
+document.addEventListener('pointerdown',event=>{
+  if(!recurrentPlayerField.contains(event.target)) hideRecurrentPlayerMenu();
+});
+const organizerResponseSearch = document.getElementById('organizer-response-search');
+const organizerPlayerListDetails = document.querySelector('.organizer-player-list-details');
+['click','pointerdown','keydown'].forEach(eventName=>{
+  organizerResponseSearch.addEventListener(eventName,event=>event.stopPropagation());
+});
+organizerResponseSearch.addEventListener('focus',()=>{ organizerPlayerListDetails.open = true; });
+organizerResponseSearch.addEventListener('input',()=>{
+  organizerPlayerListDetails.open = true;
+  renderLocalOrganizer();
+});
+
+/* ---------- SELECTOR DE VISTA PRINCIPAL ---------- */
+const mainUserView = document.getElementById('main-view-user');
+const mainOrganizerView = document.getElementById('main-view-organizer');
+const mainUserButton = document.getElementById('main-view-user-btn');
+const mainOrganizerButton = document.getElementById('main-view-organizer-btn');
+
+function setMainView(view){
+  const showUser = view === 'user';
+  if(!showUser){
+    renderLocalOrganizer();
+    if(state) renderFormationView(getResponsePlayers('in'));
+  }
+  mainUserView.style.display = showUser ? 'block' : 'none';
+  mainOrganizerView.style.display = showUser ? 'none' : 'block';
+  mainUserButton.classList.toggle('active', showUser);
+  mainOrganizerButton.classList.toggle('active', !showUser);
+  mainUserButton.setAttribute('aria-pressed', showUser ? 'true' : 'false');
+  mainOrganizerButton.setAttribute('aria-pressed', showUser ? 'false' : 'true');
+}
+
+mainUserButton.onclick = ()=> setMainView('user');
+mainOrganizerButton.onclick = ()=> setMainView('organizer');
+
+/* ---------- MI ESTADO: GUARDADO LOCAL DE PRUEBA ---------- */
+let mockAvailability = 'in';
+const mockStatusCard = document.getElementById('my-status-card');
+const mockTimes = document.getElementById('my-status-times');
+const mockPayment = document.querySelector('.my-status-payment');
+const guestManager = document.getElementById('guest-manager');
+const guestManagerToggle = document.getElementById('guest-manager-toggle');
+const mockFrom = document.getElementById('my-status-from');
+const mockTo = document.getElementById('my-status-to');
+const mockHourOptions = Array.from({length:14},(_,index)=>String(index+9).padStart(2,'0')+':00');
+
+function syncMockToOptions(){
+  const previousTo = mockTo.value;
+  const validHours = mockHourOptions.filter(hour=>hour>mockFrom.value);
+  mockTo.innerHTML = validHours.map(hour=>`<option value="${hour}">${hour}</option>`).join('');
+  mockTo.value = validHours.includes(previousTo) ? previousTo : validHours[0];
+}
+
+function restoreCurrentLocalResponse(){
+  if(!currentLocalResponseName) return;
+  const response = localAvailabilityResponses.find(item=>
+    item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+  );
+  if(!response) return;
+
+  setFirstTimeRegistration(false,true);
+  document.getElementById('my-player-name').value = response.name;
+  mockAvailability = response.status;
+  document.querySelectorAll('.my-status-choice button').forEach(option=>{
+    const selected = option.dataset.value === response.status;
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  mockTimes.style.display = response.status === 'out' ? 'none' : 'grid';
+  if(response.status !== 'out'){
+    mockFrom.value = response.from;
+    syncMockToOptions();
+    mockTo.value = response.to;
+  }
+  mockPayment.style.display = response.status === 'in' ? 'block' : 'none';
+  const summary = response.status === 'in'
+    ? `Estoy · ${response.from}–${response.to}`
+    : 'No estoy';
+  document.getElementById('my-status-summary-value').textContent = summary;
+  document.querySelectorAll('.my-status-paid button').forEach(option=>{
+    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  renderGuestManager();
+  mockStatusCard.classList.add('collapsed');
+}
+
+function resetMyStatusCard(){
+  currentLocalResponseName = '';
+  setFirstTimeRegistration(false);
+  mockAvailability = 'in';
+  document.querySelectorAll('.my-status-choice button').forEach(option=>{
+    const selected = option.dataset.value === 'in';
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  mockFrom.value = '16:00';
+  syncMockToOptions();
+  mockTo.value = '20:00';
+  mockTimes.style.display = 'grid';
+  mockPayment.style.display = 'none';
+  guestManager.hidden = true;
+  guestManagerToggle.setAttribute('aria-expanded','false');
+  document.querySelectorAll('.my-status-paid button').forEach(option=>{
+    const selected = option.dataset.value === 'no';
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  renderGuestManager();
+  mockStatusCard.classList.remove('collapsed');
+}
+
+mockFrom.addEventListener('change', syncMockToOptions);
+syncMockToOptions();
+
+document.querySelectorAll('.my-status-choice button').forEach(btn=>{
+  btn.onclick = ()=>{
+    mockAvailability = btn.dataset.value;
+    document.querySelectorAll('.my-status-choice button').forEach(option=>{
+      const selected = option === btn;
+      option.classList.toggle('active', selected);
+      option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'grid';
+  };
+});
+
+document.getElementById('my-status-confirm').onclick = ()=>{
+  const nameInput = document.getElementById('my-player-name');
+  let playerName = nameInput.value.trim();
+  const from = document.getElementById('my-status-from').value || '16:00';
+  const to = document.getElementById('my-status-to').value || '20:00';
+  if(!playerName){
+    nameInput.setAttribute('aria-invalid','true');
+    nameInput.focus();
+    showToast('Escribí tu nombre para confirmar.');
+    return;
+  }
+  const recurrentMatch = recurrentPlayers.find(name=>name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
+  if(!registeringFirstTime && !recurrentMatch){
+    nameInput.setAttribute('aria-invalid','true');
+    showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Primera vez”.');
+    renderRecurrentPlayerMenu();
+    return;
+  }
+  if(recurrentMatch) playerName = recurrentMatch;
+  nameInput.removeAttribute('aria-invalid');
+  if(mockAvailability !== 'out' && to <= from){
+    showToast('El horario “Hasta” debe ser posterior a “Desde”.');
+    return;
+  }
+  const summary = mockAvailability === 'in'
+    ? `Estoy · ${from}–${to}`
+    : 'No estoy';
+  document.getElementById('my-status-summary-value').textContent = summary;
+  mockPayment.style.display = mockAvailability === 'in' ? 'block' : 'none';
+  const existingResponse = localAvailabilityResponses.find(item=>
+    item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
+  );
+  const response = {
+    name:playerName,
+    status:mockAvailability,
+    from:mockAvailability==='out' ? '' : from,
+    to:mockAvailability==='out' ? '' : to,
+    paid:mockAvailability==='in' ? (existingResponse?.paid === true) : null,
+    team:mockAvailability==='in' ? (existingResponse?.team || null) : null,
+    updatedAt:new Date().toISOString()
+  };
+  const previousCurrentName = currentLocalResponseName;
+  if(previousCurrentName && previousCurrentName.toLocaleLowerCase('es')!==playerName.toLocaleLowerCase('es')){
+    localAvailabilityResponses.forEach(item=>{
+      if(item.isGuest && (item.invitedBy||'').toLocaleLowerCase('es')===previousCurrentName.toLocaleLowerCase('es')) item.invitedBy = playerName;
+    });
+  }
+  currentLocalResponseName = playerName;
+  addRecurrentPlayer(playerName);
+  if(registeringFirstTime){
+    setFirstTimeRegistration(false,true);
+    nameInput.value = playerName;
+  }
+  try{ localStorage.setItem(LOCAL_CURRENT_PLAYER_KEY, currentLocalResponseName); }
+  catch(e){ console.error('No se pudo recordar al jugador local', e); }
+  upsertLocalAvailability(response);
+  document.querySelectorAll('.my-status-paid button').forEach(option=>{
+    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  renderGuestManager();
+  mockStatusCard.classList.add('collapsed');
+};
+
+document.getElementById('my-status-edit').onclick = ()=> mockStatusCard.classList.remove('collapsed');
+
+guestManagerToggle.onclick = ()=>{
+  const willOpen = guestManager.hidden;
+  guestManager.hidden = !willOpen;
+  guestManagerToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  if(willOpen){
+    renderGuestManager();
+    document.getElementById('guest-name-input').focus();
+  }
+};
+
+document.getElementById('guest-add-btn').onclick = ()=>{
+  const input = document.getElementById('guest-name-input');
+  const guestName = input.value.trim();
+  const owner = localAvailabilityResponses.find(item=>
+    !item.isGuest && item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+  );
+  if(!owner){ showToast('Primero confirmá tu estado.'); return; }
+  if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
+  const duplicate = localAvailabilityResponses.some(item=>item.name.toLocaleLowerCase('es')===guestName.toLocaleLowerCase('es'));
+  if(duplicate){ input.focus(); showToast('Ese nombre ya está registrado en esta fecha.'); return; }
+  upsertLocalAvailability({
+    name:guestName,
+    status:'in',
+    from:owner.from || '16:00',
+    to:owner.to || '20:00',
+    paid:false,
+    team:null,
+    isGuest:true,
+    invitedBy:owner.name,
+    updatedAt:new Date().toISOString()
+  });
+  input.value = '';
+  renderGuestManager();
+  input.focus();
+};
+document.getElementById('guest-name-input').addEventListener('keydown', event=>{
+  if(event.key==='Enter'){
+    event.preventDefault();
+    document.getElementById('guest-add-btn').click();
+  }
+});
+
+document.querySelectorAll('.my-status-paid button').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('.my-status-paid button').forEach(option=>{
+      const selected = option === btn;
+      option.classList.toggle('active', selected);
+      option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    const response = localAvailabilityResponses.find(item=>
+      item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+    );
+    if(response && response.status==='in'){
+      response.paid = btn.dataset.value === 'yes';
+      response.updatedAt = new Date().toISOString();
+      saveLocalAvailability();
+      syncLocalAvailabilityWithPlayers();
+      render();
+      renderLocalOrganizer();
+    }
+  };
+});
+
+(async function init(){
+  state = defaultState();
+  syncLocalAvailabilityWithPlayers();
+  loadLocalFormationState();
+  updateKnownSets(state);
+  render();
+  restoreCurrentLocalResponse();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: #0a1a28; }
+body { min-height: 100vh; }
+.site-shell { width: 100%; min-height: 100vh; background: #0a1a28; }
+.site-preview { display: block; width: 100%; min-height: 100vh; border: 0; background: #0a1a28; }
