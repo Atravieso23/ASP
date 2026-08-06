@@ -126,17 +126,30 @@ test("clears local responses and keeps date actions in organizer", async () => {
   assert.match(demo, /localStorage\.removeItem\(LOCAL_AVAILABILITY_KEY\)/);
   assert.match(demo, /localStorage\.removeItem\(LOCAL_FORMATIONS_KEY\)/);
   assert.match(demo, /clearLocalOrganizerState\(\);\s*state\.players = \[\]/);
+  const clearHandler = demo.slice(demo.indexOf("document.getElementById('c-confirm').onclick"), demo.indexOf('/* ---------- ALIAS Y MAPA ---------- */'));
+  assert.match(clearHandler, /state\.responses = \[\]/);
+  assert.match(clearHandler, /await saveState\(state\)/);
+  assert.doesNotMatch(clearHandler, /state\.matchInfo = blankMatchInfo\(\)/);
+  assert.match(demo, /conserva los datos del partido y la cancha/);
 });
 
-test("keeps player state derived from responses and seeds 18 demo profiles once", async () => {
+test("remembers frequent payment aliases without clearing match information", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /list="frequent-aliases"/);
+  assert.match(demo, /frequentAliases: \[\]/);
+  assert.match(demo, /state\.frequentAliases\.unshift\(nextAlias\)/);
+  assert.match(demo, /state\.frequentAliases = state\.frequentAliases\.slice\(0, 10\)/);
+});
+
+test("keeps player state derived from universal responses without reseeding demo profiles", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /players: \[\]/);
-  assert.match(demo, /const DEFAULT_DEMO_RESPONSES = \[/);
-  assert.match(demo, /asp_demo_responses_seeded_v3/);
-  assert.match(demo, /localAvailabilityResponses\.length >= 18/);
-  assert.equal((demo.match(/\{name:'[^']+', status:/g) ?? []).length, 18);
-  assert.match(demo, /localStorage\.setItem\(LOCAL_DEMO_SEEDED_KEY, 'true'\)/);
+  assert.match(demo, /responses: \[\]/);
+  assert.match(demo, /state\.responses = localAvailabilityResponses/);
+  assert.match(demo, /asp_availability_local_backup_v1/);
+  assert.doesNotMatch(demo, /localAvailabilityResponses\.length >= 18/);
   assert.match(demo, /state\.players = state\.players\.filter\(player=>responseNames\.has/);
   assert.match(demo, /response\.team = player\.team/);
 });
@@ -222,7 +235,7 @@ test("manages per-date guests from the collapsed player status", async () => {
   assert.match(demo, /item\.isGuest === true/);
   assert.match(demo, /invitedBy:owner\.name/);
   assert.match(demo, /class="guest-paid-check/);
-  assert.match(demo, /data-guest-paid="\$\{escapeHtml\(guest\.name\)\}"/);
+  assert.match(demo, /data-guest-paid="\$\{guest\.responseId\}"/);
   assert.match(demo, /data-remove-guest/);
   assert.doesNotMatch(demo, /data-guest-status=/);
   assert.doesNotMatch(demo, /<details class="guest-item">/);
@@ -244,7 +257,7 @@ test("collapses my status into a mobile-first quick summary with reversible paym
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /function updateMyStatusSummary\(response\)/);
-  assert.match(demo, /`Mi estado · \$\{response\.name\} · \$\{availability\}/);
+  assert.match(demo, /`\$\{response\.name\} · \$\{availability\}/);
   assert.match(demo, /class="my-status-summary-title">Mi estado/);
   assert.match(demo, /class="my-status-paid"/);
   assert.match(demo, /response\.paid = button\.dataset\.value === 'yes'/);

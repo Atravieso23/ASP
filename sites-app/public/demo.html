@@ -482,7 +482,8 @@
   .my-status-payment{border-top:1px dashed var(--card-border); margin-top:12px; padding-top:12px;}
   .my-status-payment[hidden]{display:none;}
   .my-status-payment .my-status-label{display:block;margin-bottom:7px;}
-  .my-status-paid button.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
+  .my-status-paid button[data-value="yes"].active{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 0 0 2px rgba(31,143,78,.16);}
+  .my-status-paid button[data-value="no"].active{background:var(--danger);border-color:var(--danger);color:#fff;box-shadow:0 0 0 2px rgba(193,67,42,.14);}
   .guest-manager-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px;padding-top:13px;border-top:1px dashed var(--card-border);}
   .guest-manager-toggle{border:0;background:transparent;color:var(--navy);padding:0;font:700 13px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
@@ -778,7 +779,7 @@
     <div id="history-list"></div>
   </div>
 
-  <p class="footer-note">Prueba local: tu respuesta queda guardada solamente en este navegador.<br>La sincronización entre teléfonos se incorporará al conectar Supabase.</p>
+  <p class="footer-note">Tus respuestas se sincronizan entre dispositivos.</p>
   </div>
 
   <div class="organizer-view" id="main-view-organizer">
@@ -855,7 +856,7 @@
       </div>
     </section>
 
-    <p class="footer-note">Modo de prueba · Datos guardados solo en este navegador</p>
+    <p class="footer-note">Datos sincronizados entre dispositivos</p>
   </div>
 </div>
 
@@ -890,7 +891,7 @@
       <input type="text" id="m-price" placeholder="50000">
       <p class="field-note">Se divide sola entre la cantidad de gente según la cancha (F5 ÷10, F7 ÷14, F8 ÷16, F9 ÷18, F11 ÷22).</p>
     </div>
-    <div class="field"><label>Alias para pagar</label><input type="text" id="m-alias" placeholder="juan.futbol.mp"></div>
+    <div class="field"><label>Alias para pagar</label><input type="text" id="m-alias" list="frequent-aliases" autocomplete="off" placeholder="Escribí o elegí un alias frecuente"><datalist id="frequent-aliases"></datalist><p class="field-note">Los alias usados quedan disponibles como sugerencias para próximas fechas.</p></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="m-cancel">Cancelar</button>
       <button class="btn-save" id="m-save">Guardar</button>
@@ -946,7 +947,7 @@
 <div class="modal-overlay" id="clear-overlay">
   <div class="modal">
     <h2>Limpiar todo</h2>
-    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto borra los confirmados, equipos, pagos y los datos del partido actual (cancha, tipo, precio, día, hora, alias) y <b>no lo guarda en el historial</b>. No se puede deshacer. ¿Seguro que querés continuar?</p>
+    <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto borra para todos los teléfonos las respuestas, los pagos y los equipos, pero conserva los datos del partido y la cancha. <b>No lo guarda en el historial.</b> ¿Seguro que querés continuar?</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="c-cancel">Cancelar</button>
       <button class="btn-confirm-danger" id="c-confirm">Sí, limpiar todo</button>
@@ -996,6 +997,7 @@ const FORMATIONS = {
 };
 let state = null;
 let saving = false;
+let currentSessionUserId = '';
 const LOCAL_FORMATIONS_KEY = 'asp_formations_demo_v1';
 
 function defaultState(){
@@ -1005,7 +1007,9 @@ function defaultState(){
     history: [],
     sedes: [{name:'Cancha del barrio',address:''}],
     roster: [],
-    formations: {}
+    formations: {},
+    responses: [],
+    frequentAliases: []
   };
 }
 
@@ -1035,6 +1039,8 @@ async function fetchServerState(){
       parsed.roster = parsed.roster.map(n=>({name:n, number:null}));
     }
     if(!parsed.formations) parsed.formations = {};
+    if(!parsed.responses) parsed.responses = [];
+    if(!parsed.frequentAliases) parsed.frequentAliases = [];
     return parsed;
   }catch(e){
     console.error('Error leyendo de Supabase', e);
@@ -1106,8 +1112,15 @@ async function refreshFromServer(){
   fresh.roster = mergeRosterArr(fresh.roster, state ? state.roster : []);
   if(state && state.formations) fresh.formations = {...fresh.formations, ...state.formations};
   state = fresh;
+  localAvailabilityResponses = Array.isArray(state.responses) ? state.responses : [];
+  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  currentLocalResponseName = ownResponse?.name || '';
+  recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))].sort((a,b)=>a.localeCompare(b,'es'));
+  syncLocalAvailabilityWithPlayers();
   updateKnownSets(state);
   render();
+  renderLocalOrganizer();
+  renderGuestManager();
 }
 
 function fieldTypeLabel(t){
@@ -1514,7 +1527,14 @@ function render(){
   const paidCount = inList.filter(p=>p.paid).length;
   document.getElementById('paid-count').textContent = paidCount;
   document.getElementById('total-collected').textContent = perPerson>0 ? formatMoney(perPerson * paidCount) : '$0';
-  const unpaidNames = inList.filter(p=>!p.paid).map(p=>p.name);
+  const unpaidNames = inList.filter(p=>!p.paid)
+    .sort((a,b)=>{
+      const responseA = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===a.name.toLocaleLowerCase('es'));
+      const responseB = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===b.name.toLocaleLowerCase('es'));
+      const priority = response=>response?.ownerId===currentSessionUserId ? (response.isGuest ? 1 : 0) : 2;
+      return priority(responseA)-priority(responseB) || a.name.localeCompare(b.name,'es');
+    })
+    .map(p=>p.name);
   const faltanEl = document.getElementById('faltan-pagar');
   faltanEl.classList.toggle('all-paid', unpaidNames.length===0 && inList.length>0);
   faltanEl.innerHTML = unpaidNames.length ? `Faltan pagar: <b>${escapeHtml(unpaidNames.join(', '))}</b>` : (inList.length ? 'Ya pagaron todos ✓' : '');
@@ -1634,6 +1654,7 @@ function attachListEvents(){
   document.querySelectorAll('[data-action="remove"]').forEach(el=>{
     el.onclick = async ()=>{
       const name = el.getAttribute('data-name');
+      if(!window.confirm(`¿Eliminar a ${name} de esta fecha?`)) return;
       state.players = state.players.filter(pl=>pl.name!==name);
       render();
       await persist();
@@ -1956,6 +1977,8 @@ function renderRosterManageList(){
   ul.querySelectorAll('[data-action="delete-roster"]').forEach(btn=>{
     btn.onclick = async ()=>{
       const idx = parseInt(btn.dataset.idx);
+      const rosterName = state.roster[idx]?.name;
+      if(!rosterName || !window.confirm(`¿Eliminar a ${rosterName} del plantel?`)) return;
       state.roster.splice(idx,1);
       renderRosterManageList();
       render();
@@ -2084,12 +2107,20 @@ document.getElementById('edit-match-btn').onclick = ()=>{
   document.getElementById('m-type').value = mi.type||'';
   document.getElementById('m-price').value = mi.priceTotal||'';
   document.getElementById('m-alias').value = mi.alias||'';
+  const aliasList = document.getElementById('frequent-aliases');
+  aliasList.innerHTML = '';
+  (state.frequentAliases||[]).forEach(alias=>{
+    const option = document.createElement('option');
+    option.value = alias;
+    aliasList.appendChild(option);
+  });
   overlay.classList.add('open');
 };
 document.getElementById('m-cancel').onclick = ()=> overlay.classList.remove('open');
 document.getElementById('m-save').onclick = async ()=>{
   const previousFieldType = state.matchInfo.type;
   const nextFieldType = document.getElementById('m-type').value;
+  const nextAlias = document.getElementById('m-alias').value.trim();
   let loc = document.getElementById('m-loc').value;
   if(loc === '__new__'){
     const newLoc = document.getElementById('m-loc-new').value.trim();
@@ -2106,8 +2137,13 @@ document.getElementById('m-save').onclick = async ()=>{
     loc: loc,
     type: nextFieldType,
     priceTotal: document.getElementById('m-price').value.trim(),
-    alias: document.getElementById('m-alias').value.trim(),
+    alias: nextAlias,
   };
+  if(nextAlias){
+    state.frequentAliases = (state.frequentAliases||[]).filter(alias=>alias.toLocaleLowerCase('es')!==nextAlias.toLocaleLowerCase('es'));
+    state.frequentAliases.unshift(nextAlias);
+    state.frequentAliases = state.frequentAliases.slice(0, 10);
+  }
   if(previousFieldType!==nextFieldType){
     state.formations = {};
     state.players.forEach(player=>{ player.pos = null; });
@@ -2160,13 +2196,15 @@ document.getElementById('pay-confirm-cancel').onclick = ()=> document.getElement
 document.getElementById('c-confirm').onclick = async ()=>{
   clearLocalOrganizerState();
   state.players = [];
-  state.matchInfo = blankMatchInfo();
+  state.responses = [];
+  state.formations = {};
   clearOverlay.classList.remove('open');
   render();
   renderLocalOrganizer();
   resetMyStatusCard();
-  await persist();
-  showToast('Se limpió todo (sin guardar en el historial).');
+  await saveState(state);
+  updateKnownSets(state);
+  showToast('Se borraron las respuestas y equipos para todos. La cancha se conservó.');
 };
 
 /* ---------- ALIAS Y MAPA ---------- */
@@ -2230,29 +2268,11 @@ let registeringFirstTime = false;
 function loadLocalAvailability(){
   try{
     const saved = JSON.parse(localStorage.getItem(LOCAL_AVAILABILITY_KEY) || '[]');
-    localAvailabilityResponses = Array.isArray(saved) ? saved : [];
-    let migratedDoubt = false;
-    localAvailabilityResponses = localAvailabilityResponses.map(item=>{
-      if(item.status!=='doubt') return item;
-      migratedDoubt = true;
-      return {...item,status:'out',from:'',to:'',paid:null,team:null};
-    });
-    if(migratedDoubt) localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses));
-    currentLocalResponseName = localStorage.getItem(LOCAL_CURRENT_PLAYER_KEY) || '';
-    const alreadySeeded = localStorage.getItem(LOCAL_DEMO_SEEDED_KEY) === 'true';
-    if(!alreadySeeded){
-      if(localAvailabilityResponses.length < 18){
-        const existingNames = new Set(localAvailabilityResponses.map(item=>item.name.toLocaleLowerCase('es')));
-        for(const example of DEFAULT_DEMO_RESPONSES){
-          if(localAvailabilityResponses.length >= 18) break;
-          if(existingNames.has(example.name.toLocaleLowerCase('es'))) continue;
-          localAvailabilityResponses.push({...example, updatedAt:new Date().toISOString()});
-          existingNames.add(example.name.toLocaleLowerCase('es'));
-        }
-        localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses));
-      }
-      localStorage.setItem(LOCAL_DEMO_SEEDED_KEY, 'true');
+    if(Array.isArray(saved) && saved.length && !localStorage.getItem('asp_availability_local_backup_v1')){
+      localStorage.setItem('asp_availability_local_backup_v1', JSON.stringify(saved));
     }
+    localAvailabilityResponses = [];
+    currentLocalResponseName = '';
   }catch(e){
     localAvailabilityResponses = [];
     currentLocalResponseName = '';
@@ -2260,8 +2280,10 @@ function loadLocalAvailability(){
 }
 
 function saveLocalAvailability(){
-  try{ localStorage.setItem(LOCAL_AVAILABILITY_KEY, JSON.stringify(localAvailabilityResponses)); }
-  catch(e){ console.error('No se pudo guardar la disponibilidad local', e); }
+  if(!state) return;
+  state.responses = localAvailabilityResponses.map(item=>({...item}));
+  syncLocalAvailabilityWithPlayers();
+  void saveState(state);
 }
 
 function saveRecurrentPlayers(){
@@ -2269,18 +2291,8 @@ function saveRecurrentPlayers(){
   catch(e){ console.error('No se pudo guardar la lista de jugadores recurrentes', e); }
 }
 function loadRecurrentPlayers(){
-  try{
-    const stored = localStorage.getItem(LOCAL_RECURRENT_PLAYERS_KEY);
-    if(stored!==null){
-      const parsed = JSON.parse(stored);
-      recurrentPlayers = Array.isArray(parsed) ? parsed.filter(name=>typeof name==='string' && name.trim()) : [];
-    }else{
-      recurrentPlayers = localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name);
-      saveRecurrentPlayers();
-    }
-  }catch(e){
-    recurrentPlayers = localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name);
-  }
+  recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))]
+    .sort((a,b)=>a.localeCompare(b,'es'));
 }
 function addRecurrentPlayer(name){
   const existing = recurrentPlayers.find(item=>item.toLocaleLowerCase('es')===name.toLocaleLowerCase('es'));
@@ -2323,10 +2335,22 @@ function renderRecurrentPlayerMenu(){
       const index = Number(button.dataset.deleteRecurrentIndex);
       const removed = recurrentPlayers[index];
       if(!removed) return;
+      const matches = localAvailabilityResponses.filter(item=>!item.isGuest && item.name.toLocaleLowerCase('es')===removed.toLocaleLowerCase('es'));
+      if(matches.length!==1){
+        showToast('No se puede identificar ese jugador de forma única. Usá nombre y apellido.');
+        return;
+      }
+      const target = matches[0];
+      if(!window.confirm(`¿Eliminar a ${removed} de la lista compartida?`)) return;
       recurrentPlayers.splice(index,1);
       saveRecurrentPlayers();
+      localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==target.responseId);
+      state.roster = (state.roster||[]).filter(item=>item.name.toLocaleLowerCase('es')!==removed.toLocaleLowerCase('es'));
+      saveLocalAvailability();
+      syncLocalAvailabilityWithPlayers();
+      render();
       renderRecurrentPlayerMenu();
-      showToast(`${removed} se quitó de jugadores recurrentes.`);
+      showToast(`${removed} se eliminó de la lista compartida.`);
     };
   });
 }
@@ -2358,7 +2382,10 @@ function clearLocalOrganizerState(){
   }catch(e){
     console.error('No se pudieron limpiar los datos locales', e);
   }
-  if(state) state.formations = {};
+  if(state){
+    state.formations = {};
+    state.responses = [];
+  }
 }
 
 function syncLocalAvailabilityWithPlayers(){
@@ -2408,8 +2435,8 @@ function getResponsePlayers(status){
 }
 
 function upsertLocalAvailability(response){
-  const normalizedName = response.name.toLocaleLowerCase('es');
-  const index = localAvailabilityResponses.findIndex(item=>item.name.toLocaleLowerCase('es')===normalizedName);
+  if(!response.responseId) response.responseId = crypto.randomUUID();
+  const index = localAvailabilityResponses.findIndex(item=>item.responseId===response.responseId);
   if(index >= 0) localAvailabilityResponses[index] = response;
   else localAvailabilityResponses.push(response);
   saveLocalAvailability();
@@ -2419,11 +2446,8 @@ function upsertLocalAvailability(response){
 }
 
 function getCurrentPlayerGuests(){
-  if(!currentLocalResponseName) return [];
-  const owner = currentLocalResponseName.toLocaleLowerCase('es');
-  return localAvailabilityResponses.filter(item=>
-    item.isGuest === true && (item.invitedBy||'').toLocaleLowerCase('es')===owner
-  );
+  if(!currentSessionUserId) return [];
+  return localAvailabilityResponses.filter(item=>item.isGuest === true && item.ownerId===currentSessionUserId);
 }
 
 function chooseBalancedTeam(excludeName=''){
@@ -2449,14 +2473,14 @@ function renderGuestManager(){
   list.innerHTML = guests.length ? guests.map(guest=>{
     return `<div class="guest-item">
       <span class="guest-name">${escapeHtml(guest.name)}</span>
-      <button type="button" class="guest-paid-check ${guest.paid?'active':''}" data-guest-paid="${escapeHtml(guest.name)}" aria-pressed="${guest.paid?'true':'false'}">Ya pagó</button>
-      <button type="button" class="guest-remove" data-remove-guest="${escapeHtml(guest.name)}" aria-label="Eliminar a ${escapeHtml(guest.name)}">×</button>
+      <button type="button" class="guest-paid-check ${guest.paid?'active':''}" data-guest-paid="${guest.responseId}" aria-pressed="${guest.paid?'true':'false'}">Ya pagó</button>
+      <button type="button" class="guest-remove" data-remove-guest="${guest.responseId}" aria-label="Eliminar a ${escapeHtml(guest.name)}">×</button>
     </div>`;
   }).join('') : '<p class="guest-empty">Todavía no agregaste invitados para esta fecha.</p>';
 
   list.querySelectorAll('[data-guest-paid]').forEach(button=>{
     button.onclick = ()=>{
-      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.name===button.dataset.guestPaid);
+      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.responseId===button.dataset.guestPaid);
       if(!guest) return;
       guest.paid = !guest.paid;
       guest.updatedAt = new Date().toISOString();
@@ -2466,14 +2490,16 @@ function renderGuestManager(){
   });
   list.querySelectorAll('[data-remove-guest]').forEach(button=>{
     button.onclick = ()=>{
-      const name = button.dataset.removeGuest;
-      localAvailabilityResponses = localAvailabilityResponses.filter(item=>!(item.isGuest && item.name===name));
+      const responseId = button.dataset.removeGuest;
+      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.responseId===responseId);
+      if(!guest || !window.confirm(`¿Eliminar a ${guest.name} de tus invitados?`)) return;
+      localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==responseId);
       saveLocalAvailability();
       syncLocalAvailabilityWithPlayers();
       render();
       renderLocalOrganizer();
       renderGuestManager();
-      showToast(`${name} se quitó de tus invitados.`);
+      showToast(`${guest.name} se quitó de tus invitados.`);
     };
   });
 }
@@ -2635,7 +2661,7 @@ function syncMockToOptions(){
 function restoreCurrentLocalResponse(){
   if(!currentLocalResponseName) return;
   const response = localAvailabilityResponses.find(item=>
-    item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+    !item.isGuest && item.ownerId===currentSessionUserId
   );
   if(!response) return;
 
@@ -2664,7 +2690,7 @@ function updateMyStatusSummary(response){
     : 'No estoy';
   const payment = response.status === 'in' ? (response.paid ? 'Pagado' : 'No pagado') : '';
   document.getElementById('my-status-summary-value').textContent =
-    `Mi estado · ${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;
+    `${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;
   mockPayment.hidden = response.status !== 'in';
   document.querySelectorAll('.my-status-paid button').forEach(option=>{
     const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
@@ -2737,10 +2763,18 @@ document.getElementById('my-status-confirm').onclick = ()=>{
     showToast('El horario “Hasta” debe ser posterior a “Desde”.');
     return;
   }
-  const existingResponse = localAvailabilityResponses.find(item=>
-    item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
+  const existingResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  const nameCollision = localAvailabilityResponses.find(item=>
+    item.responseId!==existingResponse?.responseId && item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
   );
+  if(nameCollision){
+    nameInput.setAttribute('aria-invalid','true');
+    showToast(`Ya existe “${playerName}”. Agregá apellido o apodo para distinguirte.`);
+    return;
+  }
   const response = {
+    responseId:existingResponse?.responseId || crypto.randomUUID(),
+    ownerId:currentSessionUserId,
     name:playerName,
     status:mockAvailability,
     from:mockAvailability==='out' ? '' : from,
@@ -2785,13 +2819,15 @@ document.getElementById('guest-add-btn').onclick = ()=>{
   const input = document.getElementById('guest-name-input');
   const guestName = input.value.trim();
   const owner = localAvailabilityResponses.find(item=>
-    !item.isGuest && item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+    !item.isGuest && item.ownerId===currentSessionUserId
   );
   if(!owner){ showToast('Primero confirmá tu estado.'); return; }
   if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
   const duplicate = localAvailabilityResponses.some(item=>item.name.toLocaleLowerCase('es')===guestName.toLocaleLowerCase('es'));
   if(duplicate){ input.focus(); showToast('Ese nombre ya está registrado en esta fecha.'); return; }
   upsertLocalAvailability({
+    responseId:crypto.randomUUID(),
+    ownerId:currentSessionUserId,
     name:guestName,
     status:'in',
     from:owner.from || '16:00',
@@ -2816,7 +2852,7 @@ document.getElementById('guest-name-input').addEventListener('keydown', event=>{
 document.querySelectorAll('.my-status-paid button').forEach(button=>{
   button.onclick = ()=>{
     const response = localAvailabilityResponses.find(item=>
-      item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+      !item.isGuest && item.ownerId===currentSessionUserId
     );
     if(!response || response.status!=='in') return;
     response.paid = button.dataset.value === 'yes';
@@ -2835,15 +2871,27 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
     return;
   }
   const { data: sessionData } = await supabaseClient.auth.getSession();
-  if(!sessionData.session){
-    const { error } = await supabaseClient.auth.signInAnonymously();
+  let session = sessionData.session;
+  if(!session){
+    const { data: anonymousData, error } = await supabaseClient.auth.signInAnonymously();
     if(error){
       console.error('No se pudo iniciar la sesión anónima:', error);
       document.body.innerHTML = '<main style="max-width:560px;margin:64px auto;padding:24px;font-family:Arial,sans-serif"><h1>No se pudo ingresar</h1><p>Revisá que el acceso anónimo esté activado en Supabase y recargá la página.</p></main>';
       return;
     }
+    session = anonymousData.session;
   }
+  currentSessionUserId = session?.user?.id || '';
   state = (await fetchServerState()) || defaultState();
+  localAvailabilityResponses = (state.responses||[]).map(item=>({
+    ...item,
+    responseId:item.responseId || crypto.randomUUID()
+  }));
+  state.responses = localAvailabilityResponses;
+  const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && item.ownerId===currentSessionUserId);
+  currentLocalResponseName = ownResponse?.name || '';
+  recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))]
+    .sort((a,b)=>a.localeCompare(b,'es'));
   syncLocalAvailabilityWithPlayers();
   loadLocalFormationState();
   updateKnownSets(state);
