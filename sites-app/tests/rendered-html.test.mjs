@@ -226,10 +226,23 @@ test("supports recurrent players and first-time registration", async () => {
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
 });
 
+test("waits for Supabase before confirming registration and rejects remote duplicates", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /async function savePlayerRegistration\(response\)/);
+  assert.match(demo, /const fresh = await fetchServerState\(\)/);
+  assert.match(demo, /item\.ownerId!==currentSessionUserId/);
+  assert.match(demo, /document\.getElementById\('my-status-confirm'\)\.onclick = async/);
+  assert.match(demo, /confirmButton\.textContent = 'Guardando…'/);
+  assert.match(demo, /Respuesta guardada y sincronizada/);
+  assert.match(demo, /No se pudo guardar en Supabase/);
+});
+
 test("manages per-date guests from the collapsed player status", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /id="guest-manager-toggle"[^>]*>Gestor de invitados/);
+  assert.match(demo, /id="guest-manager-toggle"[^>]*>\+ Agregar invitado/);
+  assert.match(demo, /manager\.hidden \? '\+ Agregar invitado' : 'Cerrar invitados'/);
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
