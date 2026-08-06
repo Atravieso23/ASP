@@ -448,6 +448,11 @@
   .player-picker-mode{border:1px solid var(--card-border);border-radius:9px;background:var(--bg-bottom);color:var(--celeste-deep);padding:0 10px;font:700 11px 'Inter',sans-serif;cursor:pointer;white-space:nowrap;}
   .player-picker-mode.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
   .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
+  .player-name-feedback{margin:9px 0 0;padding:10px 11px;border-radius:9px;font-size:11.5px;line-height:1.45;}
+  .player-name-feedback[hidden]{display:none;}
+  .player-name-feedback.info{background:rgba(25,126,168,.09);border:1px solid rgba(25,126,168,.25);color:var(--navy);}
+  .player-name-feedback.error{background:rgba(193,67,42,.08);border:1px solid rgba(193,67,42,.3);color:#8f2f20;}
+  .player-name-feedback strong{display:block;margin-bottom:2px;}
   .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:220px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
   .recurrent-player-menu[hidden]{display:none;}
   .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;padding:4px;border-radius:8px;}
@@ -621,6 +626,7 @@
         </div>
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
         <p class="player-picker-help" id="player-picker-help">Buscá tu nombre. Si no aparecés, tocá “Registrarme”.</p>
+        <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
       </div>
       <span class="my-status-label">Disponibilidad</span>
       <div class="my-status-choice" role="group" aria-label="Disponibilidad">
@@ -2307,6 +2313,29 @@ function hideRecurrentPlayerMenu(){
   menu.hidden = true;
   document.getElementById('my-player-name').setAttribute('aria-expanded','false');
 }
+function hidePlayerNameFeedback(){
+  const feedback = document.getElementById('player-name-feedback');
+  feedback.hidden = true;
+  feedback.className = 'player-name-feedback';
+  feedback.innerHTML = '';
+}
+function showPlayerNameFeedback(kind,title,message){
+  const feedback = document.getElementById('player-name-feedback');
+  feedback.className = `player-name-feedback ${kind}`;
+  feedback.innerHTML = `<strong>${escapeHtml(title)}</strong>${escapeHtml(message)}`;
+  feedback.hidden = false;
+}
+function showDuplicateNameFeedback(name){
+  showPlayerNameFeedback(
+    'error',
+    `“${name}” ya está en uso.`,
+    ` Si sos otro ${name}, escribí apellido o apodo para diferenciarte. Por ejemplo: “${name} A.” o “${name} Chaval”.`
+  );
+  const input = document.getElementById('my-player-name');
+  input.setAttribute('aria-invalid','true');
+  input.focus();
+  input.setSelectionRange(input.value.length,input.value.length);
+}
 function renderRecurrentPlayerMenu(){
   const input = document.getElementById('my-player-name');
   const menu = document.getElementById('recurrent-player-menu');
@@ -2366,8 +2395,14 @@ function setFirstTimeRegistration(active,preserveValue=false){
   button.textContent = active ? 'Cancelar' : 'Registrarme';
   label.textContent = active ? 'Registrar jugador' : 'Nombre del jugador';
   input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
-  help.textContent = active ? 'Confirmá para registrarte y guardar tu nombre para las próximas fechas.' : 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
+  help.textContent = active ? 'Modo registro activado. Escribí un nombre que te identifique y confirmalo abajo.' : 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
   confirm.textContent = active ? 'Registrarme y confirmar' : 'Confirmar';
+  if(active){
+    const typedName = input.value.trim();
+    const duplicate = recurrentPlayers.some(name=>name.toLocaleLowerCase('es')===typedName.toLocaleLowerCase('es'));
+    if(typedName && duplicate) showDuplicateNameFeedback(typedName);
+    else showPlayerNameFeedback('info','Estás creando un jugador nuevo.',' Si hay otra persona con tu mismo nombre, agregá apellido o apodo.');
+  }else hidePlayerNameFeedback();
   hideRecurrentPlayerMenu();
   if(active || !preserveValue) input.focus();
 }
@@ -2638,7 +2673,13 @@ renderLocalOrganizer();
 const recurrentPlayerField = document.querySelector('.recurrent-player-field');
 const recurrentPlayerInput = document.getElementById('my-player-name');
 recurrentPlayerInput.addEventListener('focus',renderRecurrentPlayerMenu);
-recurrentPlayerInput.addEventListener('input',renderRecurrentPlayerMenu);
+recurrentPlayerInput.addEventListener('input',()=>{
+  recurrentPlayerInput.removeAttribute('aria-invalid');
+  if(registeringFirstTime){
+    showPlayerNameFeedback('info','Estás creando un jugador nuevo.',' Si hay otra persona con tu mismo nombre, agregá apellido o apodo.');
+  }else hidePlayerNameFeedback();
+  renderRecurrentPlayerMenu();
+});
 document.getElementById('first-time-player-btn').onclick = ()=>setFirstTimeRegistration(!registeringFirstTime,true);
 document.addEventListener('pointerdown',event=>{
   if(!recurrentPlayerField.contains(event.target)) hideRecurrentPlayerMenu();
@@ -2785,12 +2826,14 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   if(!playerName){
     nameInput.setAttribute('aria-invalid','true');
     nameInput.focus();
+    showPlayerNameFeedback('error','Falta tu nombre.',' Escribilo arriba para poder confirmar.');
     showToast('Escribí tu nombre para confirmar.');
     return;
   }
   const recurrentMatch = recurrentPlayers.find(name=>name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
   if(!registeringFirstTime && !recurrentMatch){
     nameInput.setAttribute('aria-invalid','true');
+    showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Registrarme” para crear uno nuevo.');
     showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Registrarme”.');
     renderRecurrentPlayerMenu();
     return;
@@ -2806,7 +2849,7 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     item.responseId!==existingResponse?.responseId && item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
   );
   if(nameCollision){
-    nameInput.setAttribute('aria-invalid','true');
+    showDuplicateNameFeedback(playerName);
     showToast(`Ya existe “${playerName}”. Agregá apellido o apodo para distinguirte.`);
     return;
   }
@@ -2828,17 +2871,19 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   confirmButton.disabled = false;
   confirmButton.textContent = previousLabel;
   if(result.duplicate){
-    nameInput.setAttribute('aria-invalid','true');
+    showDuplicateNameFeedback(playerName);
     render();
     renderLocalOrganizer();
     showToast(`Ya existe “${playerName}”. Agregá apellido o apodo para distinguirte.`);
     return;
   }
   if(!result.ok){
+    showPlayerNameFeedback('error','No pudimos guardar tu respuesta.',' Revisá tu conexión e intentá nuevamente.');
     showToast('No se pudo guardar en Supabase. Revisá la conexión e intentá otra vez.');
     return;
   }
   currentLocalResponseName = playerName;
+  hidePlayerNameFeedback();
   addRecurrentPlayer(playerName);
   if(registeringFirstTime){
     setFirstTimeRegistration(false,true);

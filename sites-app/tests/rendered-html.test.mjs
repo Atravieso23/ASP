@@ -236,6 +236,12 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /confirmButton\.textContent = 'Guardando…'/);
   assert.match(demo, /Respuesta guardada y sincronizada/);
   assert.match(demo, /No se pudo guardar en Supabase/);
+  assert.match(demo, /id="player-name-feedback" role="alert" aria-live="assertive"/);
+  assert.match(demo, /function showDuplicateNameFeedback\(name\)/);
+  assert.match(demo, /“\$\{name\}” ya está en uso/);
+  assert.match(demo, /escribí apellido o apodo para diferenciarte/);
+  assert.match(demo, /Modo registro activado/);
+  assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
 });
 
 test("manages per-date guests from the collapsed player status", async () => {
