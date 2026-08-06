@@ -267,14 +267,14 @@
   .field-chip.extra::after{content:"SUP";position:absolute;right:-5px;bottom:-5px;padding:1px 3px;border-radius:4px;background:#E8A93B;color:#3a2500;font:700 7px 'JetBrains Mono',monospace;}
   .field-chip .num{font-family:'JetBrains Mono',monospace; font-size:11px;}
   .field-chip.dragging{cursor:grabbing; z-index:10; opacity:0.88;}
-  .organizer-formations{display:grid;grid-template-columns:1fr;gap:22px;}
+  .organizer-formations{display:grid;grid-template-columns:1fr;gap:14px;}
   .organizer-formation-team{min-width:0;}
   .organizer-formation-team .pitch-wrap{margin-bottom:0;}
   .formation-team-title{display:flex;align-items:center;gap:8px;color:var(--navy)!important;}
   .formation-team-title::before{content:"";width:12px;height:12px;border-radius:4px;border:1px solid var(--card-border);background:var(--roca);}
   .organizer-formation-team.blanco .formation-team-title::before{background:var(--lacole);border-color:var(--lacole-border);}
   .organizer-formation-help{margin:14px 0 0;text-align:center;color:var(--muted);font-size:12px;line-height:1.5;}
-  @media(min-width:680px){.organizer-formations{grid-template-columns:1fr 1fr;}}
+  .teams-vs{display:grid;place-items:center;width:38px;height:38px;margin:0 auto;border-radius:50%;background:var(--celeste-deep);color:#fff;font:800 12px 'Oswald',sans-serif;letter-spacing:.08em;box-shadow:0 8px 18px -10px rgba(14,42,61,.8);}
 
   .money-summary{
     display:grid;grid-template-columns:1fr 1fr auto;align-items:center;gap:8px;
@@ -470,17 +470,18 @@
   .my-status-summary{display:none;}
   .my-status-card.collapsed .my-status-form{display:none;}
   .my-status-card.collapsed .my-status-summary{display:block;}
-  .my-status-summary-top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
-  .my-status-summary-title{font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); font-weight:700;}
-  .my-status-summary-value{margin-top:5px; font:700 15px 'JetBrains Mono',monospace; color:var(--navy);}
+  .my-status-card.collapsed .my-status-heading{display:none;}
+  .my-status-summary-top{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .my-status-summary-title{display:none;}
+  .my-status-summary-value{font:700 13px 'JetBrains Mono',monospace; color:var(--navy);}
   .my-status-summary-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;}
   .my-status-edit{
     border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
     background:transparent; color:var(--celeste-deep); font:700 12px 'Inter',sans-serif; cursor:pointer;
   }
-  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:16px; padding-top:14px;}
-  .my-status-payment.has-guests .my-status-paid{max-width:210px;}
-  .my-status-paid button.active{background:var(--celeste-deep); border-color:var(--celeste-deep); color:#fff;}
+  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:12px; padding-top:12px;}
+  .my-status-payment[hidden]{display:none;}
+  .my-status-pay-now{width:100%;border:1px solid var(--ok);border-radius:9px;padding:9px 11px;background:rgba(31,143,78,.08);color:var(--ok);font:700 12px 'Inter',sans-serif;cursor:pointer;}
   .guest-manager{margin-top:14px;padding-top:14px;border-top:1px dashed var(--card-border);}
   .guest-manager[hidden]{display:none;}
   .guest-manager-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
@@ -490,23 +491,13 @@
   .guest-add-row input{min-width:0;background:var(--bg-bottom);border:1px solid var(--card-border);color:var(--navy);border-radius:9px;padding:10px 11px;font:13px 'Inter',sans-serif;}
   .guest-add-row button{border:0;border-radius:9px;padding:9px 12px;background:var(--celeste-deep);color:#fff;font:700 12px 'Inter',sans-serif;cursor:pointer;}
   .guest-list{display:grid;gap:7px;}
-  .guest-item{border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);overflow:hidden;}
-  .guest-item summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;cursor:pointer;list-style:none;}
-  .guest-item summary::-webkit-details-marker{display:none;}
-  .guest-item summary::after{content:'›';font-size:20px;color:var(--muted);transform:rotate(90deg);transition:transform .18s;}
-  .guest-item[open] summary::after{transform:rotate(-90deg);}
-  .guest-summary-main{min-width:0;display:flex;align-items:center;gap:7px;flex:1;}
+  .guest-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);padding:9px 10px;}
   .guest-name{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .guest-payment-state{margin-left:auto;font:700 10px 'JetBrains Mono',monospace;color:var(--danger);white-space:nowrap;}
-  .guest-payment-state.paid{color:var(--ok);}
-  .guest-payment-state.absent{color:var(--muted);}
-  .guest-controls{padding:0 11px 11px;display:grid;gap:9px;}
-  .guest-control-row{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:8px;}
-  .guest-control-row>span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;}
-  .guest-toggle{display:flex;gap:6px;}
-  .guest-toggle button{flex:1;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--muted);padding:7px 8px;font:700 11px 'Inter',sans-serif;cursor:pointer;}
-  .guest-toggle button.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
-  .guest-remove{justify-self:end;border:0;background:transparent;color:var(--danger);font:700 11px 'Inter',sans-serif;cursor:pointer;padding:4px;}
+  .guest-paid-check{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--muted);padding:7px 8px;font:700 10px 'Inter',sans-serif;cursor:pointer;white-space:nowrap;}
+  .guest-paid-check::before{content:'✓';display:grid;place-items:center;width:16px;height:16px;border-radius:5px;border:1px solid var(--card-border);color:transparent;}
+  .guest-paid-check.active{border-color:var(--ok);color:var(--ok);background:rgba(31,143,78,.08);}
+  .guest-paid-check.active::before{border-color:var(--ok);background:var(--ok);color:#fff;}
+  .guest-remove{border:0;background:transparent;color:var(--danger);font:700 18px 'Inter',sans-serif;cursor:pointer;padding:4px 6px;line-height:1;}
   .guest-empty{margin:4px 0 0;color:var(--muted);font-size:11px;text-align:center;}
   .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:9px;white-space:nowrap;}
 
@@ -679,16 +670,12 @@
           <div class="my-status-summary-value" id="my-status-summary-value">Estoy · 16:00–20:00</div>
         </div>
         <div class="my-status-summary-actions">
-          <button type="button" class="my-status-edit" id="my-status-edit">Editar respuesta</button>
+          <button type="button" class="my-status-edit" id="my-status-edit" aria-label="Abrir o cerrar edición de mi estado">Editar ▾</button>
           <button type="button" class="my-status-edit" id="guest-manager-toggle" aria-expanded="false">Gestionar invitados · 0</button>
         </div>
       </div>
       <div class="my-status-payment">
-        <span class="my-status-label">¿Ya pagué?</span>
-        <div class="my-status-paid" role="group" aria-label="Estado de pago">
-          <button type="button" data-value="yes" aria-pressed="false">Sí</button>
-          <button type="button" class="active" data-value="no" aria-pressed="true">No</button>
-        </div>
+        <button type="button" class="my-status-pay-now" id="my-status-pay-now">✓ Marcar que ya pagué</button>
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
       <section class="guest-manager" id="guest-manager" aria-labelledby="guest-manager-title" hidden>
@@ -767,6 +754,7 @@
           <h3 id="negro-team-label">Equipo Negro</h3>
           <ul id="team-negro-list"></ul>
         </div>
+        <div class="teams-vs" aria-hidden="true">VS</div>
         <div class="split-col blanco">
           <h3 id="blanco-team-label">Equipo Blanco</h3>
           <ul id="team-blanco-list"></ul>
@@ -835,6 +823,7 @@
             <div class="pitch" id="pitch-negro"></div>
           </div>
         </div>
+        <div class="teams-vs" aria-hidden="true">VS</div>
         <div class="organizer-formation-team blanco">
           <div class="pitch-wrap">
             <div class="pitch-header">
@@ -2441,48 +2430,19 @@ function renderGuestManager(){
   const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
   toggle.textContent = guests.length ? `Editar invitados · ${guests.length}` : 'Gestionar invitados · 0';
   count.textContent = label;
-  document.querySelector('.my-status-payment')?.classList.toggle('has-guests', guests.length>0);
   list.innerHTML = guests.length ? guests.map(guest=>{
-    const paymentText = guest.status!=='in' ? 'No viene' : (guest.paid ? 'Pagó' : 'No pagó');
-    const paymentClass = guest.status!=='in' ? 'absent' : (guest.paid ? 'paid' : '');
-    return `<details class="guest-item">
-      <summary>
-        <span class="guest-summary-main"><span class="guest-name">${escapeHtml(guest.name)}</span><span class="guest-payment-state ${paymentClass}">${paymentText}</span></span>
-      </summary>
-      <div class="guest-controls">
-        <div class="guest-control-row"><span>Asistencia</span><div class="guest-toggle" role="group" aria-label="Asistencia de ${escapeHtml(guest.name)}">
-          <button type="button" class="${guest.status==='in'?'active':''}" data-guest-status="in" data-guest-name="${escapeHtml(guest.name)}">Estoy</button>
-          <button type="button" class="${guest.status==='out'?'active':''}" data-guest-status="out" data-guest-name="${escapeHtml(guest.name)}">No estoy</button>
-        </div></div>
-        ${guest.status==='in' ? `<div class="guest-control-row"><span>Pago</span><div class="guest-toggle" role="group" aria-label="Pago de ${escapeHtml(guest.name)}">
-          <button type="button" class="${guest.paid?'active':''}" data-guest-paid="yes" data-guest-name="${escapeHtml(guest.name)}">Sí</button>
-          <button type="button" class="${!guest.paid?'active':''}" data-guest-paid="no" data-guest-name="${escapeHtml(guest.name)}">No</button>
-        </div></div>` : ''}
-        <button type="button" class="guest-remove" data-remove-guest="${escapeHtml(guest.name)}">Quitar invitado</button>
-      </div>
-    </details>`;
+    return `<div class="guest-item">
+      <span class="guest-name">${escapeHtml(guest.name)}</span>
+      <button type="button" class="guest-paid-check ${guest.paid?'active':''}" data-guest-paid="${escapeHtml(guest.name)}" aria-pressed="${guest.paid?'true':'false'}">Ya pagó</button>
+      <button type="button" class="guest-remove" data-remove-guest="${escapeHtml(guest.name)}" aria-label="Eliminar a ${escapeHtml(guest.name)}">×</button>
+    </div>`;
   }).join('') : '<p class="guest-empty">Todavía no agregaste invitados para esta fecha.</p>';
 
-  list.querySelectorAll('[data-guest-status]').forEach(button=>{
-    button.onclick = ()=>{
-      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.name===button.dataset.guestName);
-      const owner = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es'));
-      if(!guest) return;
-      guest.status = button.dataset.guestStatus;
-      guest.from = guest.status==='in' ? (owner?.from || '16:00') : '';
-      guest.to = guest.status==='in' ? (owner?.to || '20:00') : '';
-      guest.paid = guest.status==='in' ? guest.paid===true : null;
-      guest.team = guest.status==='in' ? guest.team : null;
-      guest.updatedAt = new Date().toISOString();
-      upsertLocalAvailability(guest);
-      renderGuestManager();
-    };
-  });
   list.querySelectorAll('[data-guest-paid]').forEach(button=>{
     button.onclick = ()=>{
-      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.name===button.dataset.guestName);
-      if(!guest || guest.status!=='in') return;
-      guest.paid = button.dataset.guestPaid==='yes';
+      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.name===button.dataset.guestPaid);
+      if(!guest) return;
+      guest.paid = !guest.paid;
       guest.updatedAt = new Date().toISOString();
       upsertLocalAvailability(guest);
       renderGuestManager();
@@ -2643,6 +2603,7 @@ let mockAvailability = 'in';
 const mockStatusCard = document.getElementById('my-status-card');
 const mockTimes = document.getElementById('my-status-times');
 const mockPayment = document.querySelector('.my-status-payment');
+const mockPayNow = document.getElementById('my-status-pay-now');
 const guestManager = document.getElementById('guest-manager');
 const guestManagerToggle = document.getElementById('guest-manager-toggle');
 const mockFrom = document.getElementById('my-status-from');
@@ -2677,18 +2638,19 @@ function restoreCurrentLocalResponse(){
     syncMockToOptions();
     mockTo.value = response.to;
   }
-  mockPayment.style.display = response.status === 'in' ? 'block' : 'none';
-  const summary = response.status === 'in'
-    ? `Estoy · ${response.from}–${response.to}`
-    : 'No estoy';
-  document.getElementById('my-status-summary-value').textContent = summary;
-  document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
-    option.classList.toggle('active', selected);
-    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
+  updateMyStatusSummary(response);
   renderGuestManager();
   mockStatusCard.classList.add('collapsed');
+}
+
+function updateMyStatusSummary(response){
+  const availability = response.status === 'in'
+    ? `Estoy · ${response.from}–${response.to}`
+    : 'No estoy';
+  const payment = response.status === 'in' ? (response.paid ? 'Pagado' : 'No pagado') : '';
+  document.getElementById('my-status-summary-value').textContent =
+    `Mi estado · ${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;
+  mockPayment.hidden = response.status !== 'in' || response.paid === true;
 }
 
 function resetMyStatusCard(){
@@ -2704,14 +2666,9 @@ function resetMyStatusCard(){
   syncMockToOptions();
   mockTo.value = '20:00';
   mockTimes.style.display = 'grid';
-  mockPayment.style.display = 'none';
+  mockPayment.hidden = true;
   guestManager.hidden = true;
   guestManagerToggle.setAttribute('aria-expanded','false');
-  document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === 'no';
-    option.classList.toggle('active', selected);
-    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
   renderGuestManager();
   mockStatusCard.classList.remove('collapsed');
 }
@@ -2755,11 +2712,6 @@ document.getElementById('my-status-confirm').onclick = ()=>{
     showToast('El horario “Hasta” debe ser posterior a “Desde”.');
     return;
   }
-  const summary = mockAvailability === 'in'
-    ? `Estoy · ${from}–${to}`
-    : 'No estoy';
-  document.getElementById('my-status-summary-value').textContent = summary;
-  mockPayment.style.display = mockAvailability === 'in' ? 'block' : 'none';
   const existingResponse = localAvailabilityResponses.find(item=>
     item.name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es')
   );
@@ -2787,16 +2739,12 @@ document.getElementById('my-status-confirm').onclick = ()=>{
   try{ localStorage.setItem(LOCAL_CURRENT_PLAYER_KEY, currentLocalResponseName); }
   catch(e){ console.error('No se pudo recordar al jugador local', e); }
   upsertLocalAvailability(response);
-  document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
-    option.classList.toggle('active', selected);
-    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
+  updateMyStatusSummary(response);
   renderGuestManager();
   mockStatusCard.classList.add('collapsed');
 };
 
-document.getElementById('my-status-edit').onclick = ()=> mockStatusCard.classList.remove('collapsed');
+document.getElementById('my-status-edit').onclick = ()=> mockStatusCard.classList.toggle('collapsed');
 
 guestManagerToggle.onclick = ()=>{
   const willOpen = guestManager.hidden;
@@ -2840,26 +2788,20 @@ document.getElementById('guest-name-input').addEventListener('keydown', event=>{
   }
 });
 
-document.querySelectorAll('.my-status-paid button').forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll('.my-status-paid button').forEach(option=>{
-      const selected = option === btn;
-      option.classList.toggle('active', selected);
-      option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-    const response = localAvailabilityResponses.find(item=>
-      item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
-    );
-    if(response && response.status==='in'){
-      response.paid = btn.dataset.value === 'yes';
-      response.updatedAt = new Date().toISOString();
-      saveLocalAvailability();
-      syncLocalAvailabilityWithPlayers();
-      render();
-      renderLocalOrganizer();
-    }
-  };
-});
+mockPayNow.onclick = ()=>{
+  const response = localAvailabilityResponses.find(item=>
+    item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es')
+  );
+  if(!response || response.status!=='in') return;
+  response.paid = true;
+  response.updatedAt = new Date().toISOString();
+  saveLocalAvailability();
+  syncLocalAvailabilityWithPlayers();
+  render();
+  renderLocalOrganizer();
+  updateMyStatusSummary(response);
+  showToast('Pago marcado como realizado.');
+};
 
 (async function init(){
   if(!supabaseClient){

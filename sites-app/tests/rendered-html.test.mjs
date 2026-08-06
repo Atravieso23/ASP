@@ -221,9 +221,11 @@ test("manages per-date guests from the collapsed player status", async () => {
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
   assert.match(demo, /invitedBy:owner\.name/);
-  assert.match(demo, /data-guest-status="in"/);
-  assert.match(demo, /data-guest-paid="yes"/);
+  assert.match(demo, /class="guest-paid-check/);
+  assert.match(demo, /data-guest-paid="\$\{escapeHtml\(guest\.name\)\}"/);
   assert.match(demo, /data-remove-guest/);
+  assert.doesNotMatch(demo, /data-guest-status=/);
+  assert.doesNotMatch(demo, /<details class="guest-item">/);
   assert.match(demo, /Invitado de \$\{escapeHtml\(item\.invitedBy/);
   assert.match(demo, /localStorage\.removeItem\(LOCAL_AVAILABILITY_KEY\)/);
 });
@@ -234,4 +236,16 @@ test("keeps the user team summary compact", async () => {
   assert.match(demo, /\.split\{display:grid; grid-template-columns:1fr; gap:8px;\}/);
   assert.match(demo, /\.split-col ul\{[^}]*flex-wrap:wrap;[^}]*justify-content:center/);
   assert.match(demo, /\.split-col\{[^}]*padding:10px 12px[^}]*border-radius:10px/);
+  assert.match(demo, /class="teams-vs"[^>]*>VS<\/div>/);
+  assert.doesNotMatch(demo, /@media\(min-width:680px\)\{\.organizer-formations\{grid-template-columns:1fr 1fr;/);
+});
+
+test("collapses my status into a quick summary with one-tap payment", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /function updateMyStatusSummary\(response\)/);
+  assert.match(demo, /`Mi estado · \$\{response\.name\} · \$\{availability\}/);
+  assert.match(demo, /id="my-status-pay-now"/);
+  assert.match(demo, /response\.paid = true/);
+  assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
 });
