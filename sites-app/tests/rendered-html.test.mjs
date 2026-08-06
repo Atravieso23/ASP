@@ -284,6 +284,12 @@ test("collapses my status into a mobile-first quick summary with reversible paym
   assert.match(demo, /class="my-status-paid"/);
   assert.match(demo, /response\.paid = button\.dataset\.value === 'yes'/);
   assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
+  assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste al registrarte\? Cambiar jugador/);
+  assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
+  assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
+  assert.match(demo, /Estás editando la respuesta de \$\{ownResponse\.name\}/);
+  assert.match(demo, /Cambio de jugador activado/);
+  assert.match(demo, /input\.select\(\)/);
 });
 
 test("defaults to F8 and assigns every confirmed player to a balanced team", async () => {
