@@ -248,8 +248,10 @@ test("waits for Supabase before confirming registration and rejects remote dupli
 test("manages per-date guests from the collapsed player status", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /id="guest-manager-toggle"[^>]*>\+ Agregar invitado/);
-  assert.match(demo, /manager\.hidden \? '\+ Agregar invitado' : 'Cerrar invitados'/);
+  assert.match(demo, /¿A tu invitado le dio paja registrarse\?/);
+  assert.match(demo, /Gestioná su asistencia y pago desde acá\./);
+  assert.match(demo, /id="guest-manager-toggle"[^>]*>Gestionar invitados/);
+  assert.match(demo, /manager\.hidden \? 'Gestionar invitados' : 'Cerrar gestión'/);
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);

@@ -489,7 +489,11 @@
   .my-status-payment .my-status-label{display:block;margin-bottom:7px;}
   .my-status-paid button[data-value="yes"].active{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 0 0 2px rgba(31,143,78,.16);}
   .my-status-paid button[data-value="no"].active{background:var(--danger);border-color:var(--danger);color:#fff;box-shadow:0 0 0 2px rgba(193,67,42,.14);}
-  .guest-manager-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px;padding-top:13px;border-top:1px dashed var(--card-border);}
+  .guest-manager-bar{display:grid;gap:9px;margin-top:13px;padding-top:13px;border-top:1px dashed var(--card-border);}
+  .guest-manager-intro{display:grid;gap:2px;}
+  .guest-manager-intro strong{font:700 13px 'Oswald',sans-serif;letter-spacing:.035em;color:var(--navy);}
+  .guest-manager-intro span{font-size:11px;line-height:1.4;color:var(--muted);}
+  .guest-manager-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .guest-manager-toggle{border:0;border-radius:9px;background:var(--celeste-deep);color:#fff;padding:9px 12px;font:700 12px 'Inter',sans-serif;cursor:pointer;box-shadow:0 5px 14px rgba(25,126,168,.18);}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
   .guest-manager{margin-top:10px;}
@@ -691,8 +695,14 @@
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
       <div class="guest-manager-bar">
-        <button type="button" class="guest-manager-toggle" id="guest-manager-toggle" aria-expanded="false">+ Agregar invitado</button>
-        <span class="guest-manager-count" id="guest-manager-count">0 invitados</span>
+        <div class="guest-manager-intro">
+          <strong>¿A tu invitado le dio paja registrarse?</strong>
+          <span>Gestioná su asistencia y pago desde acá.</span>
+        </div>
+        <div class="guest-manager-actions">
+          <button type="button" class="guest-manager-toggle" id="guest-manager-toggle" aria-expanded="false">Gestionar invitados</button>
+          <span class="guest-manager-count" id="guest-manager-count">0 invitados</span>
+        </div>
       </div>
       <section class="guest-manager" id="guest-manager" aria-labelledby="guest-manager-title" hidden>
         <h3 class="sr-only" id="guest-manager-title">Gestión de invitados</h3>
@@ -2540,7 +2550,7 @@ function renderGuestManager(){
   if(!manager || !toggle || !list || !count) return;
   const guests = getCurrentPlayerGuests();
   const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
-  toggle.textContent = manager.hidden ? '+ Agregar invitado' : 'Cerrar invitados';
+  toggle.textContent = manager.hidden ? 'Gestionar invitados' : 'Cerrar gestión';
   count.textContent = label;
   list.innerHTML = guests.length ? guests.map(guest=>{
     return `<div class="guest-item">
