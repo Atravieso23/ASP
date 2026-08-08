@@ -1633,7 +1633,7 @@ function renderHistory(){
           <ul class="goals-list">${goalsRowsHtml}</ul>
         </div>
 
-        ${isLatest ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
+        ${isLatest && Array.isArray(h.responses) ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
       </div>
     `;
     listEl.appendChild(details);
@@ -1674,12 +1674,65 @@ function renderHistory(){
   if(undoBtn){
     undoBtn.onclick = async ()=>{
       const last = state.history[state.history.length-1];
-      state.players = last.players.map(p=>({...p}));
-      state.matchInfo.date = last.matchInfo.date;
-      state.matchInfo.time = last.matchInfo.time;
-      state.history = state.history.slice(0, -1);
+      // Para volver atrás si algo falla. El estado viejo no se muta: más abajo se
+      // reemplaza por uno nuevo, así que guardar la referencia revierte todo.
+      const previousState = state;
+      const previousResponses = localAvailabilityResponses;
+
+      // El undo sólo tiene autoridad sobre el partido que archivó. Se parte del
+      // estado fresco del servidor y se le superponen esos campos, para no pisar
+      // con la copia local vieja lo que otro dispositivo haya cambiado desde el
+      // último sondeo (sedes, alias frecuentes, cualquier otro top-level).
+      const fresh = await fetchServerState();
+      if(!fresh){
+        showToast('No se pudo deshacer la finalización. Revisá la conexión e intentá otra vez.');
+        return;
+      }
+
+      // El botón se dibujó con el historial local, que puede estar viejo: el sondeo
+      // se saltea mientras el foco está en el resultado o los goleadores. Si en el
+      // servidor ya no es la última finalización, se aborta sin tocar ni escribir
+      // nada. Elegir por el usuario qué fecha deshacer sería peor.
+      const ultimaFresca = fresh.history[fresh.history.length-1];
+      if(!ultimaFresca || ultimaFresca.finalizedAt !== last.finalizedAt){
+        showToast('El historial cambió desde que abriste esta fecha. Esperá que se actualice y volvé a intentar.');
+        return;
+      }
+
+      // Sin reponer las respuestas el restore es invisible: render() deriva todo
+      // de acá, y syncLocalAvailabilityWithPlayers() borra los players que no
+      // tengan una respuesta que los respalde.
+      localAvailabilityResponses = last.responses.map(r=>({...r}));
+      state = {
+        ...fresh,
+        responses: localAvailabilityResponses,
+        players: last.players.map(p=>({...p})),
+        // Completo, no sólo date y time: antes se perdían cancha, tipo, precio y
+        // alias. El spread deja pasar campos que el snapshot no tenga.
+        matchInfo: {...fresh.matchInfo, ...last.matchInfo},
+        // Por finalizedAt y no por posición: si otro dispositivo finalizó mientras
+        // mirábamos el historial, sacar el último borraría la fecha equivocada.
+        history: fresh.history.filter(item=>item.finalizedAt !== last.finalizedAt),
+        // finalize también limpia las formaciones elegidas, así que se devuelven.
+        formations: {...last.formations}
+      };
+
+      // saveLocalAvailability() sí devuelve si el guardado funcionó; persist() no,
+      // y sin eso el cartel de éxito salía igual y el sondeo revertía todo a los
+      // 4 segundos como si la app se hubiera deshecho sola.
+      const ok = await saveLocalAvailability();
+      if(!ok){
+        state = previousState;
+        localAvailabilityResponses = previousResponses;
+        syncLocalAvailabilityWithPlayers();
+        render();
+        renderLocalOrganizer();
+        showToast('No se pudo deshacer la finalización. Revisá la conexión e intentá otra vez.');
+        return;
+      }
+      syncLocalAvailabilityWithPlayers();
       render();
-      await persist();
+      renderLocalOrganizer();
       showToast('Se deshizo la última finalización.');
     };
   }
@@ -1888,7 +1941,14 @@ document.getElementById('f-confirm').onclick = async ()=>{
   state.history.push({
     finalizedAt: new Date().toISOString(),
     matchInfo: {...state.matchInfo},
-    players: responsePlayers.map(p=>({...p}))
+    players: responsePlayers.map(p=>({...p})),
+    // Las respuestas son la fuente de verdad: players no alcanza para deshacer,
+    // porque no lleva responseId, ownerId, franja horaria ni datos de invitado.
+    // Se copia antes de clearLocalOrganizerState(), que las vacía.
+    responses: localAvailabilityResponses.map(r=>({...r})),
+    // clearLocalOrganizerState() también hace state.formations = {}, así que sin
+    // guardarlas el undo las dejaba en el default del tipo de cancha.
+    formations: {...state.formations}
   });
   clearLocalOrganizerState();
   state.players = [];

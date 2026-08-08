@@ -420,3 +420,165 @@ test("removes the list renderers that had no elements left in the DOM", async ()
   assert.match(demo, /class="my-status-paid"/);
   assert.match(demo, /data-guest-paid="\$\{guest\.responseId\}"/);
 });
+
+// Aísla el cuerpo del handler de "Deshacer esta finalización" y lo parte en sus
+// tres tramos. Sin aislarlo, las aserciones matchean cualquier parte del archivo:
+// refreshFromServer() tiene la misma secuencia de llamadas y hacía pasar el test
+// aunque el handler estuviera vacío. Y sin partirlo por rama, una aserción de
+// presencia pasa igual si la llamada se borra del camino de éxito pero sigue en
+// el rollback, porque las dos ramas usan las mismas funciones.
+function extractUndoHandler(demo){
+  const start = demo.indexOf('undoBtn.onclick = async ()=>{');
+  assert.ok(start > -1, 'no ubiqué el handler de deshacer');
+  const end = demo.indexOf("showToast('Se deshizo la última finalización.');", start);
+  assert.ok(end > start, 'no ubiqué el final del handler de deshacer');
+  const undo = demo.slice(start, end);
+
+  const branch = undo.indexOf('if(!ok){');
+  assert.ok(branch > -1, 'el handler no comprueba el resultado del guardado');
+  const afterBranch = undo.indexOf('return;', branch);
+  assert.ok(afterBranch > branch, 'la rama de error no corta la ejecución');
+
+  return {
+    todo: undo,
+    previo: undo.slice(0, branch),        // snapshot, restore y guardado
+    rollback: undo.slice(branch, afterBranch),
+    exito: undo.slice(afterBranch)        // lo que corre solo si guardó bien
+  };
+}
+
+test("undoing a finalization restores the responses, not just the players", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const undo = extractUndoHandler(demo);
+
+  // El snapshot del historial tiene que guardar las respuestas. Guardar sólo
+  // players no alcanza: no llevan responseId, ownerId, ownerIds, from, to,
+  // isGuest ni invitedBy, así que las respuestas no se pueden reconstruir.
+  assert.match(demo, /state\.history\.push\(\{[\s\S]{0,400}?responses:/);
+
+  // Y el undo tiene que reponerlas en memoria: render() y
+  // syncLocalAvailabilityWithPlayers() derivan todo de localAvailabilityResponses,
+  // así que restaurar state.players solo deja la fecha invisible, y el sondeo de
+  // 4s después borra esos players por no tener respuesta que los respalde.
+  assert.match(undo.previo, /localAvailabilityResponses = last\.responses/);
+  assert.match(undo.previo, /responses: localAvailabilityResponses/);
+  assert.match(undo.previo, /players: last\.players/);
+
+  // La entrada se saca por finalizedAt y no por posición: si otro dispositivo
+  // finalizó mientras mirábamos el historial, slice(0,-1) borraría la suya.
+  assert.match(undo.previo, /history: fresh\.history\.filter\(item=>item\.finalizedAt !== last\.finalizedAt\)/);
+  assert.doesNotMatch(undo.todo, /state\.history\.slice\(0, -1\)/);
+
+  // finalize también limpia las formaciones elegidas (clearLocalOrganizerState
+  // hace state.formations = {}), así que el snapshot las guarda y el undo las
+  // devuelve. Sin esto volvían al default del tipo de cancha.
+  assert.match(demo, /state\.history\.push\(\{[\s\S]{0,600}?formations:/);
+  assert.match(undo.previo, /formations: \{\.\.\.last\.formations\}/);
+
+  // El undo restauraba matchInfo campo por campo y sólo date y time, así que
+  // cancha, tipo, precio y alias se perdían. Se restaura completo, y el spread
+  // deja pasar campos que el snapshot no tenga.
+  assert.doesNotMatch(undo.todo, /state\.matchInfo\.date = last\.matchInfo\.date/);
+  assert.match(undo.previo, /matchInfo: \{\.\.\.fresh\.matchInfo, \.\.\.last\.matchInfo\}/);
+
+  // Restaurar respuestas sin sincronizar deja a los players fuera de la vista, y
+  // sin renderLocalOrganizer la tabla del organizador queda vacía. Se comprueba
+  // sobre el tramo de éxito: el rollback llama a las mismas funciones, así que
+  // mirar el handler completo no distinguiría una rama de la otra.
+  assert.match(undo.exito, /syncLocalAvailabilityWithPlayers\(\);/);
+  assert.match(undo.exito, /render\(\);/);
+  assert.match(undo.exito, /renderLocalOrganizer\(\);/);
+});
+
+test("undoing a finalization rolls back and warns when saving fails", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const undo = extractUndoHandler(demo);
+
+  // Mismo patrón que el borrado de jugadores e invitados: snapshot previo,
+  // esperar el guardado, revertir y avisar si falló. persist() no sirve acá
+  // porque no devuelve si el guardado funcionó, y sin eso el cartel de éxito
+  // salía igual y el sondeo revertía todo a los 4 segundos.
+  assert.match(undo.previo, /const previousState = state;/);
+  assert.match(undo.previo, /const previousResponses = localAvailabilityResponses;/);
+  assert.match(undo.previo, /const ok = await saveLocalAvailability\(\);/);
+  assert.doesNotMatch(undo.todo, /await persist\(\)/);
+
+  // El estado viejo no se muta: se reemplaza por uno nuevo, así que devolver la
+  // referencia revierte todo de una, incluidas las formaciones.
+  assert.match(undo.rollback, /state = previousState;/);
+  assert.match(undo.rollback, /localAvailabilityResponses = previousResponses;/);
+  assert.match(undo.rollback, /syncLocalAvailabilityWithPlayers\(\);/);
+  assert.match(undo.rollback, /render\(\);/);
+
+  // Y avisar del error en vez de cantar éxito.
+  assert.match(undo.rollback, /No se pudo deshacer la finalización/);
+  assert.doesNotMatch(undo.rollback, /Se deshizo la última finalización/);
+});
+
+test("undoing a finalization keeps unrelated remote fields from the server", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const undo = extractUndoHandler(demo);
+
+  // El undo sólo tiene autoridad sobre el partido que archivó. Se parte del estado
+  // fresco del servidor y se le superponen esos campos, así que sedes, alias
+  // frecuentes y cualquier otro top-level conservan el valor remoto en vez de que
+  // los pise la copia local vieja.
+  assert.match(undo.previo, /const fresh = await fetchServerState\(\);/);
+  assert.match(undo.previo, /state = \{\s*\.\.\.fresh,/);
+
+  // Los cinco campos que el undo restaura, y nada más.
+  for(const campo of ['responses', 'players', 'matchInfo', 'history', 'formations']){
+    assert.match(undo.previo, new RegExp(`\\n\\s*${campo}: `), `falta superponer ${campo}`);
+  }
+  assert.doesNotMatch(undo.previo, /\n\s*sedes: /);
+  assert.doesNotMatch(undo.previo, /\n\s*frequentAliases: /);
+
+  // Si no se puede leer el servidor, falla cerrado: ni éxito ni estado a medias.
+  // El guard va ANTES de tocar el estado local.
+  const guard = undo.previo.indexOf('if(!fresh){');
+  const mutacion = undo.previo.indexOf('localAvailabilityResponses = last.responses');
+  assert.ok(guard > -1, 'el undo no comprueba que pudo leer el servidor');
+  assert.ok(guard < mutacion, 'el guard del fetch tiene que ir antes de tocar el estado local');
+  assert.match(undo.previo.slice(guard), /No se pudo deshacer la finalización/);
+});
+
+test("undoing a finalization aborts when the server history moved on", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const undo = extractUndoHandler(demo);
+
+  // El botón se dibuja con el historial local, y el sondeo se saltea por completo
+  // mientras el foco está dentro de .history-details, que es donde viven los inputs
+  // de resultado y goleadores. Así que el estado local puede quedar viejo y ofrecer
+  // deshacer una fecha que en el servidor ya no es la última.
+  assert.match(undo.previo, /const ultimaFresca = fresh\.history\[fresh\.history\.length-1\];/);
+  assert.match(undo.previo, /if\(!ultimaFresca \|\| ultimaFresca\.finalizedAt !== last\.finalizedAt\)\{/);
+
+  // Se aborta con un aviso propio, distinto del de conexión, y sin elegir por el
+  // usuario qué fecha habría que deshacer.
+  assert.match(undo.previo, /El historial cambió/);
+
+  // Después del fetch y antes de tocar el estado local: si aborta, no se modifica
+  // nada ni se escribe.
+  const fetchIdx = undo.previo.indexOf('const fresh = await fetchServerState();');
+  const guardIdx = undo.previo.indexOf('if(!ultimaFresca ||');
+  const mutacionIdx = undo.previo.indexOf('localAvailabilityResponses = last.responses');
+  assert.ok(fetchIdx > -1 && guardIdx > -1 && mutacionIdx > -1, 'falta alguna de las tres piezas');
+  assert.ok(fetchIdx < guardIdx, 'la revalidación necesita el estado fresco');
+  assert.ok(guardIdx < mutacionIdx, 'la revalidación va antes de tocar el estado local');
+});
+
+test("only offers undo when the snapshot carries its responses", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Falla cerrado: una fecha finalizada antes de este arreglo no tiene responses
+  // en su snapshot, así que no se ofrece deshacerla. Perder el undo de una fecha
+  // vieja es preferible a una restauración silenciosamente incompleta, que dejaría
+  // ownership, franjas horarias e invitados perdidos o incorrectos.
+  assert.match(demo, /isLatest && Array\.isArray\(h\.responses\) \?/);
+  assert.match(demo, /id="undo-finalize-btn"/);
+
+  // Sin reconstrucción ni migración de snapshots viejos: nadie debe fabricar
+  // responses a partir de los players guardados.
+  assert.doesNotMatch(demo, /last\.players[\s\S]{0,200}?responseId/);
+  assert.doesNotMatch(demo, /h\.players[\s\S]{0,200}?responseId/);
+});
