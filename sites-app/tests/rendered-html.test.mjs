@@ -348,7 +348,8 @@ test("shows how many are confirmed against the field target in the ticket", asyn
   assert.doesNotMatch(ticketMarkup, /class="cash-metric">Confirmados/);
 
   // "Apuntamos a 16" es secundario, en sentence case: no es un rótulo de sistema.
-  assert.doesNotMatch(demo, /\.squad-status-target\{[^}]*text-transform:uppercase/);
+  // El \s* evita que el guard se evada escribiendo "selector {" con espacio.
+  assert.doesNotMatch(demo, /\.squad-status-target\s*\{[^}]*text-transform:uppercase/);
 
   assert.match(ticketMarkup, /class="squad-status-line" id="capacity-note"><b id="confirmed-count">0<\/b> confirmados/);
   assert.match(ticketMarkup, /class="squad-status-target" id="capacity-target"/);
@@ -381,12 +382,16 @@ test("brings the doubtful count to the player home reusing the organizer list", 
   // Sin dudosos la línea queda "13 confirmados", sin un " · " colgando.
   assert.match(demo, /getElementById\('doubt-note'\)\.hidden = dudaList\.length === 0/);
 
-  // hidden deja de funcionar si el CSS le asigna display al span.
-  assert.doesNotMatch(demo, /\.squad-doubt\{[^}]*display:/);
+  // hidden deja de funcionar si el CSS le asigna display al span, sea por la clase
+  // o por el id. El \s* evita que el guard se evada escribiendo "selector {".
+  for(const selector of ['\\.squad-doubt', '#doubt-note']){
+    assert.doesNotMatch(demo, new RegExp(`${selector}\\s*\\{[^}]*display:`));
+  }
 
   // Un solo cálculo para las dos vistas: el mismo dudaList alimenta la home
-  // y el contador del organizador.
-  assert.equal(demo.match(/getResponsePlayers\('duda'\)/g).length, 1);
+  // y el contador del organizador. El || [] hace que, si el patrón deja de
+  // matchear, el test falle con este número y no con un TypeError.
+  assert.equal((demo.match(/getResponsePlayers\('duda'\)/g) || []).length, 1);
   assert.match(demo, /getElementById\('count-duda'\)\.textContent = dudaList\.length/);
 });
 

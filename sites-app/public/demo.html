@@ -713,7 +713,9 @@
         </div>
       </div>
     </div>
-    <div class="squad-status" aria-live="polite">
+    <!-- Sin aria-live: el sondeo reescribe estos textos cada 4s aunque no cambien,
+         así que una región viva reanunciaría el conteo sin parar. -->
+    <div class="squad-status">
       <p class="squad-status-line" id="capacity-note"><b id="confirmed-count">0</b> confirmados<span class="squad-doubt" id="doubt-note" hidden> · <b id="doubt-count">0</b> en duda</span></p>
       <p class="squad-status-target" id="capacity-target"></p>
     </div>
