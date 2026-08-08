@@ -2427,7 +2427,7 @@ function setRegisteredPlayerNameMode(allowChange=false){
   const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   changingRegisteredPlayer = Boolean(ownResponse && allowChange);
   input.readOnly = Boolean(ownResponse && !changingRegisteredPlayer);
-  modeButton.hidden = Boolean(ownResponse);
+  modeButton.hidden = Boolean(ownResponse) && !changingRegisteredPlayer;
   changeButton.hidden = !ownResponse || changingRegisteredPlayer;
   if(ownResponse && !changingRegisteredPlayer){
     label.textContent = 'Jugador registrado';
