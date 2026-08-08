@@ -420,3 +420,44 @@ test("removes the list renderers that had no elements left in the DOM", async ()
   assert.match(demo, /class="my-status-paid"/);
   assert.match(demo, /data-guest-paid="\$\{guest\.responseId\}"/);
 });
+
+test("undoing a finalization restores the responses, not just the players", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // El snapshot del historial tiene que guardar las respuestas. Guardar sólo
+  // players no alcanza: no llevan responseId, ownerId, ownerIds, from, to,
+  // isGuest ni invitedBy, así que las respuestas no se pueden reconstruir.
+  assert.match(demo, /state\.history\.push\(\{[\s\S]{0,400}?responses:/);
+
+  // Y el undo tiene que reponerlas en memoria: render() y
+  // syncLocalAvailabilityWithPlayers() derivan todo de localAvailabilityResponses,
+  // así que restaurar state.players solo deja la fecha invisible, y el sondeo de
+  // 4s después borra esos players por no tener respuesta que los respalde.
+  assert.match(demo, /localAvailabilityResponses = [\s\S]{0,160}?last\.responses/);
+
+  // El undo restauraba matchInfo campo por campo y sólo date y time, así que
+  // cancha, tipo, precio y alias se perdían. Se restaura completo, y el spread
+  // sobre el matchInfo actual deja pasar campos futuros que el snapshot no tenga.
+  assert.doesNotMatch(demo, /state\.matchInfo\.date = last\.matchInfo\.date/);
+  assert.match(demo, /state\.matchInfo = \{\.\.\.state\.matchInfo, \.\.\.last\.matchInfo\}/);
+
+  // Restaurar respuestas sin sincronizar deja a los players fuera de la vista, y
+  // sin renderLocalOrganizer la tabla del organizador queda vacía.
+  assert.match(demo, /localAvailabilityResponses = [\s\S]{0,400}?syncLocalAvailabilityWithPlayers\(\);[\s\S]{0,120}?renderLocalOrganizer\(\)/);
+});
+
+test("only offers undo when the snapshot carries its responses", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Falla cerrado: una fecha finalizada antes de este arreglo no tiene responses
+  // en su snapshot, así que no se ofrece deshacerla. Perder el undo de una fecha
+  // vieja es preferible a una restauración silenciosamente incompleta, que dejaría
+  // ownership, franjas horarias e invitados perdidos o incorrectos.
+  assert.match(demo, /isLatest && Array\.isArray\(h\.responses\) \?/);
+  assert.match(demo, /id="undo-finalize-btn"/);
+
+  // Sin reconstrucción ni migración de snapshots viejos: nadie debe fabricar
+  // responses a partir de los players guardados.
+  assert.doesNotMatch(demo, /last\.players[\s\S]{0,200}?responseId/);
+  assert.doesNotMatch(demo, /h\.players[\s\S]{0,200}?responseId/);
+});

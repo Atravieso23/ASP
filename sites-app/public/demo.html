@@ -1633,7 +1633,7 @@ function renderHistory(){
           <ul class="goals-list">${goalsRowsHtml}</ul>
         </div>
 
-        ${isLatest ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
+        ${isLatest && Array.isArray(h.responses) ? '<button class="undo-btn" id="undo-finalize-btn">↩️ Deshacer esta finalización</button>' : ''}
       </div>
     `;
     listEl.appendChild(details);
@@ -1675,10 +1675,18 @@ function renderHistory(){
     undoBtn.onclick = async ()=>{
       const last = state.history[state.history.length-1];
       state.players = last.players.map(p=>({...p}));
-      state.matchInfo.date = last.matchInfo.date;
-      state.matchInfo.time = last.matchInfo.time;
+      // Sin reponer las respuestas el restore es invisible: render() deriva todo
+      // de acá, y syncLocalAvailabilityWithPlayers() borra los players que no
+      // tengan una respuesta que los respalde.
+      localAvailabilityResponses = last.responses.map(r=>({...r}));
+      state.responses = localAvailabilityResponses;
+      // Completo, no sólo date y time: antes se perdían cancha, tipo, precio y
+      // alias. El spread sobre el actual deja pasar campos que el snapshot no tenga.
+      state.matchInfo = {...state.matchInfo, ...last.matchInfo};
       state.history = state.history.slice(0, -1);
+      syncLocalAvailabilityWithPlayers();
       render();
+      renderLocalOrganizer();
       await persist();
       showToast('Se deshizo la última finalización.');
     };
@@ -1888,7 +1896,11 @@ document.getElementById('f-confirm').onclick = async ()=>{
   state.history.push({
     finalizedAt: new Date().toISOString(),
     matchInfo: {...state.matchInfo},
-    players: responsePlayers.map(p=>({...p}))
+    players: responsePlayers.map(p=>({...p})),
+    // Las respuestas son la fuente de verdad: players no alcanza para deshacer,
+    // porque no lleva responseId, ownerId, franja horaria ni datos de invitado.
+    // Se copia antes de clearLocalOrganizerState(), que las vacía.
+    responses: localAvailabilityResponses.map(r=>({...r}))
   });
   clearLocalOrganizerState();
   state.players = [];
