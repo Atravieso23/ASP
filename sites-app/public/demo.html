@@ -1674,34 +1674,46 @@ function renderHistory(){
   if(undoBtn){
     undoBtn.onclick = async ()=>{
       const last = state.history[state.history.length-1];
-      // Snapshot de todo lo que toca el undo, para poder volver atrás si el
-      // guardado falla. Mismo patrón que el borrado de jugadores e invitados.
+      // Para volver atrás si algo falla. El estado viejo no se muta: más abajo se
+      // reemplaza por uno nuevo, así que guardar la referencia revierte todo.
+      const previousState = state;
       const previousResponses = localAvailabilityResponses;
-      const previousPlayers = state.players;
-      const previousMatchInfo = state.matchInfo;
-      const previousHistory = state.history;
 
-      state.players = last.players.map(p=>({...p}));
+      // El undo sólo tiene autoridad sobre el partido que archivó. Se parte del
+      // estado fresco del servidor y se le superponen esos campos, para no pisar
+      // con la copia local vieja lo que otro dispositivo haya cambiado desde el
+      // último sondeo (sedes, alias frecuentes, cualquier otro top-level).
+      const fresh = await fetchServerState();
+      if(!fresh){
+        showToast('No se pudo deshacer la finalización. Revisá la conexión e intentá otra vez.');
+        return;
+      }
+
       // Sin reponer las respuestas el restore es invisible: render() deriva todo
       // de acá, y syncLocalAvailabilityWithPlayers() borra los players que no
       // tengan una respuesta que los respalde.
       localAvailabilityResponses = last.responses.map(r=>({...r}));
-      state.responses = localAvailabilityResponses;
-      // Completo, no sólo date y time: antes se perdían cancha, tipo, precio y
-      // alias. El spread sobre el actual deja pasar campos que el snapshot no tenga.
-      state.matchInfo = {...state.matchInfo, ...last.matchInfo};
-      state.history = state.history.slice(0, -1);
+      state = {
+        ...fresh,
+        responses: localAvailabilityResponses,
+        players: last.players.map(p=>({...p})),
+        // Completo, no sólo date y time: antes se perdían cancha, tipo, precio y
+        // alias. El spread deja pasar campos que el snapshot no tenga.
+        matchInfo: {...fresh.matchInfo, ...last.matchInfo},
+        // Por finalizedAt y no por posición: si otro dispositivo finalizó mientras
+        // mirábamos el historial, sacar el último borraría la fecha equivocada.
+        history: fresh.history.filter(item=>item.finalizedAt !== last.finalizedAt),
+        // finalize también limpia las formaciones elegidas, así que se devuelven.
+        formations: {...last.formations}
+      };
 
       // saveLocalAvailability() sí devuelve si el guardado funcionó; persist() no,
       // y sin eso el cartel de éxito salía igual y el sondeo revertía todo a los
       // 4 segundos como si la app se hubiera deshecho sola.
       const ok = await saveLocalAvailability();
       if(!ok){
+        state = previousState;
         localAvailabilityResponses = previousResponses;
-        state.responses = previousResponses;
-        state.players = previousPlayers;
-        state.matchInfo = previousMatchInfo;
-        state.history = previousHistory;
         syncLocalAvailabilityWithPlayers();
         render();
         renderLocalOrganizer();
@@ -1923,7 +1935,10 @@ document.getElementById('f-confirm').onclick = async ()=>{
     // Las respuestas son la fuente de verdad: players no alcanza para deshacer,
     // porque no lleva responseId, ownerId, franja horaria ni datos de invitado.
     // Se copia antes de clearLocalOrganizerState(), que las vacía.
-    responses: localAvailabilityResponses.map(r=>({...r}))
+    responses: localAvailabilityResponses.map(r=>({...r})),
+    // clearLocalOrganizerState() también hace state.formations = {}, así que sin
+    // guardarlas el undo las dejaba en el default del tipo de cancha.
+    formations: {...state.formations}
   });
   clearLocalOrganizerState();
   state.players = [];

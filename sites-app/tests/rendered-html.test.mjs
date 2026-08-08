@@ -461,15 +461,25 @@ test("undoing a finalization restores the responses, not just the players", asyn
   // así que restaurar state.players solo deja la fecha invisible, y el sondeo de
   // 4s después borra esos players por no tener respuesta que los respalde.
   assert.match(undo.previo, /localAvailabilityResponses = last\.responses/);
-  assert.match(undo.previo, /state\.responses = localAvailabilityResponses/);
-  assert.match(undo.previo, /state\.players = last\.players/);
-  assert.match(undo.previo, /state\.history = state\.history\.slice\(0, -1\)/);
+  assert.match(undo.previo, /responses: localAvailabilityResponses/);
+  assert.match(undo.previo, /players: last\.players/);
+
+  // La entrada se saca por finalizedAt y no por posición: si otro dispositivo
+  // finalizó mientras mirábamos el historial, slice(0,-1) borraría la suya.
+  assert.match(undo.previo, /history: fresh\.history\.filter\(item=>item\.finalizedAt !== last\.finalizedAt\)/);
+  assert.doesNotMatch(undo.todo, /state\.history\.slice\(0, -1\)/);
+
+  // finalize también limpia las formaciones elegidas (clearLocalOrganizerState
+  // hace state.formations = {}), así que el snapshot las guarda y el undo las
+  // devuelve. Sin esto volvían al default del tipo de cancha.
+  assert.match(demo, /state\.history\.push\(\{[\s\S]{0,600}?formations:/);
+  assert.match(undo.previo, /formations: \{\.\.\.last\.formations\}/);
 
   // El undo restauraba matchInfo campo por campo y sólo date y time, así que
   // cancha, tipo, precio y alias se perdían. Se restaura completo, y el spread
-  // sobre el matchInfo actual deja pasar campos futuros que el snapshot no tenga.
+  // deja pasar campos que el snapshot no tenga.
   assert.doesNotMatch(undo.todo, /state\.matchInfo\.date = last\.matchInfo\.date/);
-  assert.match(undo.previo, /state\.matchInfo = \{\.\.\.state\.matchInfo, \.\.\.last\.matchInfo\}/);
+  assert.match(undo.previo, /matchInfo: \{\.\.\.fresh\.matchInfo, \.\.\.last\.matchInfo\}/);
 
   // Restaurar respuestas sin sincronizar deja a los players fuera de la vista, y
   // sin renderLocalOrganizer la tabla del organizador queda vacía. Se comprueba
@@ -488,26 +498,48 @@ test("undoing a finalization rolls back and warns when saving fails", async () =
   // esperar el guardado, revertir y avisar si falló. persist() no sirve acá
   // porque no devuelve si el guardado funcionó, y sin eso el cartel de éxito
   // salía igual y el sondeo revertía todo a los 4 segundos.
+  assert.match(undo.previo, /const previousState = state;/);
   assert.match(undo.previo, /const previousResponses = localAvailabilityResponses;/);
-  assert.match(undo.previo, /const previousPlayers = state\.players;/);
-  assert.match(undo.previo, /const previousMatchInfo = state\.matchInfo;/);
-  assert.match(undo.previo, /const previousHistory = state\.history;/);
   assert.match(undo.previo, /const ok = await saveLocalAvailability\(\);/);
   assert.doesNotMatch(undo.todo, /await persist\(\)/);
 
-  // El rollback tiene que devolver las cinco cosas que el undo toca, si no el
-  // estado local queda incoherente.
+  // El estado viejo no se muta: se reemplaza por uno nuevo, así que devolver la
+  // referencia revierte todo de una, incluidas las formaciones.
+  assert.match(undo.rollback, /state = previousState;/);
   assert.match(undo.rollback, /localAvailabilityResponses = previousResponses;/);
-  assert.match(undo.rollback, /state\.responses = previousResponses;/);
-  assert.match(undo.rollback, /state\.players = previousPlayers;/);
-  assert.match(undo.rollback, /state\.matchInfo = previousMatchInfo;/);
-  assert.match(undo.rollback, /state\.history = previousHistory;/);
   assert.match(undo.rollback, /syncLocalAvailabilityWithPlayers\(\);/);
   assert.match(undo.rollback, /render\(\);/);
 
   // Y avisar del error en vez de cantar éxito.
   assert.match(undo.rollback, /No se pudo deshacer la finalización/);
   assert.doesNotMatch(undo.rollback, /Se deshizo la última finalización/);
+});
+
+test("undoing a finalization keeps unrelated remote fields from the server", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const undo = extractUndoHandler(demo);
+
+  // El undo sólo tiene autoridad sobre el partido que archivó. Se parte del estado
+  // fresco del servidor y se le superponen esos campos, así que sedes, alias
+  // frecuentes y cualquier otro top-level conservan el valor remoto en vez de que
+  // los pise la copia local vieja.
+  assert.match(undo.previo, /const fresh = await fetchServerState\(\);/);
+  assert.match(undo.previo, /state = \{\s*\.\.\.fresh,/);
+
+  // Los cinco campos que el undo restaura, y nada más.
+  for(const campo of ['responses', 'players', 'matchInfo', 'history', 'formations']){
+    assert.match(undo.previo, new RegExp(`\\n\\s*${campo}: `), `falta superponer ${campo}`);
+  }
+  assert.doesNotMatch(undo.previo, /\n\s*sedes: /);
+  assert.doesNotMatch(undo.previo, /\n\s*frequentAliases: /);
+
+  // Si no se puede leer el servidor, falla cerrado: ni éxito ni estado a medias.
+  // El guard va ANTES de tocar el estado local.
+  const guard = undo.previo.indexOf('if(!fresh){');
+  const mutacion = undo.previo.indexOf('localAvailabilityResponses = last.responses');
+  assert.ok(guard > -1, 'el undo no comprueba que pudo leer el servidor');
+  assert.ok(guard < mutacion, 'el guard del fetch tiene que ir antes de tocar el estado local');
+  assert.match(undo.previo.slice(guard), /No se pudo deshacer la finalización/);
 });
 
 test("only offers undo when the snapshot carries its responses", async () => {
