@@ -1689,6 +1689,16 @@ function renderHistory(){
         return;
       }
 
+      // El botón se dibujó con el historial local, que puede estar viejo: el sondeo
+      // se saltea mientras el foco está en el resultado o los goleadores. Si en el
+      // servidor ya no es la última finalización, se aborta sin tocar ni escribir
+      // nada. Elegir por el usuario qué fecha deshacer sería peor.
+      const ultimaFresca = fresh.history[fresh.history.length-1];
+      if(!ultimaFresca || ultimaFresca.finalizedAt !== last.finalizedAt){
+        showToast('El historial cambió desde que abriste esta fecha. Esperá que se actualice y volvé a intentar.');
+        return;
+      }
+
       // Sin reponer las respuestas el restore es invisible: render() deriva todo
       // de acá, y syncLocalAvailabilityWithPlayers() borra los players que no
       // tengan una respuesta que los respalde.

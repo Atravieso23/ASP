@@ -542,6 +542,31 @@ test("undoing a finalization keeps unrelated remote fields from the server", asy
   assert.match(undo.previo.slice(guard), /No se pudo deshacer la finalización/);
 });
 
+test("undoing a finalization aborts when the server history moved on", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const undo = extractUndoHandler(demo);
+
+  // El botón se dibuja con el historial local, y el sondeo se saltea por completo
+  // mientras el foco está dentro de .history-details, que es donde viven los inputs
+  // de resultado y goleadores. Así que el estado local puede quedar viejo y ofrecer
+  // deshacer una fecha que en el servidor ya no es la última.
+  assert.match(undo.previo, /const ultimaFresca = fresh\.history\[fresh\.history\.length-1\];/);
+  assert.match(undo.previo, /if\(!ultimaFresca \|\| ultimaFresca\.finalizedAt !== last\.finalizedAt\)\{/);
+
+  // Se aborta con un aviso propio, distinto del de conexión, y sin elegir por el
+  // usuario qué fecha habría que deshacer.
+  assert.match(undo.previo, /El historial cambió/);
+
+  // Después del fetch y antes de tocar el estado local: si aborta, no se modifica
+  // nada ni se escribe.
+  const fetchIdx = undo.previo.indexOf('const fresh = await fetchServerState();');
+  const guardIdx = undo.previo.indexOf('if(!ultimaFresca ||');
+  const mutacionIdx = undo.previo.indexOf('localAvailabilityResponses = last.responses');
+  assert.ok(fetchIdx > -1 && guardIdx > -1 && mutacionIdx > -1, 'falta alguna de las tres piezas');
+  assert.ok(fetchIdx < guardIdx, 'la revalidación necesita el estado fresco');
+  assert.ok(guardIdx < mutacionIdx, 'la revalidación va antes de tocar el estado local');
+});
+
 test("only offers undo when the snapshot carries its responses", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
