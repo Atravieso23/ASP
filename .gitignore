@@ -4,6 +4,9 @@ node_modules/
 # Export de WhatsApp: contiene mensajes personales del grupo. No versionar.
 _chat.txt
 *_chat.txt
+
+# Analisis del historial: cita mensajes textuales de personas reales.
+analisis-privado/
 .env
 .env.*
 !.env.example
