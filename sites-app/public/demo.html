@@ -2442,6 +2442,9 @@ function setRegisteredPlayerNameMode(allowChange=false){
     label.textContent = 'Cambiar jugador';
     help.textContent = 'Corregí el nombre y volvé a confirmar. No podrás usar un nombre que ya pertenezca a otra persona.';
     showPlayerNameFeedback('info','Cambio de jugador activado.',' Usalo solamente si te equivocaste al registrarte.');
+  }else{
+    label.textContent = 'Nombre del jugador';
+    help.textContent = 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
   }
 }
 function renderRecurrentPlayerMenu(){
@@ -2507,6 +2510,14 @@ function renderRecurrentPlayerMenu(){
         showToast(`No se pudo eliminar a ${removed}. Revisá la conexión e intentá otra vez.`);
         return;
       }
+      if(responseBelongsToCurrentDevice(target)){
+        currentLocalResponseName = '';
+        try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }
+        catch(e){ console.error('No se pudo olvidar al jugador local', e); }
+        document.getElementById('my-player-name').value = '';
+        mockStatusCard.classList.remove('collapsed');
+      }
+      setRegisteredPlayerNameMode(false);
       syncLocalAvailabilityWithPlayers();
       render();
       renderRecurrentPlayerMenu();
@@ -2637,6 +2648,16 @@ async function savePlayerRegistration(response){
     });
     combined.push(response);
     nextState.responses = combined;
+    // Al cambiar de jugador, el nombre anterior quedaba para siempre en el
+    // plantel compartido. Se saca salvo que otra respuesta lo siga usando.
+    const previousName = remoteResponses.find(item=>item.responseId===response.responseId)?.name;
+    if(previousName && previousName.toLocaleLowerCase('es')!==normalizedName){
+      const normalizedPrevious = previousName.toLocaleLowerCase('es');
+      const stillUsed = combined.some(item=>item.name.toLocaleLowerCase('es')===normalizedPrevious);
+      if(!stillUsed){
+        nextState.roster = (nextState.roster||[]).filter(item=>item.name.toLocaleLowerCase('es')!==normalizedPrevious);
+      }
+    }
     state = nextState;
     localAvailabilityResponses = combined;
     syncLocalAvailabilityWithPlayers();
@@ -2973,7 +2994,9 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     return;
   }
   const recurrentMatch = recurrentPlayers.find(name=>name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
-  if(!registeringFirstTime && !recurrentMatch){
+  // Al cambiar de jugador se admite un nombre nuevo: corregirse es justamente
+  // el motivo de ese modo. Los controles de nombre duplicado siguen aplicando.
+  if(!registeringFirstTime && !changingRegisteredPlayer && !recurrentMatch){
     nameInput.setAttribute('aria-invalid','true');
     showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Registrarme” para crear uno nuevo.');
     showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Registrarme”.');
