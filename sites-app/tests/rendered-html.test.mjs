@@ -335,13 +335,20 @@ test("shows how many are confirmed against the field target in the ticket", asyn
   const teamsSection = demo.indexOf('class="section teams-section"');
   const ticketMarkup = demo.slice(ticket, teamsSection);
 
-  // "Cuántos somos" es la pregunta más repetida del grupo: va arriba de los datos
-  // operativos y fuera del bloque de plata, no como una métrica de dinero más.
+  // Jerarquía en la vista Jugador: mi estado, después día/hora/cancha, después el
+  // estado colectivo, y al final la plata. El conteo tiene banda propia y no
+  // vuelve a mezclarse con los pagos, pero no se pone antes de la hora: en
+  // 375x667 la hora tiene que seguir viéndose sin scrollear.
   const squadStatus = ticketMarkup.indexOf('class="squad-status"');
   const scoreboard = ticketMarkup.indexOf('class="scoreboard"');
+  const moneySummary = ticketMarkup.indexOf('class="money-summary"');
   assert.ok(squadStatus > -1, 'falta el bloque .squad-status dentro del ticket');
-  assert.ok(squadStatus < scoreboard, '.squad-status va antes del scoreboard');
+  assert.ok(scoreboard < squadStatus, '.squad-status va después del scoreboard');
+  assert.ok(squadStatus < moneySummary, '.squad-status va antes del bloque de plata');
   assert.doesNotMatch(ticketMarkup, /class="cash-metric">Confirmados/);
+
+  // "Apuntamos a 16" es secundario, en sentence case: no es un rótulo de sistema.
+  assert.doesNotMatch(demo, /\.squad-status-target\{[^}]*text-transform:uppercase/);
 
   assert.match(ticketMarkup, /class="squad-status-line" id="capacity-note"><b id="confirmed-count">0<\/b> confirmados/);
   assert.match(ticketMarkup, /class="squad-status-target" id="capacity-target"/);

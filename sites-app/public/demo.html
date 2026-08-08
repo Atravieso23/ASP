@@ -227,16 +227,14 @@
   .organizer-formation-help{margin:14px 0 0;text-align:center;color:var(--muted);font-size:12px;line-height:1.5;}
   .teams-vs{display:grid;place-items:center;width:38px;height:38px;margin:0 auto;border-radius:50%;background:var(--celeste-deep);color:#fff;font:800 12px 'Oswald',sans-serif;letter-spacing:.08em;box-shadow:0 8px 18px -10px rgba(14,42,61,.8);}
 
-  /* "¿Cuántos somos?" es la pregunta más repetida del grupo, así que va arriba de
-     los datos operativos y no mezclada con las métricas de plata. Reusa el borde
-     punteado que ya cierra .ticket-heading-row. */
-  .squad-status{text-align:center; margin:0 0 18px; font-family:'JetBrains Mono',monospace;}
+  /* "¿Cuántos somos?" es la pregunta más repetida del grupo, pero va después de
+     día/hora/cancha: en 375x667 la hora tiene que verse sin scrollear. Tiene banda
+     propia para no volver a mezclarse con los pagos; el borde punteado de
+     .money-summary la cierra por abajo. */
+  .squad-status{text-align:center; margin:16px 0 0; font-family:'JetBrains Mono',monospace;}
   .squad-status-line{margin:0; font-size:14px; color:var(--navy);}
   .squad-status-line b{color:var(--celeste-deep); font-size:19px;}
-  .squad-status-target{
-    margin:4px 0 0; font-size:10px; text-transform:uppercase;
-    letter-spacing:.06em; color:var(--muted);
-  }
+  .squad-status-target{margin:3px 0 0; font-size:11px; color:var(--muted);}
 
   .money-summary{
     display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:center;gap:8px;
@@ -695,10 +693,6 @@
       <p class="eyebrow">⚽ próximo picado <span class="countdown-badge" id="countdown-badge" style="display:none;"></span></p>
       <span class="ticket-type-badge" id="sb-type">Fútbol 8</span>
     </div>
-    <div class="squad-status" aria-live="polite">
-      <p class="squad-status-line" id="capacity-note"><b id="confirmed-count">0</b> confirmados<span class="squad-doubt" id="doubt-note" hidden> · <b id="doubt-count">0</b> en duda</span></p>
-      <p class="squad-status-target" id="capacity-target"></p>
-    </div>
     <div class="scoreboard">
       <div class="sb-item"><div class="sb-label">Día</div><div class="sb-value" id="sb-date">—</div></div>
       <div class="sb-item"><div class="sb-label">Hora</div><div class="sb-value" id="sb-time">—</div></div>
@@ -718,6 +712,10 @@
           <button class="copy-alias-btn" id="copy-alias-btn" title="Copiar alias">📋</button>
         </div>
       </div>
+    </div>
+    <div class="squad-status" aria-live="polite">
+      <p class="squad-status-line" id="capacity-note"><b id="confirmed-count">0</b> confirmados<span class="squad-doubt" id="doubt-note" hidden> · <b id="doubt-count">0</b> en duda</span></p>
+      <p class="squad-status-target" id="capacity-target"></p>
     </div>
     <div class="money-summary" aria-label="Resumen de pagos y edición del partido">
       <span class="cash-metric">Pagaron <span class="cash-metric-value"><b id="paid-count">0</b> de <span id="confirmed-count-2">0</span></span></span>
