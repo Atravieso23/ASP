@@ -335,15 +335,52 @@ test("shows how many are confirmed against the field target in the ticket", asyn
   const teamsSection = demo.indexOf('class="section teams-section"');
   const ticketMarkup = demo.slice(ticket, teamsSection);
 
-  assert.match(ticketMarkup, /class="cash-metric">Confirmados[\s\S]*id="capacity-note"[\s\S]*id="confirmed-count"[\s\S]*id="capacity-target"/);
-  assert.match(demo, /\.money-summary\{[\s\S]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\) auto/);
+  // "Cuántos somos" es la pregunta más repetida del grupo: va arriba de los datos
+  // operativos y fuera del bloque de plata, no como una métrica de dinero más.
+  const squadStatus = ticketMarkup.indexOf('class="squad-status"');
+  const scoreboard = ticketMarkup.indexOf('class="scoreboard"');
+  assert.ok(squadStatus > -1, 'falta el bloque .squad-status dentro del ticket');
+  assert.ok(squadStatus < scoreboard, '.squad-status va antes del scoreboard');
+  assert.doesNotMatch(ticketMarkup, /class="cash-metric">Confirmados/);
+
+  assert.match(ticketMarkup, /class="squad-status-line" id="capacity-note"><b id="confirmed-count">0<\/b> confirmados/);
+  assert.match(ticketMarkup, /class="squad-status-target" id="capacity-target"/);
+  assert.match(demo, /\.money-summary\{[\s\S]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\) auto/);
   assert.match(demo, /getElementById\('confirmed-count'\)\.textContent = inList\.length/);
-  assert.match(demo, /getElementById\('capacity-target'\)\.textContent = mi\.type \? ` de \$\{cap\}` : ''/);
+
+  // "de 16" se leía como denominador de un cupo, sobre todo al lado de
+  // "Pagaron 8 de 13". "Apuntamos a" declara una meta y no un techo, y es el
+  // mismo vocabulario que ya usaba el title de capacity-note.
+  assert.match(demo, /getElementById\('capacity-target'\)\.textContent = mi\.type \? `Apuntamos a \$\{cap\}` : ''/);
+  assert.doesNotMatch(demo, /textContent = mi\.type \? ` de \$\{cap\}`/);
 
   // El cupo es una referencia, no un límite: no se corta el anotado ni se
   // arma lista de espera, así que el cartel no debe prometerlo.
   assert.doesNotMatch(demo, /lista de espera|Cupo lleno|queda en lista/);
   assert.doesNotMatch(demo, /status = 'espera'/);
+});
+
+test("brings the doubtful count to the player home reusing the organizer list", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const ticket = demo.indexOf('class="ticket"');
+  const teamsSection = demo.indexOf('class="section teams-section"');
+  const ticketMarkup = demo.slice(ticket, teamsSection);
+
+  // El viernes concentra las bajas: el jugador tiene que ver los dudosos sin
+  // entrar a la vista Organizador.
+  assert.match(ticketMarkup, /id="doubt-note" hidden> · <b id="doubt-count">0<\/b> en duda/);
+  assert.match(demo, /getElementById\('doubt-count'\)\.textContent = dudaList\.length/);
+
+  // Sin dudosos la línea queda "13 confirmados", sin un " · " colgando.
+  assert.match(demo, /getElementById\('doubt-note'\)\.hidden = dudaList\.length === 0/);
+
+  // hidden deja de funcionar si el CSS le asigna display al span.
+  assert.doesNotMatch(demo, /\.squad-doubt\{[^}]*display:/);
+
+  // Un solo cálculo para las dos vistas: el mismo dudaList alimenta la home
+  // y el contador del organizador.
+  assert.equal(demo.match(/getResponsePlayers\('duda'\)/g).length, 1);
+  assert.match(demo, /getElementById\('count-duda'\)\.textContent = dudaList\.length/);
 });
 
 test("drops the legacy join section and the unused group roster", async () => {
