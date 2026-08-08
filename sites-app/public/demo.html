@@ -22,6 +22,7 @@
     --lacole-border:#ECEAE3;
     --danger:#E4634B;
     --ok:#3FAE7A;
+    --duda:#E0A33E;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -420,6 +421,7 @@
     color:var(--muted); padding:10px 12px; font:700 13px 'Inter',sans-serif; cursor:pointer;
   }
   .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02;}
   .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
   .my-status-times{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
   .my-status-confirm{
@@ -488,11 +490,12 @@
   .organizer-responses-content{padding-top:12px;}
   .organizer-response-search{width:100%;min-width:0;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--navy);padding:7px 9px;font:11px 'Inter',sans-serif;}
   .organizer-response-search:focus{outline:none;border-color:var(--celeste-deep);}
-  .organizer-status-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+  .organizer-status-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
   .organizer-status-stat{display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 6px;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);text-align:center;}
   .organizer-status-stat strong{font:700 21px 'JetBrains Mono',monospace;line-height:1;}
   .organizer-status-stat span{font-size:10px;font-weight:700;color:var(--muted);}
   .organizer-status-stat.confirmed strong{color:var(--ok);}
+  .organizer-status-stat.duda strong{color:var(--duda);}
   .organizer-status-stat.out strong{color:var(--danger);}
   .availability-chart{display:flex;flex-direction:column;gap:7px;}
   .availability-row{display:grid;grid-template-columns:48px 1fr 86px;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;color:var(--muted);font-size:12px;}
@@ -516,6 +519,7 @@
   .organizer-table tr:last-child td{border-bottom:0;}
   .status-pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;}
   .status-pill.in{background:rgba(45,134,89,.13);color:var(--ok);}
+  .status-pill.duda{background:rgba(224,163,62,.14);color:var(--duda);}
   .status-pill.out{background:rgba(193,67,42,.12);color:var(--danger);}
   .payment-mark{font-weight:700;font-size:16px;}
   .payment-mark.yes{color:var(--ok);}
@@ -590,6 +594,7 @@
       <span class="my-status-label">Disponibilidad</span>
       <div class="my-status-choice" role="group" aria-label="Disponibilidad">
         <button type="button" class="active" data-value="in" aria-pressed="true">Estoy</button>
+        <button type="button" data-value="duda" aria-pressed="false">En duda</button>
         <button type="button" data-value="out" aria-pressed="false">No estoy</button>
       </div>
       <div class="my-status-times" id="my-status-times">
@@ -750,6 +755,7 @@
       <h2 class="organizer-card-title" id="player-responses-title">Respuestas de jugadores</h2>
       <div class="organizer-status-summary" aria-label="Resumen de respuestas">
         <div class="organizer-status-stat confirmed"><strong id="count-in">0</strong><span>Confirmados</span></div>
+        <div class="organizer-status-stat duda"><strong id="count-duda">0</strong><span>En duda</span></div>
         <div class="organizer-status-stat out"><strong id="count-out">0</strong><span>No van</span></div>
       </div>
       <details class="organizer-player-list-details">
@@ -1439,9 +1445,11 @@ function render(){
   document.getElementById('blanco-team-label').textContent = TEAM_LABELS.blanco;
 
   const inList = getResponsePlayers('in');
+  const dudaList = getResponsePlayers('duda');
   const outList = getResponsePlayers('out');
 
   document.getElementById('count-in').textContent = inList.length;
+  document.getElementById('count-duda').textContent = dudaList.length;
   document.getElementById('count-out').textContent = outList.length;
   document.getElementById('confirmed-count-2').textContent = inList.length;
 
@@ -2412,7 +2420,7 @@ function renderLocalOrganizer(){
     return;
   }
   body.innerHTML = visibleResponses.map(item=>{
-    const statusLabel = item.status==='in' ? 'Estoy' : 'No estoy';
+    const statusLabel = item.status==='in' ? 'Estoy' : (item.status==='duda' ? 'En duda' : 'No estoy');
     const availability = item.status==='out' ? '—' : `${escapeHtml(item.from)}–${escapeHtml(item.to)}`;
     const payment = item.status!=='in' ? '—' : (item.paid
       ? '<span class="payment-mark yes" aria-label="Pagó">✓</span>'
@@ -2554,9 +2562,9 @@ function restoreCurrentLocalResponse(){
 }
 
 function updateMyStatusSummary(response){
-  const availability = response.status === 'in'
-    ? `Estoy · ${response.from}–${response.to}`
-    : 'No estoy';
+  const availability = response.status === 'out'
+    ? 'No estoy'
+    : `${response.status === 'duda' ? 'En duda' : 'Estoy'} · ${response.from}–${response.to}`;
   const payment = response.status === 'in' ? (response.paid ? 'Pagado' : 'No pagado') : '';
   document.getElementById('my-status-summary-value').textContent =
     `${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;

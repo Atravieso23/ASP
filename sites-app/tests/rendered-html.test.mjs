@@ -110,8 +110,22 @@ test("uses responses as the source for summaries and formations", async () => {
 
   assert.match(demo, /const inList = getResponsePlayers\('in'\)/);
   assert.match(demo, /renderFormationView\(getResponsePlayers\('in'\)\)/);
-  assert.match(demo, /id="count-in"[\s\S]*id="count-out"/);
-  assert.doesNotMatch(demo, /id="count-duda"|data-value="doubt"|>En duda</);
+  assert.match(demo, /id="count-in"[\s\S]*id="count-duda"[\s\S]*id="count-out"/);
+});
+
+test("offers En duda as a third availability state without counting it as confirmed", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
+  assert.match(demo, /const dudaList = getResponsePlayers\('duda'\)/);
+
+  // Un dudoso no ocupa lugar en el equipo ni figura como que pago.
+  assert.match(demo, /team:mockAvailability==='in' \? /);
+  assert.match(demo, /paid:mockAvailability==='in' \? /);
+  assert.match(demo, /player\.paid = response\.status === 'in' && response\.paid === true/);
+
+  // Pero si conserva su franja horaria: solo "No estoy" la descarta.
+  assert.match(demo, /from:mockAvailability==='out' \? '' : from/);
 });
 
 test("clears local responses and keeps date actions in organizer", async () => {
