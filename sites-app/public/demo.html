@@ -519,7 +519,7 @@
   .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:9px;white-space:nowrap;}
 
   /* VISTAS PRINCIPALES */
-  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:rgba(255,255,255,.38);border:1px solid var(--card-border);border-radius:13px;}
+  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:13px;}
   .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
   .main-view-btn.active{background:var(--celeste-deep);color:#fff;box-shadow:0 6px 16px -10px rgba(14,42,61,.65);}
   .organizer-view{display:none;}
@@ -1568,7 +1568,7 @@ function render(){
 
   const paidCount = inList.filter(p=>p.paid).length;
   document.getElementById('paid-count').textContent = paidCount;
-  document.getElementById('total-collected').textContent = perPerson>0 ? formatMoney(perPerson * paidCount) : '$0';
+  document.getElementById('total-collected').textContent = perPerson>0 ? formatMoney(perPerson * paidCount) : '—';
   const unpaidNames = inList.filter(p=>!p.paid)
     .sort((a,b)=>{
       const responseA = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===a.name.toLocaleLowerCase('es'));
