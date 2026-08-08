@@ -396,15 +396,17 @@
     .countdown-badge{font-size:9px; padding:2px 5px; margin-left:2px;}
     .ticket-type-badge{padding:3px 6px;}
     .money-summary{gap:5px;padding:12px 0 0;}
-    .money-summary .edit-btn{padding:8px;}
+    .money-summary .edit-btn{padding:8px; min-width:40px; min-height:40px;}
     .money-summary .edit-label{display:none;}
   }
   .alias-row, .loc-row{display:flex; align-items:center; justify-content:center; gap:6px;}
   .copy-alias-btn{
     background:transparent; border:1px solid var(--card-border); color:var(--celeste-deep);
     border-radius:6px; width:24px; height:24px; font-size:12px; cursor:pointer; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
+    display:flex; align-items:center; justify-content:center; position:relative;
   }
+  /* Amplía el área tocable a ~42px sin agrandar el botón ni mover el diseño. */
+  .copy-alias-btn::after{content:''; position:absolute; inset:-9px;}
   .faltan-pagar{
     font:600 11.5px/1.45 'Inter',sans-serif;color:#B85B4D;margin:10px 0 0;padding:7px 9px;
     background:rgba(42,23,24,.72);border:0;border-radius:6px;
@@ -519,7 +521,7 @@
   .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:9px;white-space:nowrap;}
 
   /* VISTAS PRINCIPALES */
-  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:rgba(255,255,255,.38);border:1px solid var(--card-border);border-radius:13px;}
+  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:13px;}
   .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
   .main-view-btn.active{background:var(--celeste-deep);color:#fff;box-shadow:0 6px 16px -10px rgba(14,42,61,.65);}
   .organizer-view{display:none;}
@@ -1568,7 +1570,7 @@ function render(){
 
   const paidCount = inList.filter(p=>p.paid).length;
   document.getElementById('paid-count').textContent = paidCount;
-  document.getElementById('total-collected').textContent = perPerson>0 ? formatMoney(perPerson * paidCount) : '$0';
+  document.getElementById('total-collected').textContent = perPerson>0 ? formatMoney(perPerson * paidCount) : '—';
   const unpaidNames = inList.filter(p=>!p.paid)
     .sort((a,b)=>{
       const responseA = localAvailabilityResponses.find(item=>item.name.toLocaleLowerCase('es')===a.name.toLocaleLowerCase('es'));
@@ -2442,6 +2444,9 @@ function setRegisteredPlayerNameMode(allowChange=false){
     label.textContent = 'Cambiar jugador';
     help.textContent = 'Corregí el nombre y volvé a confirmar. No podrás usar un nombre que ya pertenezca a otra persona.';
     showPlayerNameFeedback('info','Cambio de jugador activado.',' Usalo solamente si te equivocaste al registrarte.');
+  }else{
+    label.textContent = 'Nombre del jugador';
+    help.textContent = 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
   }
 }
 function renderRecurrentPlayerMenu(){
@@ -2507,6 +2512,14 @@ function renderRecurrentPlayerMenu(){
         showToast(`No se pudo eliminar a ${removed}. Revisá la conexión e intentá otra vez.`);
         return;
       }
+      if(responseBelongsToCurrentDevice(target)){
+        currentLocalResponseName = '';
+        try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }
+        catch(e){ console.error('No se pudo olvidar al jugador local', e); }
+        document.getElementById('my-player-name').value = '';
+        mockStatusCard.classList.remove('collapsed');
+      }
+      setRegisteredPlayerNameMode(false);
       syncLocalAvailabilityWithPlayers();
       render();
       renderRecurrentPlayerMenu();
@@ -2637,6 +2650,16 @@ async function savePlayerRegistration(response){
     });
     combined.push(response);
     nextState.responses = combined;
+    // Al cambiar de jugador, el nombre anterior quedaba para siempre en el
+    // plantel compartido. Se saca salvo que otra respuesta lo siga usando.
+    const previousName = remoteResponses.find(item=>item.responseId===response.responseId)?.name;
+    if(previousName && previousName.toLocaleLowerCase('es')!==normalizedName){
+      const normalizedPrevious = previousName.toLocaleLowerCase('es');
+      const stillUsed = combined.some(item=>item.name.toLocaleLowerCase('es')===normalizedPrevious);
+      if(!stillUsed){
+        nextState.roster = (nextState.roster||[]).filter(item=>item.name.toLocaleLowerCase('es')!==normalizedPrevious);
+      }
+    }
     state = nextState;
     localAvailabilityResponses = combined;
     syncLocalAvailabilityWithPlayers();
@@ -2973,7 +2996,9 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     return;
   }
   const recurrentMatch = recurrentPlayers.find(name=>name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
-  if(!registeringFirstTime && !recurrentMatch){
+  // Al cambiar de jugador se admite un nombre nuevo: corregirse es justamente
+  // el motivo de ese modo. Los controles de nombre duplicado siguen aplicando.
+  if(!registeringFirstTime && !changingRegisteredPlayer && !recurrentMatch){
     nameInput.setAttribute('aria-invalid','true');
     showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Registrarme” para crear uno nuevo.');
     showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Registrarme”.');
