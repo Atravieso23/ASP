@@ -1148,7 +1148,7 @@ async function refreshFromServer(){
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
   if(anyModalOpen || addingNewPlayer || editingHistory || saving) return;
   const fresh = await fetchServerState();
-  if(!fresh) return;
+  if(!fresh || saving) return;
   fresh.players = mergePlayers(fresh.players, state ? state.players : []);
   fresh.sedes = mergeSedesArr(fresh.sedes, state ? state.sedes : []);
   fresh.roster = mergeRosterArr(fresh.roster, state ? state.roster : []);
@@ -2367,11 +2367,16 @@ function loadLocalAvailability(){
   }
 }
 
-function saveLocalAvailability(){
-  if(!state) return;
+// Marca `saving` de forma sincrónica para que el refresco periódico no pise
+// el cambio con una lectura vieja del servidor mientras se está guardando.
+async function saveLocalAvailability(){
+  if(!state) return false;
   state.responses = localAvailabilityResponses.map(item=>({...item}));
   syncLocalAvailabilityWithPlayers();
-  void saveState(state);
+  saving = true;
+  const ok = await saveState(state);
+  saving = false;
+  return ok;
 }
 
 function saveRecurrentPlayers(){
@@ -2472,7 +2477,7 @@ function renderRecurrentPlayerMenu(){
     };
   });
   menu.querySelectorAll('[data-delete-recurrent-index]').forEach(button=>{
-    button.onclick = event=>{
+    button.onclick = async event=>{
       event.stopPropagation();
       const index = Number(button.dataset.deleteRecurrentIndex);
       const removed = recurrentPlayers[index];
@@ -2484,11 +2489,24 @@ function renderRecurrentPlayerMenu(){
       }
       const target = matches[0];
       if(!window.confirm(`¿Eliminar a ${removed} de la lista compartida?`)) return;
+      const previousResponses = localAvailabilityResponses;
+      const previousRoster = state.roster;
       recurrentPlayers.splice(index,1);
       saveRecurrentPlayers();
       localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==target.responseId);
       state.roster = (state.roster||[]).filter(item=>item.name.toLocaleLowerCase('es')!==removed.toLocaleLowerCase('es'));
-      saveLocalAvailability();
+      const ok = await saveLocalAvailability();
+      if(!ok){
+        localAvailabilityResponses = previousResponses;
+        state.roster = previousRoster;
+        recurrentPlayers.splice(index,0,removed);
+        saveRecurrentPlayers();
+        syncLocalAvailabilityWithPlayers();
+        render();
+        renderRecurrentPlayerMenu();
+        showToast(`No se pudo eliminar a ${removed}. Revisá la conexión e intentá otra vez.`);
+        return;
+      }
       syncLocalAvailabilityWithPlayers();
       render();
       renderRecurrentPlayerMenu();
@@ -2674,12 +2692,22 @@ function renderGuestManager(){
     };
   });
   list.querySelectorAll('[data-remove-guest]').forEach(button=>{
-    button.onclick = ()=>{
+    button.onclick = async ()=>{
       const responseId = button.dataset.removeGuest;
       const guest = localAvailabilityResponses.find(item=>item.isGuest && item.responseId===responseId);
       if(!guest || !window.confirm(`¿Eliminar a ${guest.name} de tus invitados?`)) return;
+      const previousResponses = localAvailabilityResponses;
       localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==responseId);
-      saveLocalAvailability();
+      const ok = await saveLocalAvailability();
+      if(!ok){
+        localAvailabilityResponses = previousResponses;
+        syncLocalAvailabilityWithPlayers();
+        render();
+        renderLocalOrganizer();
+        renderGuestManager();
+        showToast(`No se pudo eliminar a ${guest.name}. Revisá la conexión e intentá otra vez.`);
+        return;
+      }
       syncLocalAvailabilityWithPlayers();
       render();
       renderLocalOrganizer();
