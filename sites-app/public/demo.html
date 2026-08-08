@@ -396,15 +396,17 @@
     .countdown-badge{font-size:9px; padding:2px 5px; margin-left:2px;}
     .ticket-type-badge{padding:3px 6px;}
     .money-summary{gap:5px;padding:12px 0 0;}
-    .money-summary .edit-btn{padding:8px;}
+    .money-summary .edit-btn{padding:8px; min-width:40px; min-height:40px;}
     .money-summary .edit-label{display:none;}
   }
   .alias-row, .loc-row{display:flex; align-items:center; justify-content:center; gap:6px;}
   .copy-alias-btn{
     background:transparent; border:1px solid var(--card-border); color:var(--celeste-deep);
     border-radius:6px; width:24px; height:24px; font-size:12px; cursor:pointer; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
+    display:flex; align-items:center; justify-content:center; position:relative;
   }
+  /* Amplía el área tocable a ~42px sin agrandar el botón ni mover el diseño. */
+  .copy-alias-btn::after{content:''; position:absolute; inset:-9px;}
   .faltan-pagar{
     font:600 11.5px/1.45 'Inter',sans-serif;color:#B85B4D;margin:10px 0 0;padding:7px 9px;
     background:rgba(42,23,24,.72);border:0;border-radius:6px;
