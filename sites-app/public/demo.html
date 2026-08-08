@@ -227,8 +227,17 @@
   .organizer-formation-help{margin:14px 0 0;text-align:center;color:var(--muted);font-size:12px;line-height:1.5;}
   .teams-vs{display:grid;place-items:center;width:38px;height:38px;margin:0 auto;border-radius:50%;background:var(--celeste-deep);color:#fff;font:800 12px 'Oswald',sans-serif;letter-spacing:.08em;box-shadow:0 8px 18px -10px rgba(14,42,61,.8);}
 
+  /* "¿Cuántos somos?" es la pregunta más repetida del grupo, pero va después de
+     día/hora/cancha: en 375x667 la hora tiene que verse sin scrollear. Tiene banda
+     propia para no volver a mezclarse con los pagos; el borde punteado de
+     .money-summary la cierra por abajo. */
+  .squad-status{text-align:center; margin:16px 0 0; font-family:'JetBrains Mono',monospace;}
+  .squad-status-line{margin:0; font-size:14px; color:var(--navy);}
+  .squad-status-line b{color:var(--celeste-deep); font-size:19px;}
+  .squad-status-target{margin:3px 0 0; font-size:11px; color:var(--muted);}
+
   .money-summary{
-    display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;align-items:center;gap:8px;
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:center;gap:8px;
     border-top:1px dashed var(--card-border);padding:14px 0 0;margin-top:16px;
     font-family:'JetBrains Mono',monospace;font-size:12px;
   }
@@ -704,8 +713,13 @@
         </div>
       </div>
     </div>
-    <div class="money-summary" aria-label="Resumen de anotados, pagos y edición del partido">
-      <span class="cash-metric">Confirmados <span class="cash-metric-value" id="capacity-note"><b id="confirmed-count">0</b><span id="capacity-target"></span></span></span>
+    <!-- Sin aria-live: el sondeo reescribe estos textos cada 4s aunque no cambien,
+         así que una región viva reanunciaría el conteo sin parar. -->
+    <div class="squad-status">
+      <p class="squad-status-line" id="capacity-note"><b id="confirmed-count">0</b> confirmados<span class="squad-doubt" id="doubt-note" hidden> · <b id="doubt-count">0</b> en duda</span></p>
+      <p class="squad-status-target" id="capacity-target"></p>
+    </div>
+    <div class="money-summary" aria-label="Resumen de pagos y edición del partido">
       <span class="cash-metric">Pagaron <span class="cash-metric-value"><b id="paid-count">0</b> de <span id="confirmed-count-2">0</span></span></span>
       <span class="cash-metric">Recaudado <span class="cash-metric-value"><b id="total-collected">$0</b></span></span>
       <button class="edit-btn" id="edit-match-btn" aria-label="Editar datos del partido"><span aria-hidden="true">✏️</span><span class="edit-label">Editar partido</span></button>
@@ -1457,7 +1471,10 @@ function render(){
   // con los que haya, así que el número no bloquea a nadie ni arma suplentes.
   const cap = capacityFor(mi.type);
   document.getElementById('confirmed-count').textContent = inList.length;
-  document.getElementById('capacity-target').textContent = mi.type ? ` de ${cap}` : '';
+  document.getElementById('doubt-count').textContent = dudaList.length;
+  // Sin dudosos la línea queda "13 confirmados", sin un " · " colgando.
+  document.getElementById('doubt-note').hidden = dudaList.length === 0;
+  document.getElementById('capacity-target').textContent = mi.type ? `Apuntamos a ${cap}` : '';
   document.getElementById('capacity-note').title = mi.type
     ? `Apuntamos a ${fieldTypeLabel(mi.type)}: ${cap} jugadores, ${playersPerTeam(mi.type)} por equipo.`
     : 'Elegí el tipo de cancha en "Editar partido" para ver a cuántos apuntamos.';
