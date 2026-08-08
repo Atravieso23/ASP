@@ -139,42 +139,8 @@
   }
   .section-title::after{content:""; flex:1; height:1px; background:var(--card-border);}
 
-  .join-row{display:flex; gap:8px; flex-wrap:wrap;}
-  .join-row select, .join-row input{
-    flex:1 1 180px; background:var(--white); border:1px solid var(--card-border);
-    color:var(--navy); border-radius:10px; padding:12px 14px; font-size:15px;
-    font-family:'Inter',sans-serif;
-  }
-  .join-row select:focus, .join-row input:focus{outline:none; border-color:var(--celeste);}
-  .status-btns{display:flex; gap:6px; flex-wrap:wrap;}
-  .status-btns button{
-    border:none; border-radius:10px; padding:0 14px; height:44px; font-weight:700;
-    font-family:'Inter',sans-serif; font-size:13.5px; cursor:pointer; white-space:nowrap;
-  }
-  .btn-in{background:var(--ok); color:#fff;}
-  .btn-duda{background:#E8A93B; color:#3a2500;}
-  .btn-out{background:#E4E9EC; color:var(--muted);}
-  .status-btns button:active{transform:scale(0.97);}
   .hint{font-size:12px; color:var(--muted); margin:8px 2px 0;}
 
-  .player-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
-  @media(min-width:600px){.player-list{grid-template-columns:repeat(3,minmax(0,1fr));}}
-  .player-row{
-    display:flex; align-items:center; gap:5px;
-    background:var(--white); border:1px solid var(--card-border);
-    border-radius:10px; padding:9px 8px;
-  }
-  .player-row .captain-star, .player-row .icon-btn{display:none;}
-  .player-name{
-    flex:1 1 auto; font-weight:600; font-size:14px; min-width:30px;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .captain-star{
-    width:18px; height:28px; flex-shrink:0; border:none; background:transparent; cursor:pointer;
-    font-size:15px; line-height:1; color:var(--card-border); display:flex; align-items:center;
-    justify-content:center; padding:0;
-  }
-  .captain-star.active{color:#E8A93B;}
   .jersey-input{
     width:28px; text-align:center; border:1px solid var(--card-border); border-radius:6px;
     padding:5px 1px; font-family:'JetBrains Mono',monospace; font-size:12px;
@@ -191,22 +157,6 @@
     color:var(--muted); font-size:13.5px; font-style:italic; padding:14px 4px;
     grid-column:1/-1;
   }
-
-  /* SWITCH CONFIRMADOS / ESPERA / DUDA / NO VAN */
-  .status-switch{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
-  .status-switch-btn{
-    flex:1 1 calc(50% - 6px); padding:9px 8px; border-radius:9px; border:1px solid var(--card-border);
-    background:var(--white); color:var(--muted); font-weight:700; font-size:12.5px; cursor:pointer;
-    font-family:'Inter',sans-serif; display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;
-  }
-  @media(min-width:480px){ .status-switch-btn{flex:1 1 auto;} }
-  .status-switch-btn.active{background:var(--celeste-deep); color:#fff; border-color:transparent;}
-  .status-switch-btn[hidden]{display:none !important;}
-  .status-switch-btn .count{
-    background:rgba(0,0,0,0.08); color:inherit; font-family:'JetBrains Mono',monospace;
-    font-weight:700; font-size:11px; padding:1px 7px; border-radius:999px;
-  }
-  .status-switch-btn.active .count{background:rgba(255,255,255,0.28); color:#fff;}
 
   /* TEAMS SPLIT (vista lista) */
   .split{display:grid; grid-template-columns:1fr; gap:8px;}
@@ -277,7 +227,7 @@
   .teams-vs{display:grid;place-items:center;width:38px;height:38px;margin:0 auto;border-radius:50%;background:var(--celeste-deep);color:#fff;font:800 12px 'Oswald',sans-serif;letter-spacing:.08em;box-shadow:0 8px 18px -10px rgba(14,42,61,.8);}
 
   .money-summary{
-    display:grid;grid-template-columns:1fr 1fr auto;align-items:center;gap:8px;
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;align-items:center;gap:8px;
     border-top:1px dashed var(--card-border);padding:14px 0 0;margin-top:16px;
     font-family:'JetBrains Mono',monospace;font-size:12px;
   }
@@ -414,7 +364,6 @@
   .faltan-pagar:empty{display:none;}
   .faltan-pagar b{color:#C76C5E;font-weight:700;}
   .faltan-pagar.all-paid{color:#76B99A;background:rgba(63,174,122,.06);border-color:rgba(63,174,122,.18);}
-  .capacity-note{font-size:11.5px; color:var(--muted); margin:6px 2px 0;}
   .undo-btn{
     margin-top:8px; background:transparent; border:1px solid var(--card-border);
     color:var(--celeste-deep); font-size:12px; font-weight:700; padding:6px 10px;
@@ -750,30 +699,12 @@
         </div>
       </div>
     </div>
-    <div class="money-summary" aria-label="Resumen de pagos y edición del partido">
+    <div class="money-summary" aria-label="Resumen de anotados, pagos y edición del partido">
+      <span class="cash-metric">Confirmados <span class="cash-metric-value" id="capacity-note"><b id="confirmed-count">0</b><span id="capacity-target"></span></span></span>
       <span class="cash-metric">Pagaron <span class="cash-metric-value"><b id="paid-count">0</b> de <span id="confirmed-count-2">0</span></span></span>
       <span class="cash-metric">Recaudado <span class="cash-metric-value"><b id="total-collected">$0</b></span></span>
       <button class="edit-btn" id="edit-match-btn" aria-label="Editar datos del partido"><span aria-hidden="true">✏️</span><span class="edit-label">Editar partido</span></button>
     </div>
-  </div>
-
-  <div class="section" id="legacy-join-section" hidden aria-hidden="true">
-    <div class="section-title">Anotarse</div>
-    <div class="join-row">
-      <select id="name-select"></select>
-      <div class="status-btns">
-        <button class="btn-in" data-status="in">Juego</button>
-        <button class="btn-duda" data-status="duda">Duda</button>
-        <button class="btn-out" data-status="out">No juego</button>
-      </div>
-    </div>
-    <div class="new-loc-field" id="new-player-wrap" style="display:none;">
-      <input type="text" id="new-player-name" placeholder="Escribí tu nombre" maxlength="30">
-      <p class="field-note">Se anota solo para esta fecha, como invitado. Si es alguien fijo del grupo, mejor cargalo en "Gestionar plantel" de una vez.</p>
-    </div>
-    <p class="hint">Elegí tu nombre de la lista (o "No estoy en la lista" si sos invitado) y tocá tu estado.</p>
-    <p class="capacity-note" id="capacity-note"></p>
-    <button class="link-btn" id="manage-roster-btn" style="margin-top:4px;">⚙️ Gestionar plantel del grupo</button>
   </div>
 
   <div class="section teams-section">
@@ -939,22 +870,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="manage-roster-overlay">
-  <div class="modal">
-    <h2>Plantel del grupo</h2>
-    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Estos son los que aparecen en el desplegable de "Anotarse". El dorsal es opcional y se puede volver a cambiar después en la lista de Confirmados. Sacar a alguien de acá no borra su anotación de esta semana.</p>
-    <ul class="manage-list" id="roster-manage-list"></ul>
-    <div class="manage-add-row">
-      <input type="text" id="new-roster-name" placeholder="Nombre del jugador">
-      <input type="text" id="new-roster-number" placeholder="#" maxlength="2" inputmode="numeric" style="max-width:50px; flex:0 0 auto; text-align:center;">
-      <button class="btn-save" id="add-roster-btn" style="flex:0 0 auto;padding:10px 14px;">Agregar</button>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="manage-roster-close">Cerrar</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="finalize-overlay">
   <div class="modal">
     <h2>Finalizar fecha</h2>
@@ -973,17 +888,6 @@
     <div class="modal-actions">
       <button class="btn-cancel" id="c-cancel">Cancelar</button>
       <button class="btn-confirm-danger" id="c-confirm">Sí, limpiar todo</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="pay-confirm-overlay">
-  <div class="modal">
-    <h2>Confirmar pago</h2>
-    <p id="pay-confirm-text" style="color:var(--muted); font-size:14px; line-height:1.5;">¿Confirmás que pagó?</p>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="pay-confirm-cancel">Cancelar</button>
-      <button class="btn-save" id="pay-confirm-ok">Sí, ya pagó</button>
     </div>
   </div>
 </div>
@@ -1050,7 +954,6 @@ function defaultState(){
     players: [],
     history: [],
     sedes: [{name:'Cancha del barrio',address:''}],
-    roster: [],
     formations: {},
     responses: [],
     frequentAliases: []
@@ -1078,10 +981,10 @@ async function fetchServerState(){
     if(parsed.sedes.length && typeof parsed.sedes[0] === 'string'){
       parsed.sedes = parsed.sedes.map(s=>({name:s, address:''}));
     }
-    if(!parsed.roster) parsed.roster = [];
-    if(parsed.roster.length && typeof parsed.roster[0] === 'string'){
-      parsed.roster = parsed.roster.map(n=>({name:n, number:null}));
-    }
+    // El plantel fijo quedó sin uso: el registro se hace con los jugadores
+    // recurrentes derivados de las respuestas. Se descarta acá para que el
+    // próximo guardado lo saque del JSON en vez de arrastrarlo para siempre.
+    delete parsed.roster;
     if(!parsed.formations) parsed.formations = {};
     if(!parsed.responses) parsed.responses = [];
     if(!parsed.frequentAliases) parsed.frequentAliases = [];
@@ -1112,11 +1015,9 @@ async function saveState(s){
 // (lo borré yo a propósito, no hay que resucitarlo).
 let knownPlayerNames = new Set();
 let knownSedeNames = new Set();
-let knownRosterNames = new Set();
 function updateKnownSets(s){
   knownPlayerNames = new Set((s.players||[]).map(p=>p.name.toLowerCase()));
   knownSedeNames = new Set((s.sedes||[]).map(x=>x.name.toLowerCase()));
-  knownRosterNames = new Set((s.roster||[]).map(r=>r.name.toLowerCase()));
 }
 
 // Combina lo nuevo del servidor con lo local: si un nombre ya lo conocíamos y
@@ -1139,21 +1040,16 @@ function mergePlayers(freshPlayers, localPlayers){
 function mergeSedesArr(freshSedes, localSedes){
   return mergeKeepingDeletions(freshSedes, localSedes, knownSedeNames, s=>s.name.toLowerCase());
 }
-function mergeRosterArr(freshRoster, localRoster){
-  return mergeKeepingDeletions(freshRoster, localRoster, knownRosterNames, r=>r.name.toLowerCase());
-}
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','pay-confirm-overlay','claim-player-overlay','manage-sedes-overlay','manage-roster-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
-  const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
-  if(anyModalOpen || addingNewPlayer || editingHistory || saving) return;
+  if(anyModalOpen || editingHistory || saving) return;
   const fresh = await fetchServerState();
   if(!fresh || saving) return;
   fresh.players = mergePlayers(fresh.players, state ? state.players : []);
   fresh.sedes = mergeSedesArr(fresh.sedes, state ? state.sedes : []);
-  fresh.roster = mergeRosterArr(fresh.roster, state ? state.roster : []);
   if(state && state.formations) fresh.formations = {...fresh.formations, ...state.formations};
   state = fresh;
   localAvailabilityResponses = Array.isArray(state.responses) ? state.responses : [];
@@ -1549,12 +1445,14 @@ function render(){
   document.getElementById('count-out').textContent = outList.length;
   document.getElementById('confirmed-count-2').textContent = inList.length;
 
+  // Referencia, no límite: el grupo apunta al tipo de cancha elegido pero juega
+  // con los que haya, así que el número no bloquea a nadie ni arma suplentes.
   const cap = capacityFor(mi.type);
-  if(!mi.type){
-    document.getElementById('capacity-note').textContent = `Todavía no elegiste el tipo de cancha (Editar partido) — por ahora se usa un cupo de ${cap} jugadores como referencia.`;
-  } else {
-    document.getElementById('capacity-note').textContent = `Cupo de esta cancha: ${cap} jugadores (${inList.length}/${cap} confirmados, ${playersPerTeam(mi.type)} por equipo). El que se anota de más queda en lista de espera.`;
-  }
+  document.getElementById('confirmed-count').textContent = inList.length;
+  document.getElementById('capacity-target').textContent = mi.type ? ` de ${cap}` : '';
+  document.getElementById('capacity-note').title = mi.type
+    ? `Apuntamos a ${fieldTypeLabel(mi.type)}: ${cap} jugadores, ${playersPerTeam(mi.type)} por equipo.`
+    : 'Elegí el tipo de cancha en "Editar partido" para ver a cuántos apuntamos.';
 
   const negroListEl = document.getElementById('team-negro-list');
   const blancoListEl = document.getElementById('team-blanco-list');
@@ -1583,7 +1481,6 @@ function render(){
   faltanEl.classList.toggle('all-paid', unpaidNames.length===0 && inList.length>0);
   faltanEl.innerHTML = unpaidNames.length ? `Faltan pagar: <b>${escapeHtml(unpaidNames.join(', '))}</b>` : (inList.length ? 'Ya pagaron todos ✓' : '');
 
-  renderNameSelect();
   renderHistory();
 }
 
@@ -1591,147 +1488,6 @@ function setSb(id, val, emptyLabel){
   const el = document.getElementById(id);
   el.textContent = val || (emptyLabel !== undefined ? emptyLabel : 'Sin asignar');
   el.className = 'sb-value' + ((val)? '':' empty');
-}
-
-function renderConfirmedList(inList){
-  const list = document.getElementById('list-in');
-  list.innerHTML = '';
-  if(inList.length===0){
-    list.innerHTML = '<li class="empty-state">Todavía no confirmó nadie. ¡Sé el primero!</li>';
-    return;
-  }
-  inList.forEach(p=>{
-    const li = document.createElement('li');
-    li.className = 'player-row';
-    li.innerHTML = `
-      <button class="captain-star ${p.isCaptain?'active':''}" data-action="captain" data-name="${escapeHtml(p.name)}" title="${p.isCaptain?'Es capitán':'Hacer capitán de su equipo'}">★</button>
-      <span class="player-name">${escapeHtml(p.name)}</span>
-      <input type="text" class="jersey-input" data-action="number" data-name="${escapeHtml(p.name)}" value="${p.number?escapeHtml(String(p.number)):''}" placeholder="#" maxlength="2" inputmode="numeric">
-      <button class="icon-btn ${p.paid?'paid':''}" data-action="pay" data-name="${escapeHtml(p.name)}" title="Marcar pagado">${p.paid?'✓':'$'}</button>
-      <button class="icon-btn danger" data-action="remove" data-name="${escapeHtml(p.name)}" title="Sacar de la lista">✕</button>
-    `;
-    list.appendChild(li);
-  });
-}
-
-function renderSimpleList(elId, arr, emptyMsg){
-  const list = document.getElementById(elId);
-  list.innerHTML = '';
-  if(arr.length===0){
-    list.innerHTML = `<li class="empty-state">${emptyMsg}</li>`;
-    return;
-  }
-  arr.forEach(p=>{
-    const li = document.createElement('li');
-    li.className = 'player-row';
-    li.innerHTML = `
-      <span class="player-name">${escapeHtml(p.name)}</span>
-      <button class="icon-btn" data-action="setstatus" data-status="in" data-name="${escapeHtml(p.name)}" title="Confirmar">✓ Juega</button>
-      <button class="icon-btn danger" data-action="remove" data-name="${escapeHtml(p.name)}" title="Sacar de la lista">✕</button>
-    `;
-    list.appendChild(li);
-  });
-}
-
-function renderNameSelect(){
-  const sel = document.getElementById('name-select');
-  const wasFocused = document.activeElement === sel;
-  const addingNewPlayer = document.getElementById('new-player-wrap').style.display === 'block';
-  if(wasFocused || addingNewPlayer) return;
-  sel.innerHTML = '';
-  const taken = new Set(state.players.map(p=>p.name.toLowerCase()));
-  const available = (state.roster||[]).filter(r=>!taken.has(r.name.toLowerCase()));
-  if(available.length===0){
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = (state.roster||[]).length ? 'Ya respondieron todos ✓' : 'Todavía no hay plantel cargado';
-    sel.appendChild(opt);
-  } else {
-    const placeholder = document.createElement('option');
-    placeholder.value = ''; placeholder.textContent = 'Elegí tu nombre…';
-    sel.appendChild(placeholder);
-    available.sort((a,b)=>a.name.localeCompare(b.name,'es')).forEach(r=>{
-      const opt = document.createElement('option'); opt.value = r.name; opt.textContent = r.name;
-      sel.appendChild(opt);
-    });
-  }
-  const newOpt = document.createElement('option');
-  newOpt.value = '__new__'; newOpt.textContent = '➕ No estoy en la lista…';
-  sel.appendChild(newOpt);
-}
-
-function attachListEvents(){
-  document.querySelectorAll('[data-action="captain"]').forEach(el=>{
-    el.onclick = async ()=>{
-      const name = el.getAttribute('data-name');
-      const p = state.players.find(pl=>pl.name===name);
-      if(!p) return;
-      if(!p.team){ showToast('Asignale un equipo antes de hacerlo capitán.'); return; }
-      const makingCaptain = !p.isCaptain;
-      state.players.filter(pl=>pl.team===p.team && pl.name!==p.name).forEach(pl=> pl.isCaptain=false);
-      p.isCaptain = makingCaptain;
-      render();
-      await persist();
-    };
-  });
-  document.querySelectorAll('[data-action="pay"]').forEach(el=>{
-    el.onclick = async ()=>{
-      const name = el.getAttribute('data-name');
-      const p = state.players.find(pl=>pl.name===name);
-      if(!p) return;
-      if(!p.paid){
-        document.getElementById('pay-confirm-text').textContent = `¿Confirmás que ${p.name} ya pagó?`;
-        document.getElementById('pay-confirm-overlay').classList.add('open');
-        document.getElementById('pay-confirm-ok').onclick = async ()=>{
-          p.paid = true;
-          document.getElementById('pay-confirm-overlay').classList.remove('open');
-          render();
-          await persist();
-        };
-      } else {
-        p.paid = false;
-        render();
-        await persist();
-      }
-    };
-  });
-  document.querySelectorAll('[data-action="remove"]').forEach(el=>{
-    el.onclick = async ()=>{
-      const name = el.getAttribute('data-name');
-      if(!window.confirm(`¿Eliminar a ${name} de esta fecha?`)) return;
-      state.players = state.players.filter(pl=>pl.name!==name);
-      render();
-      await persist();
-    };
-  });
-  document.querySelectorAll('[data-action="setstatus"]').forEach(el=>{
-    el.onclick = async ()=>{
-      const name = el.getAttribute('data-name');
-      const status = el.getAttribute('data-status');
-      const p = state.players.find(pl=>pl.name===name);
-      if(!p) return;
-      if(status === 'in'){
-        const cap = capacityFor(state.matchInfo.type);
-        const currentlyIn = state.players.filter(pl=>pl.status==='in' && pl.name!==name).length;
-        if(currentlyIn >= cap){
-          showToast(`Ojo: el cupo (${cap}) ya está lleno, lo pasás igual a confirmado.`);
-        }
-      }
-      p.status = status;
-      render();
-      await persist();
-    };
-  });
-  document.querySelectorAll('[data-action="number"]').forEach(el=>{
-    el.onchange = async ()=>{
-      const name = el.getAttribute('data-name');
-      const p = state.players.find(pl=>pl.name===name);
-      if(!p) return;
-      const val = el.value.replace(/[^0-9]/g,'').slice(0,2);
-      p.number = val ? parseInt(val) : null;
-      await persist();
-    };
-  });
 }
 
 function computeStandings(){
@@ -1910,7 +1666,6 @@ async function persist(){
   if(fresh){
     state.players = mergePlayers(fresh.players, state.players);
     state.sedes = mergeSedesArr(fresh.sedes, state.sedes);
-    state.roster = mergeRosterArr(fresh.roster, state.roster);
     if(!state.formations) state.formations = fresh.formations || {};
   }
   await saveState(state);
@@ -1928,21 +1683,6 @@ function setTab(tab){
 document.getElementById('tab-btn-partido').onclick = ()=> setTab('partido');
 document.getElementById('tab-btn-historial').onclick = ()=> setTab('historial');
 
-/* ---------- SWITCH CONFIRMADOS / ESPERA / DUDA / NO VAN ---------- */
-let activeStatusView = 'in';
-function setStatusView(view){
-  activeStatusView = view;
-  ['in','espera','duda','out'].forEach(v=>{
-    document.getElementById('list-'+v).style.display = (v===view) ? 'grid' : 'none';
-  });
-  document.querySelectorAll('.status-switch-btn').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.statusView === view);
-  });
-}
-document.querySelectorAll('.status-switch-btn').forEach(btn=>{
-  btn.onclick = ()=> setStatusView(btn.dataset.statusView);
-});
-
 /* ---------- FORMACIONES DEL ORGANIZADOR ---------- */
 document.getElementById('formation-select-negro').addEventListener('change', async (e)=>{
   state.formations.negro = e.target.value;
@@ -1954,103 +1694,6 @@ document.getElementById('formation-select-blanco').addEventListener('change', as
   state.players.filter(p=>p.team==='blanco').forEach(p=> p.pos = null);
   render(); saveLocalFormationState(); await persist();
 });
-/* ---------- ANOTARSE ---------- */
-document.getElementById('name-select').addEventListener('change', (e)=>{
-  document.getElementById('new-player-wrap').style.display = e.target.value === '__new__' ? 'block':'none';
-});
-document.querySelectorAll('.status-btns button').forEach(btn=>{
-  btn.onclick = async ()=>{
-    const sel = document.getElementById('name-select');
-    let name = sel.value;
-    if(name === '__new__'){
-      name = document.getElementById('new-player-name').value.trim();
-      if(!name) return;
-      // Ojo: NO se agrega al plantel del grupo — son invitados de esta fecha,
-      // no queremos que aparezcan en el desplegable de las próximas semanas.
-    }
-    if(!name) return;
-    let status = btn.getAttribute('data-status');
-    let p = state.players.find(pl=>pl.name.toLowerCase()===name.toLowerCase());
-    if(status === 'in'){
-      const cap = capacityFor(state.matchInfo.type);
-      const currentlyIn = state.players.filter(pl=>pl.status==='in' && pl.name.toLowerCase()!==name.toLowerCase()).length;
-      if(currentlyIn >= cap){
-        status = 'espera';
-        showToast(`Cupo lleno (${cap}). ${name} queda en lista de espera.`);
-      }
-    }
-    if(p){ p.status = status; }
-    else {
-      const rosterEntry = (state.roster||[]).find(r=>r.name.toLowerCase()===name.toLowerCase());
-      const defaultNumber = (rosterEntry && rosterEntry.number) ? rosterEntry.number : null;
-      state.players.push({name, status, team:status==='in'?chooseBalancedTeam(name):null, paid:false, number:defaultNumber, pos:null, isCaptain:false});
-    }
-    document.getElementById('new-player-name').value = '';
-    document.getElementById('new-player-wrap').style.display = 'none';
-    render();
-    await persist();
-  };
-});
-
-/* ---------- GESTIONAR PLANTEL ---------- */
-function renderRosterManageList(){
-  const ul = document.getElementById('roster-manage-list');
-  ul.innerHTML = '';
-  (state.roster||[]).forEach((r, idx)=>{
-    const li = document.createElement('li');
-    li.className = 'manage-row';
-    li.innerHTML = `
-      <input type="text" data-idx="${idx}" data-field="name" value="${escapeHtml(r.name)}" placeholder="Nombre">
-      <input type="text" data-idx="${idx}" data-field="number" value="${r.number?escapeHtml(String(r.number)):''}" placeholder="#" maxlength="2" inputmode="numeric" style="max-width:50px; flex:0 0 auto; text-align:center;">
-      <button class="icon-btn danger" data-idx="${idx}" data-action="delete-roster" title="Eliminar">✕</button>
-    `;
-    ul.appendChild(li);
-  });
-  ul.querySelectorAll('input').forEach(inp=>{
-    inp.onchange = async ()=>{
-      const idx = parseInt(inp.dataset.idx);
-      if(inp.dataset.field === 'name'){
-        state.roster[idx].name = inp.value.trim();
-      } else {
-        const val = inp.value.replace(/[^0-9]/g,'').slice(0,2);
-        state.roster[idx].number = val ? parseInt(val) : null;
-      }
-      await persist();
-    };
-  });
-  ul.querySelectorAll('[data-action="delete-roster"]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const idx = parseInt(btn.dataset.idx);
-      const rosterName = state.roster[idx]?.name;
-      if(!rosterName || !window.confirm(`¿Eliminar a ${rosterName} del plantel?`)) return;
-      state.roster.splice(idx,1);
-      renderRosterManageList();
-      render();
-      await persist();
-    };
-  });
-}
-document.getElementById('manage-roster-btn').onclick = ()=>{
-  renderRosterManageList();
-  document.getElementById('manage-roster-overlay').classList.add('open');
-};
-document.getElementById('manage-roster-close').onclick = ()=>{
-  document.getElementById('manage-roster-overlay').classList.remove('open');
-  render();
-};
-document.getElementById('add-roster-btn').onclick = async ()=>{
-  const name = document.getElementById('new-roster-name').value.trim();
-  const numberRaw = document.getElementById('new-roster-number').value.replace(/[^0-9]/g,'').slice(0,2);
-  const number = numberRaw ? parseInt(numberRaw) : null;
-  if(!name) return;
-  if(!state.roster) state.roster = [];
-  if(!state.roster.some(r=>r.name.toLowerCase()===name.toLowerCase())) state.roster.push({name, number});
-  document.getElementById('new-roster-name').value = '';
-  document.getElementById('new-roster-number').value = '';
-  renderRosterManageList();
-  await persist();
-};
-
 /* ---------- GESTIONAR CANCHAS ---------- */
 function renderSedesManageList(){
   const ul = document.getElementById('sedes-manage-list');
@@ -2236,7 +1879,6 @@ document.getElementById('f-confirm').onclick = async ()=>{
 const clearOverlay = document.getElementById('clear-overlay');
 document.getElementById('clear-btn').onclick = ()=> clearOverlay.classList.add('open');
 document.getElementById('c-cancel').onclick = ()=> clearOverlay.classList.remove('open');
-document.getElementById('pay-confirm-cancel').onclick = ()=> document.getElementById('pay-confirm-overlay').classList.remove('open');
 document.getElementById('claim-player-cancel').onclick = ()=>{
   pendingClaimResponseId = '';
   document.getElementById('claim-player-overlay').classList.remove('open');
@@ -2495,15 +2137,12 @@ function renderRecurrentPlayerMenu(){
       const target = matches[0];
       if(!window.confirm(`¿Eliminar a ${removed} de la lista compartida?`)) return;
       const previousResponses = localAvailabilityResponses;
-      const previousRoster = state.roster;
       recurrentPlayers.splice(index,1);
       saveRecurrentPlayers();
       localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==target.responseId);
-      state.roster = (state.roster||[]).filter(item=>item.name.toLocaleLowerCase('es')!==removed.toLocaleLowerCase('es'));
       const ok = await saveLocalAvailability();
       if(!ok){
         localAvailabilityResponses = previousResponses;
-        state.roster = previousRoster;
         recurrentPlayers.splice(index,0,removed);
         saveRecurrentPlayers();
         syncLocalAvailabilityWithPlayers();
@@ -2597,9 +2236,6 @@ function syncLocalAvailabilityWithPlayers(){
       player.pos = null;
       player.isCaptain = false;
     }
-    if(!(state.roster||[]).some(item=>item.name.toLocaleLowerCase('es')===normalizedName)){
-      state.roster.push({name:response.name, number:null});
-    }
   });
 }
 
@@ -2650,16 +2286,6 @@ async function savePlayerRegistration(response){
     });
     combined.push(response);
     nextState.responses = combined;
-    // Al cambiar de jugador, el nombre anterior quedaba para siempre en el
-    // plantel compartido. Se saca salvo que otra respuesta lo siga usando.
-    const previousName = remoteResponses.find(item=>item.responseId===response.responseId)?.name;
-    if(previousName && previousName.toLocaleLowerCase('es')!==normalizedName){
-      const normalizedPrevious = previousName.toLocaleLowerCase('es');
-      const stillUsed = combined.some(item=>item.name.toLocaleLowerCase('es')===normalizedPrevious);
-      if(!stillUsed){
-        nextState.roster = (nextState.roster||[]).filter(item=>item.name.toLocaleLowerCase('es')!==normalizedPrevious);
-      }
-    }
     state = nextState;
     localAvailabilityResponses = combined;
     syncLocalAvailabilityWithPlayers();

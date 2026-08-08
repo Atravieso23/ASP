@@ -68,10 +68,8 @@ test("shows editable formations only in the organizer view", async () => {
 
 test("assigns confirmed players to teams from the organizer responses", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const confirmedListStart = demo.indexOf("function renderConfirmedList(inList)");
-  const simpleListStart = demo.indexOf("function renderSimpleList", confirmedListStart);
 
-  assert.doesNotMatch(demo.slice(confirmedListStart, simpleListStart), /team-square|teamLetter/);
+  assert.doesNotMatch(demo, /team-square|teamLetter/);
   assert.match(demo, /data-team-choice="negro"/);
   assert.match(demo, /data-team-choice="blanco"/);
   assert.match(demo, /player\.team = player\.team===selectedTeam \? null : selectedTeam/);
@@ -163,7 +161,9 @@ test("puts the unpaid list below the payment controls", async () => {
   const ticket = demo.indexOf('class="ticket"');
 
   assert.ok(statusCard >= 0 && paymentControls > statusCard && shame > paymentControls && statusCardEnd > shame && ticket > statusCardEnd);
-  const ticketMarkup = demo.slice(ticket, demo.indexOf('id="legacy-join-section"'));
+  const teamsSection = demo.indexOf('class="section teams-section"');
+  assert.ok(teamsSection > ticket);
+  const ticketMarkup = demo.slice(ticket, teamsSection);
   assert.match(ticketMarkup, /class="ticket-heading-row"[\s\S]*id="team-name"[\s\S]*id="sb-type"/);
   assert.match(ticketMarkup, /class="money-summary"[\s\S]*id="paid-count"[\s\S]*id="total-collected"[\s\S]*id="edit-match-btn"/);
   assert.doesNotMatch(demo, /class="cash-section"/);
@@ -313,4 +313,47 @@ test("defaults to F8 and assigns every confirmed player to a balanced team", asy
   assert.match(demo, /counts\.negro <= counts\.blanco \? 'negro' : 'blanco'/);
   assert.match(demo, /existingResponse\?\.team \|\| chooseBalancedTeam\(playerName\)/);
   assert.match(demo, /team:chooseBalancedTeam\(guestName\)/);
+});
+
+test("shows how many are confirmed against the field target in the ticket", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const ticket = demo.indexOf('class="ticket"');
+  const teamsSection = demo.indexOf('class="section teams-section"');
+  const ticketMarkup = demo.slice(ticket, teamsSection);
+
+  assert.match(ticketMarkup, /class="cash-metric">Confirmados[\s\S]*id="capacity-note"[\s\S]*id="confirmed-count"[\s\S]*id="capacity-target"/);
+  assert.match(demo, /\.money-summary\{[\s\S]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\) auto/);
+  assert.match(demo, /getElementById\('confirmed-count'\)\.textContent = inList\.length/);
+  assert.match(demo, /getElementById\('capacity-target'\)\.textContent = mi\.type \? ` de \$\{cap\}` : ''/);
+
+  // El cupo es una referencia, no un límite: no se corta el anotado ni se
+  // arma lista de espera, así que el cartel no debe prometerlo.
+  assert.doesNotMatch(demo, /lista de espera|Cupo lleno|queda en lista/);
+  assert.doesNotMatch(demo, /status = 'espera'/);
+});
+
+test("drops the legacy join section and the unused group roster", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.doesNotMatch(demo, /legacy-join-section|id="name-select"|new-player-wrap/);
+  assert.doesNotMatch(demo, /manage-roster-overlay|manage-roster-btn|roster-manage-list|add-roster-btn/);
+  assert.doesNotMatch(demo, /state\.roster|mergeRosterArr|knownRosterNames|renderNameSelect/);
+  assert.doesNotMatch(demo, /Gestionar plantel del grupo/);
+  // El registro se apoya en los jugadores recurrentes derivados de las respuestas.
+  assert.match(demo, /recurrentPlayers = \[\.\.\.new Set\(localAvailabilityResponses/);
+  // El campo huérfano se descarta al leer para que el próximo guardado lo saque del JSON.
+  assert.match(demo, /delete parsed\.roster;/);
+});
+
+test("removes the list renderers that had no elements left in the DOM", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.doesNotMatch(demo, /renderConfirmedList|renderSimpleList|attachListEvents/);
+  assert.doesNotMatch(demo, /id="list-in"|id="list-out"|getElementById\('list-'\+v\)/);
+  assert.doesNotMatch(demo, /setStatusView|status-switch-btn|activeStatusView/);
+  // El modal de pago sólo lo abría attachListEvents; se va con él.
+  assert.doesNotMatch(demo, /pay-confirm-overlay|pay-confirm-ok|pay-confirm-cancel/);
+  // Los pagos siguen manejándose desde "Mi estado" y desde los invitados.
+  assert.match(demo, /class="my-status-paid"/);
+  assert.match(demo, /data-guest-paid="\$\{guest\.responseId\}"/);
 });
