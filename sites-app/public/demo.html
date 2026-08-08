@@ -1674,6 +1674,13 @@ function renderHistory(){
   if(undoBtn){
     undoBtn.onclick = async ()=>{
       const last = state.history[state.history.length-1];
+      // Snapshot de todo lo que toca el undo, para poder volver atrás si el
+      // guardado falla. Mismo patrón que el borrado de jugadores e invitados.
+      const previousResponses = localAvailabilityResponses;
+      const previousPlayers = state.players;
+      const previousMatchInfo = state.matchInfo;
+      const previousHistory = state.history;
+
       state.players = last.players.map(p=>({...p}));
       // Sin reponer las respuestas el restore es invisible: render() deriva todo
       // de acá, y syncLocalAvailabilityWithPlayers() borra los players que no
@@ -1684,10 +1691,26 @@ function renderHistory(){
       // alias. El spread sobre el actual deja pasar campos que el snapshot no tenga.
       state.matchInfo = {...state.matchInfo, ...last.matchInfo};
       state.history = state.history.slice(0, -1);
+
+      // saveLocalAvailability() sí devuelve si el guardado funcionó; persist() no,
+      // y sin eso el cartel de éxito salía igual y el sondeo revertía todo a los
+      // 4 segundos como si la app se hubiera deshecho sola.
+      const ok = await saveLocalAvailability();
+      if(!ok){
+        localAvailabilityResponses = previousResponses;
+        state.responses = previousResponses;
+        state.players = previousPlayers;
+        state.matchInfo = previousMatchInfo;
+        state.history = previousHistory;
+        syncLocalAvailabilityWithPlayers();
+        render();
+        renderLocalOrganizer();
+        showToast('No se pudo deshacer la finalización. Revisá la conexión e intentá otra vez.');
+        return;
+      }
       syncLocalAvailabilityWithPlayers();
       render();
       renderLocalOrganizer();
-      await persist();
       showToast('Se deshizo la última finalización.');
     };
   }
