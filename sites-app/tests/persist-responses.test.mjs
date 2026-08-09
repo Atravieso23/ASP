@@ -35,7 +35,9 @@ const NEEDED = [
   "mergePlayers",
   "mergeSedesArr",
   "syncLocalAvailabilityWithPlayers",
-  "guardarCambioEnResponses",
+  // El ejecutor y no el que encola: acá se prueba persist(), no la serialización.
+  // La cola tiene su propia cobertura en responses-escrituras.test.mjs.
+  "ejecutarCambioEnResponses",
   "persist",
 ];
 
@@ -241,7 +243,7 @@ for (const escenario of ESCENARIOS) {
 
     // Camino real de pagos/invitados, sin sondear en el medio: un pago sobre Ariel,
     // que existe en todos los escenarios.
-    const okSave = await w.run(`guardarCambioEnResponses(responses => {
+    const okSave = await w.run(`ejecutarCambioEnResponses(responses => {
       const target = responses.find(r => r.name === "Ariel");
       if (!target) return false;
       target.paid = true;

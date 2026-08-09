@@ -31,11 +31,11 @@ function extractFunction(source, name) {
   throw new Error(`no pude cerrar la función ${name}`);
 }
 
-// Los motivos de fallo de agregarInvitado son constantes, no funciones: se extraen del
-// archivo real para que el test no los repita a mano y un rename se note.
-function extractConst(source, name) {
-  const match = source.match(new RegExp(`^const\\s+${name}\\s*=\\s*.+;$`, "m"));
-  assert.ok(match, `no encontré la constante ${name} en demo.html`);
+// Los motivos de fallo y la cola son declaraciones, no funciones: se extraen del
+// archivo real para que el test no las repita a mano y un rename se note.
+function extractDeclaration(source, name) {
+  const match = source.match(new RegExp(`^(?:const|let)\\s+${name}\\s*=\\s*.+;$`, "m"));
+  assert.ok(match, `no encontré la declaración ${name} en demo.html`);
   return match[0];
 }
 
@@ -47,6 +47,7 @@ const NEEDED = [
   "chooseBalancedTeam",
   "responseBelongsToCurrentDevice",
   "guardarCambioEnResponses",
+  "ejecutarCambioEnResponses",
   "marcarMiPago",
   "marcarPagoDeInvitado",
   "agregarInvitado",
@@ -57,9 +58,13 @@ const NEEDED = [
 
 const DEVICE = "device-propio";
 
-function makeWorld({ row, failRead = false, failWrite = false } = {}) {
+// `failWrites` rechaza sólo las primeras N escrituras, para separar la 1ª de la 2ª.
+// `db.ops` guarda el orden real de lecturas y escrituras: es lo que demuestra que la
+// segunda operación no empezó a leer antes de que la primera terminara de escribir.
+function makeWorld({ row, failRead = false, failWrite = false, failWrites = 0 } = {}) {
   const fila = row || BASE_ROW();
-  const db = { row: structuredClone(fila), writes: 0, reads: 0, rejectedWrites: 0 };
+  const db = { row: structuredClone(fila), writes: 0, reads: 0, rejectedWrites: 0, ops: [] };
+  let porRechazar = failWrites;
 
   const supabaseClient = {
     from() {
@@ -68,15 +73,19 @@ function makeWorld({ row, failRead = false, failWrite = false } = {}) {
         eq() { return this; },
         maybeSingle() {
           db.reads++;
+          db.ops.push("lectura");
           if (failRead) return Promise.resolve({ data: null, error: { message: "lectura rechazada" } });
           return Promise.resolve({ data: { data: structuredClone(db.row) }, error: null });
         },
         upsert(payload) {
-          if (failWrite) {
+          if (failWrite || porRechazar > 0) {
+            if (porRechazar > 0) porRechazar--;
             db.rejectedWrites++;
+            db.ops.push("escritura rechazada");
             return Promise.resolve({ error: { message: "guardado rechazado" } });
           }
           db.writes++;
+          db.ops.push("escritura");
           db.row = structuredClone(payload.data);
           return Promise.resolve({ error: null });
         },
@@ -102,8 +111,9 @@ function makeWorld({ row, failRead = false, failWrite = false } = {}) {
     let knownPlayerNames = new Set();
     let knownSedeNames = new Set();
     let currentSessionUserId = ${JSON.stringify(DEVICE)};
-    ${extractConst(demo, "INVITADO_DUPLICADO")}
-    ${extractConst(demo, "INVITADO_SIN_ANFITRION")}
+    ${extractDeclaration(demo, "INVITADO_DUPLICADO")}
+    ${extractDeclaration(demo, "INVITADO_SIN_ANFITRION")}
+    ${extractDeclaration(demo, "colaDeResponses")}
     ${NEEDED.map((n) => extractFunction(demo, n)).join("\n")}
     `,
     context,
@@ -425,6 +435,106 @@ test("agregar un invitado crea su player derivado", async () => {
   const w = makeWorld();
   await w.run(`agregarInvitado("Ruso")`);
   assert.ok(jugador(w.db.row, "Ruso"), "el invitado nuevo tiene que aparecer en la cancha");
+});
+
+// ── La cola: dos acciones disparadas juntas en el MISMO dispositivo ──
+// Sin serializar, las dos leen el mismo estado y la segunda pisa a la primera, con las
+// dos avisando éxito. Es la misma pérdida que el PR arregla entre teléfonos, pero
+// dentro de uno solo: cada control se deshabilita a sí mismo y nada más.
+test("dos acciones simultáneas preservan ambos cambios", async () => {
+  const w = makeWorld();
+
+  const [a, b] = await Promise.all([
+    w.run("marcarMiPago(true)"),
+    w.run(`marcarPagoDeInvitado("r-invitado", true)`),
+  ]);
+
+  assert.equal(a, true);
+  assert.equal(b, true);
+  assert.equal(resp(w.db.row, "r-propia").paid, true, "el primer pago no puede perderse");
+  assert.equal(resp(w.db.row, "r-invitado").paid, true, "el segundo tampoco");
+  assert.equal(w.db.writes, 2, "una escritura por acción, ni más ni menos");
+});
+
+test("la segunda operación no lee hasta que la primera terminó de escribir", async () => {
+  const w = makeWorld();
+
+  await Promise.all([
+    w.run("marcarMiPago(true)"),
+    w.run(`marcarPagoDeInvitado("r-invitado", true)`),
+  ]);
+
+  assert.deepEqual(w.db.ops, ["lectura", "escritura", "lectura", "escritura"],
+    "intercaladas serían lectura, lectura, escritura, escritura: la segunda pisaría");
+});
+
+test("cada `true` corresponde a un cambio que quedó en el servidor", async () => {
+  const w = makeWorld();
+
+  const resultados = await Promise.all([
+    w.run("marcarMiPago(true)"),
+    w.run(`marcarPagoDeInvitado("r-invitado", true)`),
+    w.run(`eliminarJugador("r-camilo")`),
+  ]);
+
+  assert.deepEqual(resultados, [true, true, true]);
+  assert.equal(resp(w.db.row, "r-propia").paid, true);
+  assert.equal(resp(w.db.row, "r-invitado").paid, true);
+  assert.ok(!resp(w.db.row, "r-camilo"));
+});
+
+test("una operación rechazada no envenena la cola", async () => {
+  // Sólo la primera escritura se rechaza.
+  const w = makeWorld({ failWrites: 1 });
+
+  const [a, b] = await Promise.all([
+    w.run("marcarMiPago(true)"),
+    w.run(`marcarPagoDeInvitado("r-invitado", true)`),
+  ]);
+
+  assert.equal(a, false, "la primera falló");
+  assert.equal(b, true, "la segunda tiene que haber arrancado igual y guardado");
+  assert.equal(resp(w.db.row, "r-propia").paid, false, "lo rechazado no quedó");
+  assert.equal(resp(w.db.row, "r-invitado").paid, true);
+  assert.deepEqual(w.db.ops, ["lectura", "escritura rechazada", "lectura", "escritura"],
+    "la segunda hace su propia lectura fresca después del fallo");
+
+  // Y la cola sigue usable para una tercera.
+  const c = await w.run("marcarMiPago(true)");
+  assert.equal(c, true);
+  assert.equal(resp(w.db.row, "r-propia").paid, true);
+});
+
+test("un overlay que lanza tampoco envenena la cola", async () => {
+  const w = makeWorld();
+
+  await assert.rejects(w.run(`guardarCambioEnResponses(() => { throw new Error("boom"); })`));
+
+  const ok = await w.run("marcarMiPago(true)");
+  assert.equal(ok, true, "la siguiente operación tiene que poder arrancar");
+  assert.equal(resp(w.db.row, "r-propia").paid, true);
+  assert.equal(w.json("saving"), false, "y saving no puede quedar trabado");
+});
+
+test("saving cubre cada operación real de la cola", async () => {
+  const w = makeWorld();
+  // Se muestrea dentro del overlay de la segunda, que corre después de que la primera
+  // publicó: si la bandera no cubriera cada operación, acá se vería false.
+  w.run("globalThis.savingEnElOverlay = null;");
+
+  await Promise.all([
+    w.run("marcarMiPago(true)"),
+    w.run(`guardarCambioEnResponses(responses => {
+      globalThis.savingEnElOverlay = saving;
+      const t = responses.find(r => r.responseId === "r-invitado");
+      if (!t) return false;
+      t.paid = true;
+      return true;
+    })`),
+  ]);
+
+  assert.equal(w.json("globalThis.savingEnElOverlay"), true);
+  assert.equal(w.json("saving"), false, "y vuelve a false al terminar todo");
 });
 
 // ── syncLocalAvailabilityWithPlayers sin argumentos sigue operando sobre state ──

@@ -2458,8 +2458,30 @@ function loadLocalAvailability(){
 // known sets— se toca hasta que el servidor confirmó. Publicar antes es lo que hacía
 // que un guardado rechazado se viera aplicado hasta que el sondeo lo revertía, como si
 // la app se hubiera deshecho sola.
-async function guardarCambioEnResponses(aplicar){
-  // Sincrónico, antes del primer await: si no, el sondeo entra en el medio.
+// Las operaciones se serializan: la siguiente no empieza siquiera su lectura hasta que
+// la anterior publicó o falló. Sin esto, dos pagos disparados juntos en el mismo
+// teléfono —el propio y el de un invitado, o dos invitados distintos, cada botón se
+// deshabilita solo— leían ambos el mismo estado y el segundo pisaba al primero, con las
+// dos acciones avisando éxito.
+//
+// No es un lock de la app: ordena únicamente las escrituras de responses. La colisión
+// contra otro teléfono no la cubre esto y sigue siendo last-write-wins, porque el
+// upsert de saveState() es incondicional y no hay versionado en match_data.
+let colaDeResponses = Promise.resolve();
+
+function guardarCambioEnResponses(aplicar){
+  const operacion = colaDeResponses.then(()=> ejecutarCambioEnResponses(aplicar));
+  // La cola sólo marca el turno, así que se traga el rechazo: una operación que falla
+  // no puede dejar sin arrancar a la siguiente. El llamador recibe `operacion`, que
+  // conserva el resultado real.
+  colaDeResponses = operacion.catch(()=>{});
+  return operacion;
+}
+
+async function ejecutarCambioEnResponses(aplicar){
+  // Sincrónico, antes del primer await: si no, el sondeo entra en el medio. Entre dos
+  // operaciones encadenadas sólo hay microtareas, así que el intervalo del sondeo no
+  // puede colarse en el hueco.
   saving = true;
   try{
     // Falla cerrado. Sin lectura fresca no se sabe contra qué se está escribiendo.
