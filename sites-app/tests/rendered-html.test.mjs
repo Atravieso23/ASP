@@ -72,7 +72,9 @@ test("assigns confirmed players to teams from the organizer responses", async ()
   assert.doesNotMatch(demo, /team-square|teamLetter/);
   assert.match(demo, /data-team-choice="negro"/);
   assert.match(demo, /data-team-choice="blanco"/);
-  assert.match(demo, /player\.team = player\.team===selectedTeam \? null : selectedTeam/);
+  // Tocar el equipo que ya tenía lo saca de los dos. El cambio en sí lo hace el
+  // helper compartido, que escribe una sola vez sobre estado fresco.
+  assert.match(demo, /cambiarEquipoDeJugador\(name, player\.team===selectedTeam \? null : selectedTeam\)/);
   assert.match(demo, /positions,\s*assignments/);
 });
 
@@ -96,9 +98,10 @@ test("moves a tapped formation chip to the other visible pitch", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /function switchPlayerTeamFromPitch\(name\)/);
-  assert.match(demo, /player\.team = player\.team==='negro' \? 'blanco' : 'negro'/);
+  assert.match(demo, /const nextTeam = player\.team==='negro' \? 'blanco' : 'negro'/);
   assert.match(demo, /player\.pos = null/);
-  assert.match(demo, /response\.team = player\.team/);
+  // El aviso de éxito sólo sale si el guardado se confirmó.
+  assert.match(demo, /if\(await cambiarEquipoDeJugador\(name, nextTeam\)\)/);
   assert.match(demo, /const pressedAt = performance\.now\(\)/);
   assert.match(demo, /const wasQuickClick = performance\.now\(\)-pressedAt <= 300/);
   assert.match(demo, /if\(wasQuickClick\) await switchPlayerTeamFromPitch\(name\)/);
@@ -168,7 +171,10 @@ test("keeps player state derived from universal responses without reseeding demo
   assert.match(demo, /asp_availability_local_backup_v1/);
   assert.doesNotMatch(demo, /localAvailabilityResponses\.length >= 18/);
   assert.match(demo, /state\.players = state\.players\.filter\(player=>responseNames\.has/);
-  assert.match(demo, /response\.team = player\.team/);
+  // El equipo viaja de la respuesta al jugador, nunca al revés: la respuesta es la
+  // fuente de verdad y players.team se deriva de ella en cada sincronización.
+  assert.match(demo, /player\.team = nextTeam/);
+  assert.doesNotMatch(demo, /response\.team = player\.team/);
 });
 
 test("puts the unpaid list below the payment controls", async () => {
@@ -607,7 +613,7 @@ const HISTORY_INPUTS = [
 
 test("persist reports whether the save actually worked", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const persist = sliceBetween(demo, 'async function persist(){', '\n}', 'la función persist');
+  const persist = sliceBetween(demo, 'async function persist(overlayResponses){', '\n}', 'la función persist');
 
   // Sin devolver el booleano de saveState() ningún llamador puede distinguir un
   // guardado exitoso de uno que falló, y todos cantaban éxito igual.
