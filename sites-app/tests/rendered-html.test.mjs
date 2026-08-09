@@ -137,11 +137,16 @@ test("clears local responses and keeps date actions in organizer", async () => {
   assert.match(demo.slice(organizerStart), /id="finalize-btn"[\s\S]*id="clear-btn"/);
   assert.match(demo, /localStorage\.removeItem\(LOCAL_AVAILABILITY_KEY\)/);
   assert.match(demo, /localStorage\.removeItem\(LOCAL_FORMATIONS_KEY\)/);
-  assert.match(demo, /clearLocalOrganizerState\(\);\s*state\.players = \[\]/);
-  const clearHandler = demo.slice(demo.indexOf("document.getElementById('c-confirm').onclick"), demo.indexOf('/* ---------- ALIAS Y MAPA ---------- */'));
-  assert.match(clearHandler, /state\.responses = \[\]/);
-  assert.match(clearHandler, /await saveState\(state\)/);
-  assert.doesNotMatch(clearHandler, /state\.matchInfo = blankMatchInfo\(\)/);
+  const finalizeHandler = sliceBetween(demo, 'finalizeConfirmBtn.onclick = async ()=>{', '\n};', 'el handler de finalizar');
+  assert.match(finalizeHandler, /players: \[\],/);
+  assert.match(finalizeHandler, /clearLocalOrganizerState\(\);/);
+  const clearHandler = sliceBetween(demo, 'clearConfirmBtn.onclick = async ()=>{', '\n};', 'el handler de limpiar');
+  assert.match(clearHandler, /responses: \[\], players: \[\]/);
+  assert.match(clearHandler, /await saveState\(nextState\)/);
+  // Limpiar conserva los datos del partido: no los toca ni para blanquearlos ni
+  // para reescribirlos con la copia local.
+  assert.doesNotMatch(clearHandler, /blankMatchInfo/);
+  assert.doesNotMatch(clearHandler, /matchInfo:/);
   assert.match(demo, /conserva los datos del partido y la cancha/);
 });
 
@@ -454,7 +459,7 @@ test("undoing a finalization restores the responses, not just the players", asyn
   // El snapshot del historial tiene que guardar las respuestas. Guardar sólo
   // players no alcanza: no llevan responseId, ownerId, ownerIds, from, to,
   // isGuest ni invitedBy, así que las respuestas no se pueden reconstruir.
-  assert.match(demo, /state\.history\.push\(\{[\s\S]{0,400}?responses:/);
+  assert.match(demo, /const archived = \{[\s\S]{0,400}?responses:/);
 
   // Y el undo tiene que reponerlas en memoria: render() y
   // syncLocalAvailabilityWithPlayers() derivan todo de localAvailabilityResponses,
@@ -472,7 +477,7 @@ test("undoing a finalization restores the responses, not just the players", asyn
   // finalize también limpia las formaciones elegidas (clearLocalOrganizerState
   // hace state.formations = {}), así que el snapshot las guarda y el undo las
   // devuelve. Sin esto volvían al default del tipo de cancha.
-  assert.match(demo, /state\.history\.push\(\{[\s\S]{0,600}?formations:/);
+  assert.match(demo, /const archived = \{[\s\S]{0,600}?formations:/);
   assert.match(undo.previo, /formations: \{\.\.\.last\.formations\}/);
 
   // El undo restauraba matchInfo campo por campo y sólo date y time, así que
@@ -714,5 +719,196 @@ test("the history inputs warn when saving fails", async () => {
     assert.match(handler, /const ok = await persist\(\);/, `${nombre}: no usa el resultado de persist`);
     assert.match(handler, /if\(!ok\)/, `${nombre}: no comprueba el resultado`);
     assert.match(handler, aviso, `${nombre}: falta el aviso de error`);
+  }
+});
+
+// Las dos acciones destructivas del panel de organizador. Comparten la forma
+// "guardar primero, tocar lo local después" pero no el contenido, así que cada
+// aserción corre sobre los dos por separado: un solo test compartido dejaría
+// pasar que a uno le falte.
+const DESTRUCTIVAS = [
+  {
+    nombre: 'finalizar la fecha',
+    marcador: 'finalizeConfirmBtn.onclick = async ()=>{',
+    overlay: 'finalizeOverlay',
+    error: 'finalizeError',
+    errorId: 'f-error',
+    abrir: "document.getElementById('finalize-btn').onclick",
+    cancelar: "document.getElementById('f-cancel').onclick",
+    aviso: /No se pudo finalizar la fecha\. Revisá la conexión e intentá otra vez\./,
+    exito: /Fecha finalizada\. Arrancás de cero para la próxima/,
+  },
+  {
+    nombre: 'limpiar todo',
+    marcador: 'clearConfirmBtn.onclick = async ()=>{',
+    overlay: 'clearOverlay',
+    error: 'clearError',
+    errorId: 'c-error',
+    abrir: "document.getElementById('clear-btn').onclick",
+    cancelar: "document.getElementById('c-cancel').onclick",
+    aviso: /No se pudo limpiar\. Revisá la conexión e intentá otra vez\./,
+    exito: /Se borraron las respuestas y equipos para todos/,
+  },
+];
+
+// Parte un handler destructivo en "antes de saber el resultado" y "sólo si guardó".
+// Sin partirlo, una aserción de presencia pasa igual si la mutación quedó del lado
+// equivocado del chequeo, que es exactamente el bug que estos tests cubren.
+function extractDestructiva(demo, caso){
+  const handler = sliceBetween(demo, caso.marcador, '\n};', `el handler de ${caso.nombre}`);
+  const chequeo = handler.indexOf('const ok = await saveState(nextState);');
+  assert.ok(chequeo > -1, `${caso.nombre}: no guarda el nextState antes de decidir`);
+  const rama = handler.indexOf('if(!ok){', chequeo);
+  assert.ok(rama > chequeo, `${caso.nombre}: no comprueba el resultado del guardado`);
+  const corte = handler.indexOf('return;', rama);
+  assert.ok(corte > rama, `${caso.nombre}: la rama de error no corta la ejecución`);
+  return {
+    todo: handler,
+    previo: handler.slice(0, chequeo),
+    fallo: handler.slice(rama, corte),
+    exito: handler.slice(corte),
+  };
+}
+
+test("the destructive actions save before touching any local state", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // La regla del PR: hasta que Supabase no confirme, el estado local visible no
+  // cambia. Con la mutación primero, un guardado rechazado dejaba la pantalla en
+  // cero y el sondeo reconstruía players desde responses, perdiendo posiciones,
+  // capitán y dorsal para todo el grupo.
+  for(const caso of DESTRUCTIVAS){
+    const h = extractDestructiva(demo, caso);
+    // updateKnownSets aparte de las demás: correrlo sobre un vaciado que nunca
+    // llegó al servidor hacía que el sondeo leyera los jugadores remotos como un
+    // borrado deliberado y no los repusiera nunca. Era el bug original de limpiar.
+    for(const mutacion of ['clearLocalOrganizerState()', 'state = nextState', 'updateKnownSets(', 'render()', 'resetMyStatusCard()']){
+      assert.ok(!h.previo.includes(mutacion), `${caso.nombre}: ${mutacion} corre antes de saber si guardó`);
+      assert.ok(h.exito.includes(mutacion), `${caso.nombre}: falta ${mutacion} en el camino de éxito`);
+    }
+    // Y nada de escribir directo sobre state mientras se arma el nextState.
+    assert.doesNotMatch(h.previo, /\n\s*state\.(players|responses|formations|matchInfo|history)\s*=/,
+      `${caso.nombre}: muta state para construir el guardado`);
+  }
+});
+
+test("the destructive actions warn inline instead of claiming success", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  for(const caso of DESTRUCTIVAS){
+    const h = extractDestructiva(demo, caso);
+    // Mismo patrón que el aviso de editar partido, empezando por la clase: si el
+    // párrafo no la lleva, queda sin el estilo de error aunque el texto esté.
+    const parrafo = sliceBetween(demo, `<p class="modal-error" id="${caso.errorId}"`, '</p>', `el aviso inline de ${caso.nombre}`);
+    assert.match(parrafo, /role="alert" hidden>/, `${caso.nombre}: el aviso no arranca oculto`);
+    assert.match(parrafo, caso.aviso, `${caso.nombre}: texto del aviso incorrecto`);
+
+    // El toast se desvanece a los 3.2s: no sirve como señal de "hay un reintento
+    // pendiente" mientras el modal sigue abierto.
+    assert.match(h.fallo, new RegExp(`${caso.error}\\.hidden = false;`), `${caso.nombre}: no muestra el aviso al fallar`);
+    assert.doesNotMatch(h.fallo, /showToast/, `${caso.nombre}: duplica el aviso en un toast`);
+    assert.doesNotMatch(h.exito, new RegExp(`${caso.error}\\.hidden = false`), `${caso.nombre}: muestra el aviso en el camino de éxito`);
+    assert.match(h.exito, caso.exito, `${caso.nombre}: falta el aviso de éxito`);
+
+    // Se limpia antes de cada intento, y también al abrir y al cancelar, para que
+    // no reaparezca un error viejo de la semana pasada.
+    const limpieza = h.todo.indexOf(`${caso.error}.hidden = true;`);
+    assert.ok(limpieza > -1 && limpieza < h.previo.length, `${caso.nombre}: no limpia el aviso antes de intentar`);
+    for(const marcador of [caso.abrir, caso.cancelar]){
+      const tramo = sliceBetween(demo, marcador, '\n};', `${caso.nombre}: ${marcador}`);
+      assert.match(tramo, new RegExp(`${caso.error}\\.hidden = true;`), `${caso.nombre}: ${marcador} no limpia el aviso`);
+    }
+  }
+});
+
+test("the destructive actions leave the modal open when the save was rejected", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  for(const caso of DESTRUCTIVAS){
+    const h = extractDestructiva(demo, caso);
+    const cierre = `${caso.overlay}.classList.remove('open');`;
+    assert.ok(!h.previo.includes(cierre), `${caso.nombre}: cierra el modal antes de saber si guardó`);
+    assert.ok(!h.fallo.includes(cierre), `${caso.nombre}: cierra el modal aunque el guardado falló`);
+    assert.ok(h.exito.includes(cierre), `${caso.nombre}: no cierra el modal tras guardar bien`);
+  }
+});
+
+test("finalizing a date never archives locally when the save was rejected", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const h = extractDestructiva(demo, DESTRUCTIVAS[0]);
+
+  // push muta el array in-place: guardar la referencia no lo revierte, y un
+  // reintento sin sondeo intermedio dejaba una segunda entrada vacía que además
+  // se quedaba con el botón de Deshacer del partido real.
+  assert.doesNotMatch(h.todo, /state\.history\.push/, 'sigue archivando con push sobre state.history');
+  assert.match(h.previo, /history: \[\.\.\.baseHistory, archived\]/, 'no arma un array de historial nuevo');
+
+  // La reconciliación previa con el servidor no cambia: mismos players mergeados y
+  // mismo historial remoto si viene más largo. Sólo deja de mutar state para armarla.
+  assert.match(h.previo, /const basePlayers = mergePlayers\(fresh\.players, state\.players\);/);
+  assert.match(h.previo, /fresh\.history\.length > \(state\.history\|\|\[\]\)\.length/);
+  // sedes lo mergeaba el segundo fetch de persist(), que acá ya no existe.
+  assert.match(h.previo, /const baseSedes = mergeSedesArr\(fresh\.sedes, state\.sedes\);/);
+
+  // La fecha archivada se copia, no se referencia: si quedara apuntando a los
+  // arrays vivos, limpiar el estado local después la vaciaría.
+  assert.match(h.previo, /matchInfo: \{\.\.\.state\.matchInfo\}/);
+  assert.match(h.previo, /responses: localAvailabilityResponses\.map\(r=>\(\{\.\.\.r\}\)\)/);
+  assert.match(h.previo, /formations: \{\.\.\.state\.formations\}/);
+  assert.match(h.previo, /players: getResponsePlayers\(undefined, basePlayers\)\.map\(p=>\(\{\.\.\.p\}\)\)/);
+});
+
+test("clearing everything starts from the server so it cannot overwrite remote fields", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const h = extractDestructiva(demo, DESTRUCTIVAS[1]);
+
+  // saveState escribe el blob entero. Partiendo de la copia local, de hasta 4s de
+  // antigüedad, Limpiar pisaba una sede o un alias que otro dispositivo acababa de
+  // guardar. Ahora aplica sólo lo que significa "limpiar" sobre el estado fresco.
+  assert.match(h.previo, /const fresh = await fetchServerState\(\);/);
+  assert.match(h.previo, /const nextState = \{\.\.\.fresh, responses: \[\], players: \[\], formations: \{\}\};/);
+  for(const conservado of ['sedes', 'frequentAliases', 'matchInfo', 'history']){
+    assert.doesNotMatch(h.previo, new RegExp(`\\n\\s*${conservado}: `), `limpiar no debería tocar ${conservado}`);
+  }
+});
+
+test("the destructive actions fail closed when the server cannot be read", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Sin lectura fresca no hay forma de saber contra qué se está escribiendo, y el
+  // guardado casi seguro también va a fallar. Mismo criterio que el undo.
+  for(const caso of DESTRUCTIVAS){
+    const h = extractDestructiva(demo, caso);
+    const guard = h.previo.indexOf('if(!fresh){');
+    assert.ok(guard > -1, `${caso.nombre}: no comprueba que pudo leer el servidor`);
+    assert.match(h.previo.slice(guard), new RegExp(`${caso.error}\\.hidden = false;`),
+      `${caso.nombre}: el guard del fetch no avisa`);
+  }
+});
+
+test("the destructive confirmations block the poll and the second tap while saving", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  for(const caso of DESTRUCTIVAS){
+    const h = extractDestructiva(demo, caso);
+
+    // Sin saving, el sondeo de cada 4s cae en el medio del guardado y repone en
+    // pantalla lo que la base está borrando. Limpiar no lo marcaba: guardaba con
+    // saveState() suelto en vez de pasar por persist().
+    const marcaSaving = h.previo.indexOf('saving = true;');
+    assert.ok(marcaSaving > -1, `${caso.nombre}: no bloquea el sondeo mientras guarda`);
+    assert.ok(marcaSaving < h.previo.indexOf('await fetchServerState()'),
+      `${caso.nombre}: marca saving después de leer el servidor`);
+
+    // Dos taps seguidos son dos operaciones reales, no una repetida: en finalizar,
+    // dos entradas de historial distintas. Es parte de este arreglo, no el guard
+    // transversal de reentrada.
+    assert.match(h.previo, /\.disabled = true;/, `${caso.nombre}: no bloquea el botón mientras guarda`);
+
+    // Y las dos cosas se restauran pase lo que pase, incluso ante un error
+    // inesperado: si no, el panel queda con el botón muerto y el sondeo congelado.
+    const finally_ = sliceBetween(h.todo, '}finally{', '\n  }', `el finally de ${caso.nombre}`);
+    assert.match(finally_, /saving = false;/, `${caso.nombre}: no libera saving en el finally`);
+    assert.match(finally_, /\.disabled = false;/, `${caso.nombre}: no rehabilita el botón en el finally`);
   }
 });

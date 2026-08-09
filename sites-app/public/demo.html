@@ -897,6 +897,7 @@
   <div class="modal">
     <h2>Finalizar fecha</h2>
     <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto guarda el partido de hoy en el historial (equipos, pagos y quién jugó) y deja todo "Sin asignar" para anotar la próxima fecha (cancha, tipo de fútbol, precio, alias, día y hora).</p>
+    <p class="modal-error" id="f-error" role="alert" hidden>No se pudo finalizar la fecha. Revisá la conexión e intentá otra vez.</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="f-cancel">Cancelar</button>
       <button class="btn-confirm-danger" id="f-confirm">Sí, finalizar</button>
@@ -908,6 +909,7 @@
   <div class="modal">
     <h2>Limpiar todo</h2>
     <p style="color:var(--muted); font-size:14px; line-height:1.5;">Esto borra para todos los teléfonos las respuestas, los pagos y los equipos, pero conserva los datos del partido y la cancha. <b>No lo guarda en el historial.</b> ¿Seguro que querés continuar?</p>
+    <p class="modal-error" id="c-error" role="alert" hidden>No se pudo limpiar. Revisá la conexión e intentá otra vez.</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="c-cancel">Cancelar</button>
       <button class="btn-confirm-danger" id="c-confirm">Sí, limpiar todo</button>
@@ -1983,42 +1985,101 @@ function blankMatchInfo(){
   };
 }
 
+// Las dos acciones destructivas del panel guardan primero y recién después tocan
+// lo local. Antes mutaban el estado y avisaban éxito sin mirar el resultado del
+// guardado: si Supabase rechazaba, la pantalla quedaba en cero con la base
+// intacta, y el sondeo reconstruía players desde responses perdiendo posiciones,
+// capitán y dorsal de todo el grupo. Revertir eso a mano es más frágil que no
+// mutar hasta tener el ok, y en finalizar además evita la fecha fantasma.
 const finalizeOverlay = document.getElementById('finalize-overlay');
-document.getElementById('finalize-btn').onclick = ()=> finalizeOverlay.classList.add('open');
-document.getElementById('f-cancel').onclick = ()=> finalizeOverlay.classList.remove('open');
-document.getElementById('f-confirm').onclick = async ()=>{
-  const fresh = await fetchServerState();
-  if(fresh){
-    state.players = mergePlayers(fresh.players, state.players);
-    if(fresh.history && fresh.history.length > (state.history||[]).length) state.history = fresh.history;
-  }
-  const responsePlayers = getResponsePlayers();
-  state.history.push({
-    finalizedAt: new Date().toISOString(),
-    matchInfo: {...state.matchInfo},
-    players: responsePlayers.map(p=>({...p})),
-    // Las respuestas son la fuente de verdad: players no alcanza para deshacer,
-    // porque no lleva responseId, ownerId, franja horaria ni datos de invitado.
-    // Se copia antes de clearLocalOrganizerState(), que las vacía.
-    responses: localAvailabilityResponses.map(r=>({...r})),
-    // clearLocalOrganizerState() también hace state.formations = {}, así que sin
-    // guardarlas el undo las dejaba en el default del tipo de cancha.
-    formations: {...state.formations}
-  });
-  clearLocalOrganizerState();
-  state.players = [];
-  state.matchInfo = blankMatchInfo();
+const finalizeError = document.getElementById('f-error');
+const finalizeConfirmBtn = document.getElementById('f-confirm');
+document.getElementById('finalize-btn').onclick = ()=>{
+  finalizeError.hidden = true;
+  finalizeOverlay.classList.add('open');
+};
+document.getElementById('f-cancel').onclick = ()=>{
+  finalizeError.hidden = true;
   finalizeOverlay.classList.remove('open');
-  render();
-  renderLocalOrganizer();
-  resetMyStatusCard();
-  await persist();
-  showToast('Fecha finalizada. Arrancás de cero para la próxima 👌');
+};
+finalizeConfirmBtn.onclick = async ()=>{
+  finalizeError.hidden = true;
+  // Dos taps son dos finalizaciones reales, cada una con su propia entrada de
+  // historial: acá el bloqueo es corrección, no el guard transversal de reentrada.
+  finalizeConfirmBtn.disabled = true;
+  // Antes de leer, para que el sondeo no pise nada entre la lectura y la escritura.
+  saving = true;
+  try{
+    const fresh = await fetchServerState();
+    // Falla cerrado: sin lectura fresca no se sabe contra qué se está escribiendo.
+    if(!fresh){
+      finalizeError.hidden = false;
+      return;
+    }
+    // Misma reconciliación que antes, pero sobre copias en vez de sobre state.
+    // Las sedes las mergeaba el segundo fetch de persist(), que acá ya no existe.
+    const basePlayers = mergePlayers(fresh.players, state.players);
+    const baseHistory = (fresh.history && fresh.history.length > (state.history||[]).length)
+      ? fresh.history : (state.history || []);
+    const baseSedes = mergeSedesArr(fresh.sedes, state.sedes);
+    const archived = {
+      finalizedAt: new Date().toISOString(),
+      matchInfo: {...state.matchInfo},
+      players: getResponsePlayers(undefined, basePlayers).map(p=>({...p})),
+      // Las respuestas son la fuente de verdad: players no alcanza para deshacer,
+      // porque no lleva responseId, ownerId, franja horaria ni datos de invitado.
+      responses: localAvailabilityResponses.map(r=>({...r})),
+      // Sin guardarlas, el undo dejaba las formaciones en el default del tipo de cancha.
+      formations: {...state.formations}
+    };
+    const nextState = {
+      ...state,
+      sedes: baseSedes,
+      // Array nuevo en vez de push: un push in-place no se revierte solo, y con el
+      // guardado rechazado dejaba una fecha archivada sólo en este teléfono. Peor:
+      // al reintentar se archivaba una segunda entrada vacía que se quedaba con el
+      // botón de Deshacer del partido real.
+      history: [...baseHistory, archived],
+      responses: [],
+      players: [],
+      formations: {},
+      matchInfo: blankMatchInfo()
+    };
+    const ok = await saveState(nextState);
+    if(!ok){
+      // No hay nada que revertir: no se tocó nada. El modal queda abierto con el
+      // aviso inline, que tiene que seguir visible mientras el reintento siga
+      // pendiente; un toast se desvanece a los 3.2s y no sirve para eso.
+      finalizeError.hidden = false;
+      return;
+    }
+    state = nextState;
+    updateKnownSets(state);
+    clearLocalOrganizerState();
+    finalizeOverlay.classList.remove('open');
+    render();
+    renderLocalOrganizer();
+    resetMyStatusCard();
+    showToast('Fecha finalizada. Arrancás de cero para la próxima 👌');
+  }finally{
+    // Pase lo que pase: si no, el panel queda con el botón muerto y el sondeo
+    // congelado hasta recargar.
+    saving = false;
+    finalizeConfirmBtn.disabled = false;
+  }
 };
 
 const clearOverlay = document.getElementById('clear-overlay');
-document.getElementById('clear-btn').onclick = ()=> clearOverlay.classList.add('open');
-document.getElementById('c-cancel').onclick = ()=> clearOverlay.classList.remove('open');
+const clearError = document.getElementById('c-error');
+const clearConfirmBtn = document.getElementById('c-confirm');
+document.getElementById('clear-btn').onclick = ()=>{
+  clearError.hidden = true;
+  clearOverlay.classList.add('open');
+};
+document.getElementById('c-cancel').onclick = ()=>{
+  clearError.hidden = true;
+  clearOverlay.classList.remove('open');
+};
 document.getElementById('claim-player-cancel').onclick = ()=>{
   pendingClaimResponseId = '';
   document.getElementById('claim-player-overlay').classList.remove('open');
@@ -2063,18 +2124,41 @@ document.getElementById('claim-player-confirm').onclick = async ()=>{
   restoreCurrentLocalResponse();
   showToast(`${target.name} quedó vinculado a este dispositivo.`);
 };
-document.getElementById('c-confirm').onclick = async ()=>{
-  clearLocalOrganizerState();
-  state.players = [];
-  state.responses = [];
-  state.formations = {};
-  clearOverlay.classList.remove('open');
-  render();
-  renderLocalOrganizer();
-  resetMyStatusCard();
-  await saveState(state);
-  updateKnownSets(state);
-  showToast('Se borraron las respuestas y equipos para todos. La cancha se conservó.');
+clearConfirmBtn.onclick = async ()=>{
+  clearError.hidden = true;
+  clearConfirmBtn.disabled = true;
+  saving = true;
+  try{
+    // saveState escribe el blob entero. Partiendo de la copia local, de hasta 4s de
+    // antigüedad, limpiar pisaba una sede o un alias que otro dispositivo acababa de
+    // guardar. Ahora se aplica sólo lo que significa "limpiar" sobre el estado
+    // fresco: matchInfo, history, sedes y frequentAliases quedan como vinieron.
+    const fresh = await fetchServerState();
+    if(!fresh){
+      clearError.hidden = false;
+      return;
+    }
+    const nextState = {...fresh, responses: [], players: [], formations: {}};
+    const ok = await saveState(nextState);
+    if(!ok){
+      clearError.hidden = false;
+      return;
+    }
+    state = nextState;
+    // Recién con el ok: registrar como "ya conocido" un vaciado que nunca llegó al
+    // servidor hacía que el sondeo leyera los jugadores remotos como un borrado
+    // deliberado y no los repusiera nunca.
+    updateKnownSets(state);
+    clearLocalOrganizerState();
+    clearOverlay.classList.remove('open');
+    render();
+    renderLocalOrganizer();
+    resetMyStatusCard();
+    showToast('Se borraron las respuestas y equipos para todos. La cancha se conservó.');
+  }finally{
+    saving = false;
+    clearConfirmBtn.disabled = false;
+  }
 };
 
 /* ---------- ALIAS Y MAPA ---------- */
@@ -2379,11 +2463,15 @@ function syncLocalAvailabilityWithPlayers(){
   });
 }
 
-function getResponsePlayers(status){
+// fromPlayers deja resolver contra una lista de jugadores que todavía no está en
+// state: finalizar arma la fecha a archivar sobre copias, antes de saber si el
+// guardado va a funcionar. Sin el parámetro habría que duplicar este cruce.
+function getResponsePlayers(status, fromPlayers){
   if(!state) return [];
+  const players = fromPlayers || state.players;
   return localAvailabilityResponses
     .filter(response=>!status || response.status===status)
-    .map(response=>state.players.find(player=>
+    .map(response=>players.find(player=>
       player.name.toLocaleLowerCase('es')===response.name.toLocaleLowerCase('es')
     ))
     .filter(Boolean);
