@@ -625,7 +625,6 @@ test("the match editor rolls back its own changes when saving fails", async () =
 
   assert.match(save, /const ok = await persist\(\);/);
   assert.match(save, /if\(!ok\)\{/);
-  assert.match(save, /No se pudo guardar el partido/);
 
   // matchInfo y frequentAliases los repone el sondeo, pero sedes, formations y las
   // posiciones ganan sobre el servidor en refreshFromServer, así que sin rollback
@@ -669,6 +668,40 @@ test("the match editor rolls back its own changes when saving fails", async () =
   // el modal, así que lo tipeado sigue ahí para reintentar sin volver a escribirlo.
   assert.doesNotMatch(rollback, /getElementById\('m-(teamname|date|time|type|price|alias|loc|loc-new)'\)/);
   assert.doesNotMatch(rollback, /populateLocSelect/);
+});
+
+test("the match editor keeps a persistent inline error until the next attempt", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const modal = sliceBetween(demo, 'id="modal-overlay"', 'id="manage-sedes-overlay"', 'el modal de editar partido');
+  const save = sliceBetween(demo, "document.getElementById('m-save').onclick = async ()=>{", '\n};', 'el handler de editar partido');
+
+  // El toast se desvanece a los 3.2s, asi que no sirve como senal de "hay cambios
+  // pendientes de reintento" mientras el modal sigue abierto. El mensaje inline es
+  // la fuente persistente de ese estado.
+  assert.match(modal, /<p class="modal-error" id="m-error" role="alert" hidden>No se pudo guardar\. Revisá la conexión e intentá otra vez\.<\/p>/);
+  assert.match(demo, /\.modal-error\{/);
+  // hidden deja de funcionar si el CSS le asigna display al parrafo.
+  assert.doesNotMatch(demo, /\.modal-error\s*\{[^}]*display:/);
+
+  // Se limpia antes de cada intento y se muestra solo si fallo.
+  const limpieza = save.indexOf('matchError.hidden = true;');
+  const chequeo = save.indexOf('const ok = await persist();');
+  assert.ok(limpieza > -1, 'el handler no limpia el error antes de intentar');
+  assert.ok(limpieza < chequeo, 'el error se tiene que limpiar antes del intento, no despues');
+
+  const rollback = sliceBetween(save, 'if(!ok){', 'return;', 'la rama de error de editar partido');
+  assert.match(rollback, /matchError\.hidden = false;/);
+  const exito = save.slice(save.indexOf('return;', save.indexOf('if(!ok){')));
+  assert.doesNotMatch(exito, /matchError\.hidden = false/);
+
+  // No se duplica el mismo texto en un toast: el inline es la unica fuente.
+  assert.doesNotMatch(rollback, /showToast/);
+
+  // Abrir y cancelar tambien lo limpian, para que no reaparezca un error viejo.
+  const abrir = sliceBetween(demo, "document.getElementById('edit-match-btn').onclick = ()=>{", '\n};', 'el handler que abre el modal');
+  assert.match(abrir, /matchError\.hidden = true;/);
+  const cancelar = sliceBetween(demo, "document.getElementById('m-cancel').onclick", '\n', 'el handler de cancelar');
+  assert.match(cancelar, /matchError\.hidden = true;/);
 });
 
 test("the history inputs warn when saving fails", async () => {

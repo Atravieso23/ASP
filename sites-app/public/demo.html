@@ -326,6 +326,8 @@
     color:var(--navy); border-radius:8px; padding:10px 12px; font-size:14px; font-family:'Inter',sans-serif;
   }
   .field-note{font-size:11.5px; color:var(--muted); margin-top:5px;}
+  /* Sin display: el atributo hidden lo tiene que poder ocultar. */
+  .modal-error{margin:16px 0 0; color:var(--danger); font-size:12.5px; line-height:1.45;}
   .modal-actions{display:flex; gap:10px; margin-top:18px;}
   .modal-actions button{flex:1; padding:11px; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer; border:none; font-family:'Inter',sans-serif;}
   .btn-cancel{background:transparent; border:1px solid var(--card-border) !important; color:var(--navy);}
@@ -865,6 +867,7 @@
       <p class="field-note">Se divide sola entre la cantidad de gente según la cancha (F5 ÷10, F7 ÷14, F8 ÷16, F9 ÷18, F11 ÷22).</p>
     </div>
     <div class="field"><label>Alias para pagar</label><input type="text" id="m-alias" list="frequent-aliases" autocomplete="off" placeholder="Escribí o elegí un alias frecuente"><datalist id="frequent-aliases"></datalist><p class="field-note">Los alias usados quedan disponibles como sugerencias para próximas fechas.</p></div>
+    <p class="modal-error" id="m-error" role="alert" hidden>No se pudo guardar. Revisá la conexión e intentá otra vez.</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="m-cancel">Cancelar</button>
       <button class="btn-save" id="m-save">Guardar</button>
@@ -1841,6 +1844,9 @@ document.getElementById('add-sede-btn').onclick = async ()=>{
 
 /* ---------- MODAL EDITAR PARTIDO ---------- */
 const overlay = document.getElementById('modal-overlay');
+// Aviso persistente del modal: el toast se va a los 3.2s y no alcanza para dejar
+// claro que quedaron cambios sin guardar mientras el modal sigue abierto.
+const matchError = document.getElementById('m-error');
 function populateLocSelect(selected){
   const sel = document.getElementById('m-loc');
   sel.innerHTML = '';
@@ -1874,6 +1880,7 @@ document.getElementById('m-loc').addEventListener('change', (e)=>{
   document.getElementById('new-loc-wrap').style.display = e.target.value === '__new__' ? 'block' : 'none';
 });
 document.getElementById('edit-match-btn').onclick = ()=>{
+  matchError.hidden = true;
   const mi = state.matchInfo;
   document.getElementById('m-teamname').value = mi.teamName||'';
   document.getElementById('m-date').value = mi.date || nextSaturdayISO();
@@ -1892,8 +1899,11 @@ document.getElementById('edit-match-btn').onclick = ()=>{
   });
   overlay.classList.add('open');
 };
-document.getElementById('m-cancel').onclick = ()=> overlay.classList.remove('open');
+document.getElementById('m-cancel').onclick = ()=>{ matchError.hidden = true; overlay.classList.remove('open'); };
 document.getElementById('m-save').onclick = async ()=>{
+  // Se limpia antes de intentar: si vuelve a fallar se muestra de nuevo, y si sale
+  // bien no queda un aviso viejo colgado.
+  matchError.hidden = true;
   const previousFieldType = state.matchInfo.type;
   const nextFieldType = document.getElementById('m-type').value;
   const nextAlias = document.getElementById('m-alias').value.trim();
@@ -1954,7 +1964,9 @@ document.getElementById('m-save').onclick = async ()=>{
     renderLocalOrganizer();
     // El modal queda abierto a propósito. Los inputs sólo se cargan al abrirlo, así
     // que lo que el organizador tipeó sigue ahí y puede reintentar sin reescribirlo.
-    showToast('No se pudo guardar el partido. Revisá la conexión e intentá otra vez.');
+    // El aviso va inline y no como toast: tiene que seguir visible mientras el
+    // reintento siga pendiente, y duplicar el mismo texto en un toast sería ruido.
+    matchError.hidden = false;
     return;
   }
   overlay.classList.remove('open');
