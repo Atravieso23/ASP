@@ -1314,9 +1314,9 @@ function loadLocalFormationState(){
     console.warn('No se pudo recuperar la formación guardada:', error);
   }
 }
-// Cambiar de equipo es UNA sola escritura. Antes eran dos —saveLocalAvailability() sin
-// esperar y después persist()— y ninguna miraba el resultado: con las dos rechazadas la
-// pantalla quedaba en un equipo y el servidor en otro, para siempre, porque el sondeo
+// Cambiar de equipo es UNA sola escritura. Antes eran dos —un guardado de availability
+// sin esperar y después persist()— y ninguna miraba el resultado: con las dos rechazadas
+// la pantalla quedaba en un equipo y el servidor en otro, para siempre, porque el sondeo
 // repone responses pero players ganaba localmente.
 //
 // El cambio se aplica como overlay sobre el estado fresco, así no pisa lo que otros
@@ -1794,10 +1794,14 @@ function renderHistory(){
         formations: {...last.formations}
       };
 
-      // saveLocalAvailability() sí devuelve si el guardado funcionó; persist() no,
-      // y sin eso el cartel de éxito salía igual y el sondeo revertía todo a los
-      // 4 segundos como si la app se hubiera deshecho sola.
-      const ok = await saveLocalAvailability();
+      // Escritura propia en vez del helper de pagos/invitados: el undo no modifica una
+      // response puntual, reemplaza el array entero a propósito, y ya trae arriba su
+      // lectura fresca y su corte fail-closed. El overlay focalizado no aplica acá.
+      state.responses = localAvailabilityResponses.map(item=>({...item}));
+      syncLocalAvailabilityWithPlayers();
+      saving = true;
+      const ok = await saveState(state);
+      saving = false;
       if(!ok){
         state = previousState;
         localAvailabilityResponses = previousResponses;
@@ -1835,11 +1839,9 @@ async function persist(overlayResponses){
     if(!state.formations) state.formations = fresh.formations || {};
     // persist() no es dueño de responses: nadie que lo llame quiere cambiarlas.
     // Las adopta del servidor en vez de serializar una copia que puede ser vieja.
-    // La segunda línea es la que evita que el arreglo quede a medias:
-    // saveLocalAvailability() reconstruye state.responses desde esta variable, así
-    // que sin sincronizarla el próximo pago o alta de invitado volvería a escribir
-    // la caché vieja y desharía el cambio remoto igual. Mismo par de asignaciones
-    // que refreshFromServer, para no inventar otra forma de aliasing.
+    // La segunda línea mantiene la caché apuntando a lo mismo que state.responses:
+    // los handlers leen de ahí para localizar su objetivo antes de escribir. Mismo par
+    // de asignaciones que refreshFromServer, para no inventar otra forma de aliasing.
     state.responses = fresh.responses;
     localAvailabilityResponses = state.responses;
     if(overlayResponses){
@@ -2440,16 +2442,131 @@ function loadLocalAvailability(){
   }
 }
 
-// Marca `saving` de forma sincrónica para que el refresco periódico no pise
-// el cambio con una lectura vieja del servidor mientras se está guardando.
-async function saveLocalAvailability(){
-  if(!state) return false;
-  state.responses = localAvailabilityResponses.map(item=>({...item}));
-  syncLocalAvailabilityWithPlayers();
+// Dueño único de las escrituras que cambian UNA response: pagos, invitados y bajas.
+//
+// Reemplaza a saveLocalAvailability(), que serializaba el blob local entero. Aquello
+// no sólo podía borrar una response ajena: escribía también matchInfo, history, sedes,
+// formations, frequentAliases y las posiciones locales, así que un tap en "Ya pagué"
+// alcanzaba para revertir la edición de partido o el arrastre que otro teléfono acababa
+// de guardar. Acá todo lo que la acción no toca sale de `fresh` y sobrevive por
+// construcción, sin lista de campos que haya que mantener al día.
+//
+// `aplicar` recibe las responses recién leídas y devuelve false si no encuentra su
+// objetivo: entonces no se escribe nada. Mismo contrato que el overlay de persist().
+//
+// Save-first estricto: nada del estado global —state, localAvailabilityResponses,
+// known sets— se toca hasta que el servidor confirmó. Publicar antes es lo que hacía
+// que un guardado rechazado se viera aplicado hasta que el sondeo lo revertía, como si
+// la app se hubiera deshecho sola.
+async function guardarCambioEnResponses(aplicar){
+  // Sincrónico, antes del primer await: si no, el sondeo entra en el medio.
   saving = true;
-  const ok = await saveState(state);
-  saving = false;
-  return ok;
+  try{
+    // Falla cerrado. Sin lectura fresca no se sabe contra qué se está escribiendo.
+    const nextState = await fetchServerState();
+    if(!nextState) return false;
+    if(!aplicar(nextState.responses)) return false;
+    // Los players se derivan dentro de nextState, sobre los del servidor: mergear con
+    // state.players devolvería las posiciones locales y un pago pisaría el arrastre
+    // que otro dispositivo guardó. `pos` es estado propio de Equipos y no le pertenece
+    // a esta acción.
+    syncLocalAvailabilityWithPlayers(nextState, nextState.responses);
+    const ok = await saveState(nextState);
+    if(!ok) return false;
+    state = nextState;
+    localAvailabilityResponses = state.responses;
+    updateKnownSets(state);
+    return true;
+  }finally{
+    // Pase lo que pase, incluida la salida temprana sin lectura fresca: si no, el
+    // sondeo queda congelado hasta recargar.
+    saving = false;
+  }
+}
+
+async function marcarMiPago(paid){
+  const propia = localAvailabilityResponses.find(item=>
+    !item.isGuest && responseBelongsToCurrentDevice(item)
+  );
+  if(!propia) return false;
+  const responseId = propia.responseId;
+  return guardarCambioEnResponses(responses=>{
+    const target = responses.find(item=>item.responseId===responseId);
+    if(!target || target.status!=='in') return false;
+    target.paid = paid;
+    target.updatedAt = new Date().toISOString();
+    return true;
+  });
+}
+
+async function marcarPagoDeInvitado(responseId, paid){
+  return guardarCambioEnResponses(responses=>{
+    const target = responses.find(item=>item.responseId===responseId && item.isGuest);
+    if(!target) return false;
+    target.paid = paid;
+    target.updatedAt = new Date().toISOString();
+    return true;
+  });
+}
+
+const INVITADO_DUPLICADO = 'duplicado';
+const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
+
+// Devuelve el motivo además del resultado: "ese nombre ya está" y "no hay conexión"
+// necesitan avisos distintos, y el duplicado recién se conoce contra las frescas.
+async function agregarInvitado(nombre){
+  const propia = localAvailabilityResponses.find(item=>
+    !item.isGuest && responseBelongsToCurrentDevice(item)
+  );
+  if(!propia) return {ok:false, motivo:INVITADO_SIN_ANFITRION};
+  const anfitrionId = propia.responseId;
+  const normalizado = nombre.toLocaleLowerCase('es');
+  let motivo = null;
+  const ok = await guardarCambioEnResponses(responses=>{
+    const anfitrion = responses.find(item=>item.responseId===anfitrionId);
+    // Sin anfitrión no se cuelga el invitado: otro dispositivo borró mi respuesta.
+    if(!anfitrion){ motivo = INVITADO_SIN_ANFITRION; return false; }
+    // Revalidación contra el servidor: el chequeo local no ve al invitado que otro
+    // teléfono agregó con el mismo nombre desde el último sondeo.
+    if(responses.some(item=>item.name.toLocaleLowerCase('es')===normalizado)){
+      motivo = INVITADO_DUPLICADO;
+      return false;
+    }
+    responses.push({
+      responseId:crypto.randomUUID(),
+      ownerId:currentSessionUserId,
+      ownerIds:[currentSessionUserId],
+      name:nombre,
+      status:'in',
+      from:anfitrion.from || '16:00',
+      to:anfitrion.to || '20:00',
+      paid:false,
+      team:chooseBalancedTeam(nombre, responses),
+      isGuest:true,
+      invitedBy:anfitrion.name,
+      updatedAt:new Date().toISOString()
+    });
+    return true;
+  });
+  return {ok, motivo};
+}
+
+async function eliminarInvitado(responseId){
+  return guardarCambioEnResponses(responses=>{
+    const index = responses.findIndex(item=>item.responseId===responseId && item.isGuest);
+    if(index < 0) return false;
+    responses.splice(index,1);
+    return true;
+  });
+}
+
+async function eliminarJugador(responseId){
+  return guardarCambioEnResponses(responses=>{
+    const index = responses.findIndex(item=>item.responseId===responseId && !item.isGuest);
+    if(index < 0) return false;
+    responses.splice(index,1);
+    return true;
+  });
 }
 
 function saveRecurrentPlayers(){
@@ -2565,21 +2682,19 @@ function renderRecurrentPlayerMenu(){
       }
       const target = matches[0];
       if(!window.confirm(`¿Eliminar a ${removed} de la lista compartida?`)) return;
-      const previousResponses = localAvailabilityResponses;
-      recurrentPlayers.splice(index,1);
-      saveRecurrentPlayers();
-      localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==target.responseId);
-      const ok = await saveLocalAvailability();
+      button.disabled = true;
+      const ok = await eliminarJugador(target.responseId);
+      button.disabled = false;
       if(!ok){
-        localAvailabilityResponses = previousResponses;
-        recurrentPlayers.splice(index,0,removed);
-        saveRecurrentPlayers();
-        syncLocalAvailabilityWithPlayers();
-        render();
-        renderRecurrentPlayerMenu();
+        // Nada que revertir: con el guardado save-first el estado local nunca cambió.
         showToast(`No se pudo eliminar a ${removed}. Revisá la conexión e intentá otra vez.`);
         return;
       }
+      // Recién con el ok. Antes se sacaba de la lista local y del localStorage antes de
+      // guardar, así que un rechazo dejaba al jugador fuera del buscador de este
+      // teléfono aunque siguiera existiendo para el grupo.
+      recurrentPlayers.splice(index,1);
+      saveRecurrentPlayers();
       if(responseBelongsToCurrentDevice(target)){
         currentLocalResponseName = '';
         try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }
@@ -2588,8 +2703,8 @@ function renderRecurrentPlayerMenu(){
         mockStatusCard.classList.remove('collapsed');
       }
       setRegisteredPlayerNameMode(false);
-      syncLocalAvailabilityWithPlayers();
       render();
+      renderLocalOrganizer();
       renderRecurrentPlayerMenu();
       showToast(`${removed} se eliminó de la lista compartida.`);
     };
@@ -2635,11 +2750,15 @@ function clearLocalOrganizerState(){
   }
 }
 
-function syncLocalAvailabilityWithPlayers(){
-  if(!state) return;
-  const responseNames = new Set(localAvailabilityResponses.map(response=>response.name.toLocaleLowerCase('es')));
-  state.players = state.players.filter(player=>responseNames.has(player.name.toLocaleLowerCase('es')));
-  localAvailabilityResponses.forEach(response=>{
+// Los parámetros dejan derivar sobre un estado que todavía no es el global: las
+// escrituras de responses arman su `nextState` a partir del servidor y necesitan los
+// players coherentes ahí adentro, antes de saber si el guardado va a funcionar. Sin
+// argumentos se comporta igual que siempre y opera sobre state.
+function syncLocalAvailabilityWithPlayers(target = state, responses = localAvailabilityResponses){
+  if(!target) return;
+  const responseNames = new Set(responses.map(response=>response.name.toLocaleLowerCase('es')));
+  target.players = target.players.filter(player=>responseNames.has(player.name.toLocaleLowerCase('es')));
+  responses.forEach(response=>{
     const normalizedName = response.name.toLocaleLowerCase('es');
     const playerStatus = response.status;
     // El equipo se deriva de la respuesta, igual que status y paid. Antes sólo se
@@ -2648,7 +2767,7 @@ function syncLocalAvailabilityWithPlayers(){
     // nunca, y el próximo guardado de este lo revertía para todo el grupo.
     const nextTeam = playerStatus==='in' && (response.team==='negro' || response.team==='blanco')
       ? response.team : null;
-    let player = state.players.find(item=>item.name.toLocaleLowerCase('es')===normalizedName);
+    let player = target.players.find(item=>item.name.toLocaleLowerCase('es')===normalizedName);
     if(player){
       player.status = playerStatus;
       player.paid = response.status === 'in' && response.paid === true;
@@ -2665,7 +2784,7 @@ function syncLocalAvailabilityWithPlayers(){
         paid:response.status === 'in' && response.paid === true,
         isCaptain:false
       };
-      state.players.push(player);
+      target.players.push(player);
     }
     if(playerStatus!=='in'){
       player.team = null;
@@ -2689,23 +2808,15 @@ function getResponsePlayers(status, fromPlayers){
     .filter(Boolean);
 }
 
-function upsertLocalAvailability(response){
-  if(!response.responseId) response.responseId = crypto.randomUUID();
-  const index = localAvailabilityResponses.findIndex(item=>item.responseId===response.responseId);
-  if(index >= 0) localAvailabilityResponses[index] = response;
-  else localAvailabilityResponses.push(response);
-  saveLocalAvailability();
-  syncLocalAvailabilityWithPlayers();
-  render();
-  renderLocalOrganizer();
-}
-
 async function savePlayerRegistration(response){
   saving = true;
   try{
-    const fresh = await fetchServerState();
-    const nextState = fresh || state;
-    const remoteResponses = Array.isArray(nextState.responses) ? nextState.responses : [];
+    // Falla cerrado, como el resto de las escrituras. Antes era `fresh || state`: con la
+    // lectura caída y la escritura viva se guardaba el blob local viejo, que es
+    // exactamente lo que esta clase de bug provoca.
+    const nextState = await fetchServerState();
+    if(!nextState) return {ok:false};
+    const remoteResponses = nextState.responses;
     const normalizedName = response.name.toLocaleLowerCase('es');
     const duplicate = remoteResponses.find(item=>
       item.responseId!==response.responseId &&
@@ -2713,6 +2824,8 @@ async function savePlayerRegistration(response){
       item.name.toLocaleLowerCase('es')===normalizedName
     );
     if(duplicate){
+      // Se adopta lo leído aunque no se escriba nada: el homónimo que bloquea el alta
+      // es del servidor y tiene que aparecer en la lista que ve la persona.
       state = nextState;
       localAvailabilityResponses = remoteResponses;
       syncLocalAvailabilityWithPlayers();
@@ -2726,12 +2839,16 @@ async function savePlayerRegistration(response){
     });
     combined.push(response);
     nextState.responses = combined;
+    // Derivar dentro de nextState y publicar recién con el ok: antes se asignaba el
+    // estado global antes de guardar, así que un alta rechazada quedaba en pantalla
+    // hasta que el sondeo la borraba.
+    syncLocalAvailabilityWithPlayers(nextState, combined);
+    const ok = await saveState(nextState);
+    if(!ok) return {ok:false};
     state = nextState;
     localAvailabilityResponses = combined;
-    syncLocalAvailabilityWithPlayers();
-    const ok = await saveState(state);
-    if(ok) updateKnownSets(state);
-    return {ok};
+    updateKnownSets(state);
+    return {ok:true};
   }finally{
     saving = false;
   }
@@ -2742,10 +2859,12 @@ function getCurrentPlayerGuests(){
   return localAvailabilityResponses.filter(item=>item.isGuest === true && responseBelongsToCurrentDevice(item));
 }
 
-function chooseBalancedTeam(excludeName=''){
+// Igual que la derivación: recibe las responses para poder balancear contra las del
+// servidor y no contra una copia local que ignora a los que se sumaron recién.
+function chooseBalancedTeam(excludeName='', responses = localAvailabilityResponses){
   const excluded = excludeName.toLocaleLowerCase('es');
   const counts = {negro:0, blanco:0};
-  localAvailabilityResponses.forEach(item=>{
+  responses.forEach(item=>{
     if(item.status!=='in' || item.name.toLocaleLowerCase('es')===excluded) return;
     if(item.team==='negro' || item.team==='blanco') counts[item.team]++;
   });
@@ -2771,12 +2890,21 @@ function renderGuestManager(){
   }).join('') : '<p class="guest-empty">Todavía no agregaste invitados para esta fecha.</p>';
 
   list.querySelectorAll('[data-guest-paid]').forEach(button=>{
-    button.onclick = ()=>{
-      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.responseId===button.dataset.guestPaid);
+    button.onclick = async ()=>{
+      const responseId = button.dataset.guestPaid;
+      const guest = localAvailabilityResponses.find(item=>item.isGuest && item.responseId===responseId);
       if(!guest) return;
-      guest.paid = !guest.paid;
-      guest.updatedAt = new Date().toISOString();
-      upsertLocalAvailability(guest);
+      // El botón no cambia de estado hasta que el servidor confirma: antes se pintaba
+      // como pagado al instante y un rechazo lo revertía solo cuatro segundos después.
+      button.disabled = true;
+      const ok = await marcarPagoDeInvitado(responseId, !guest.paid);
+      button.disabled = false;
+      if(!ok){
+        showToast(`No se pudo guardar el pago de ${guest.name}. Revisá la conexión e intentá otra vez.`);
+        return;
+      }
+      render();
+      renderLocalOrganizer();
       renderGuestManager();
     };
   });
@@ -2785,19 +2913,15 @@ function renderGuestManager(){
       const responseId = button.dataset.removeGuest;
       const guest = localAvailabilityResponses.find(item=>item.isGuest && item.responseId===responseId);
       if(!guest || !window.confirm(`¿Eliminar a ${guest.name} de tus invitados?`)) return;
-      const previousResponses = localAvailabilityResponses;
-      localAvailabilityResponses = localAvailabilityResponses.filter(item=>item.responseId!==responseId);
-      const ok = await saveLocalAvailability();
+      button.disabled = true;
+      const ok = await eliminarInvitado(responseId);
+      button.disabled = false;
       if(!ok){
-        localAvailabilityResponses = previousResponses;
-        syncLocalAvailabilityWithPlayers();
-        render();
-        renderLocalOrganizer();
-        renderGuestManager();
+        // Nada que revertir: el estado local no se tocó. El rollback anterior además
+        // era parcial, porque restauraba la lista pero no state.responses.
         showToast(`No se pudo eliminar a ${guest.name}. Revisá la conexión e intentá otra vez.`);
         return;
       }
-      syncLocalAvailabilityWithPlayers();
       render();
       renderLocalOrganizer();
       renderGuestManager();
@@ -3144,31 +3268,37 @@ guestManagerToggle.onclick = ()=>{
   }
 };
 
-document.getElementById('guest-add-btn').onclick = ()=>{
+document.getElementById('guest-add-btn').onclick = async ()=>{
   const input = document.getElementById('guest-name-input');
+  const button = document.getElementById('guest-add-btn');
   const guestName = input.value.trim();
   const owner = localAvailabilityResponses.find(item=>
     !item.isGuest && responseBelongsToCurrentDevice(item)
   );
   if(!owner){ showToast('Primero confirmá tu estado.'); return; }
   if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
+  // Respuesta instantánea para el caso común. La revalidación que manda es la de
+  // agregarInvitado(), contra las responses del servidor.
   const duplicate = localAvailabilityResponses.some(item=>item.name.toLocaleLowerCase('es')===guestName.toLocaleLowerCase('es'));
   if(duplicate){ input.focus(); showToast('Ese nombre ya está registrado en esta fecha.'); return; }
-  upsertLocalAvailability({
-    responseId:crypto.randomUUID(),
-    ownerId:currentSessionUserId,
-    ownerIds:[currentSessionUserId],
-    name:guestName,
-    status:'in',
-    from:owner.from || '16:00',
-    to:owner.to || '20:00',
-    paid:false,
-    team:chooseBalancedTeam(guestName),
-    isGuest:true,
-    invitedBy:owner.name,
-    updatedAt:new Date().toISOString()
-  });
+  const etiquetaPrevia = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Agregando…';
+  const {ok, motivo} = await agregarInvitado(guestName);
+  button.disabled = false;
+  button.textContent = etiquetaPrevia;
+  if(!ok){
+    // El input no se limpia: se reintenta sin volver a tipear, igual que los campos de
+    // editar partido cuando el guardado se rechaza.
+    input.focus();
+    if(motivo===INVITADO_DUPLICADO) showToast('Ese nombre ya está registrado en esta fecha.');
+    else if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
+    else showToast(`No se pudo agregar a ${guestName}. Revisá la conexión e intentá otra vez.`);
+    return;
+  }
   input.value = '';
+  render();
+  renderLocalOrganizer();
   renderGuestManager();
   input.focus();
 };
@@ -3180,18 +3310,30 @@ document.getElementById('guest-name-input').addEventListener('keydown', event=>{
 });
 
 document.querySelectorAll('.my-status-paid button').forEach(button=>{
-  button.onclick = ()=>{
+  button.onclick = async ()=>{
     const response = localAvailabilityResponses.find(item=>
       !item.isGuest && responseBelongsToCurrentDevice(item)
     );
     if(!response || response.status!=='in') return;
-    response.paid = button.dataset.value === 'yes';
-    response.updatedAt = new Date().toISOString();
-    saveLocalAvailability();
-    syncLocalAvailabilityWithPlayers();
+    // El resumen y los botones no se mueven hasta que el servidor confirma. Antes se
+    // pintaba el pago al instante sin siquiera mirar el resultado del guardado: con la
+    // escritura rechazada, el sondeo lo revertía a los cuatro segundos y desde el
+    // teléfono parecía que la app se había deshecho sola.
+    const botones = [...document.querySelectorAll('.my-status-paid button')];
+    botones.forEach(item=>{ item.disabled = true; });
+    const ok = await marcarMiPago(button.dataset.value === 'yes');
+    botones.forEach(item=>{ item.disabled = false; });
+    if(!ok){
+      showToast('No se pudo guardar el pago. Revisá la conexión e intentá otra vez.');
+      return;
+    }
     render();
     renderLocalOrganizer();
-    updateMyStatusSummary(response);
+    // Desde la lista fresca: la de antes del guardado ya no es la que está en state.
+    const actualizada = localAvailabilityResponses.find(item=>
+      !item.isGuest && responseBelongsToCurrentDevice(item)
+    );
+    if(actualizada) updateMyStatusSummary(actualizada);
   };
 });
 

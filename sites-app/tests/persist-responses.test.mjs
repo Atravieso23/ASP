@@ -1,7 +1,7 @@
 // PR-1 — persist() no puede pisar `responses` con la copia local.
 //
 // Estos tests ejecutan el código REAL de demo.html. Las funciones bajo prueba
-// (persist, fetchServerState, saveState, saveLocalAvailability y sus ayudantes)
+// (persist, fetchServerState, saveState, guardarCambioEnResponses y sus ayudantes)
 // no tocan el DOM, así que se extraen por NOMBRE y se corren en un node:vm con
 // un Supabase de mentira. No hay red, no hay navegador y no se toca producción.
 //
@@ -35,7 +35,7 @@ const NEEDED = [
   "mergePlayers",
   "mergeSedesArr",
   "syncLocalAvailabilityWithPlayers",
-  "saveLocalAvailability",
+  "guardarCambioEnResponses",
   "persist",
 ];
 
@@ -231,7 +231,7 @@ const ESCENARIOS = [
 ];
 
 for (const escenario of ESCENARIOS) {
-  test(`${escenario.nombre}: persist() y luego saveLocalAvailability() sin sondeo`, async () => {
+  test(`${escenario.nombre}: persist() y luego una escritura de responses sin sondeo`, async () => {
     const w = makeWorld({ row: BASE_ROW() });
     escenario.remoto(w.db.row);
 
@@ -239,8 +239,14 @@ for (const escenario of ESCENARIOS) {
     assert.equal(okPersist, true);
     escenario.espera(w.json("localAvailabilityResponses"));
 
-    // Camino real de pagos/invitados, sin sondear en el medio.
-    const okSave = await w.run("saveLocalAvailability()");
+    // Camino real de pagos/invitados, sin sondear en el medio: un pago sobre Ariel,
+    // que existe en todos los escenarios.
+    const okSave = await w.run(`guardarCambioEnResponses(responses => {
+      const target = responses.find(r => r.name === "Ariel");
+      if (!target) return false;
+      target.paid = true;
+      return true;
+    })`);
     assert.equal(okSave, true);
 
     escenario.espera(w.db.row.responses);
