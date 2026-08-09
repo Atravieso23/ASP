@@ -609,6 +609,14 @@ test("persist reports whether the save actually worked", async () => {
   assert.match(persist, /const ok = await saveState\(state\);/);
   assert.match(persist, /return ok;/);
   assert.doesNotMatch(persist, /^\s*await saveState\(state\);\s*$/m);
+
+  // updateKnownSets marca nombres como "ya conocidos", y mergeKeepingDeletions usa
+  // eso para distinguir un alta ajena de algo que borramos a propósito. Si corre
+  // tras un guardado fallido, registra estado que nunca llegó al servidor y una
+  // sede ajena con ese nombre queda invisible para siempre en ese dispositivo.
+  // Mismo patrón que ya usa el reclamo de jugador.
+  assert.match(persist, /if\(ok\) updateKnownSets\(state\);/);
+  assert.doesNotMatch(persist, /^\s*updateKnownSets\(state\);\s*$/m);
 });
 
 test("the match editor rolls back its own changes when saving fails", async () => {
@@ -647,6 +655,20 @@ test("the match editor rolls back its own changes when saving fails", async () =
   const exito = save.slice(save.indexOf('return;', save.indexOf('if(!ok){')));
   assert.match(exito, /saveLocalFormationState\(\);/);
   assert.doesNotMatch(rollback, /saveLocalFormationState\(\)/);
+
+  // El modal se cierra recién con el guardado confirmado. Si se cerrara antes, un
+  // fallo dejaría al organizador sin los seis campos que acababa de tipear.
+  const cierre = save.indexOf("overlay.classList.remove('open');");
+  const chequeo = save.indexOf('const ok = await persist();');
+  assert.ok(cierre > -1, 'el handler no cierra el modal en ninguna parte');
+  assert.ok(cierre > chequeo, 'el modal se cierra antes de saber si el guardado funcionó');
+  assert.match(exito, /overlay\.classList\.remove\('open'\);/);
+  assert.doesNotMatch(rollback, /overlay\.classList\.remove\('open'\)/);
+
+  // Y al fallar nadie reescribe el formulario: los inputs sólo se cargan al abrir
+  // el modal, así que lo tipeado sigue ahí para reintentar sin volver a escribirlo.
+  assert.doesNotMatch(rollback, /getElementById\('m-(teamname|date|time|type|price|alias|loc|loc-new)'\)/);
+  assert.doesNotMatch(rollback, /populateLocSelect/);
 });
 
 test("the history inputs warn when saving fails", async () => {

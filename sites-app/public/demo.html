@@ -1752,7 +1752,10 @@ async function persist(){
     if(!state.formations) state.formations = fresh.formations || {};
   }
   const ok = await saveState(state);
-  updateKnownSets(state);
+  // Sólo si se guardó: si no, registraría como "ya conocido" algo que nunca llegó al
+  // servidor, y mergeKeepingDeletions leería un alta ajena con ese nombre como un
+  // borrado intencional y no la repondría nunca.
+  if(ok) updateKnownSets(state);
   saving = false;
   // Devolver el resultado deja que cada llamador decida qué hacer si falló. Los que
   // todavía lo ignoran se comportan igual que antes.
@@ -1938,8 +1941,6 @@ document.getElementById('m-save').onclick = async ()=>{
     state.players.forEach(player=>{ player.pos = null; });
     ensureFormationDefaults();
   }
-  overlay.classList.remove('open');
-  render();
   const ok = await persist();
   if(!ok){
     state.matchInfo = previousMatchInfo;
@@ -1947,14 +1948,17 @@ document.getElementById('m-save').onclick = async ()=>{
     state.formations = previousFormations;
     previousPositions.forEach(entry=>{ entry.player.pos = entry.pos; });
     // Por nombre y no restaurando el array entero: el merge de persist() pudo sumar
-    // una sede de otro dispositivo, y updateKnownSets ya la marcó como conocida, así
-    // que descartarla acá la dejaría afuera para siempre.
+    // una sede de otro dispositivo y descartarla acá la dejaría afuera.
     if(sedeAgregada) state.sedes = state.sedes.filter(sede=>sede.name !== sedeAgregada);
     render();
     renderLocalOrganizer();
+    // El modal queda abierto a propósito. Los inputs sólo se cargan al abrirlo, así
+    // que lo que el organizador tipeó sigue ahí y puede reintentar sin reescribirlo.
     showToast('No se pudo guardar el partido. Revisá la conexión e intentá otra vez.');
     return;
   }
+  overlay.classList.remove('open');
+  render();
   // Recién acá: no dejar estado local de un cambio que el servidor rechazó.
   if(previousFieldType!==nextFieldType) saveLocalFormationState();
 };
