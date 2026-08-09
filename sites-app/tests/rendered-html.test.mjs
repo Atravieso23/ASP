@@ -582,3 +582,82 @@ test("only offers undo when the snapshot carries its responses", async () => {
   assert.doesNotMatch(demo, /last\.players[\s\S]{0,200}?responseId/);
   assert.doesNotMatch(demo, /h\.players[\s\S]{0,200}?responseId/);
 });
+
+// Aísla un tramo de código por marcadores. Sin esto las aserciones matchean
+// cualquier parte del archivo: varias funciones comparten las mismas secuencias de
+// llamadas y hacen pasar tests que no verifican nada.
+function sliceBetween(demo, startMarker, endMarker, label){
+  const start = demo.indexOf(startMarker);
+  assert.ok(start > -1, `no ubiqué ${label}`);
+  const end = demo.indexOf(endMarker, start + startMarker.length);
+  assert.ok(end > start, `no ubiqué el final de ${label}`);
+  return demo.slice(start, end);
+}
+
+const HISTORY_INPUTS = [
+  ['precio de una fecha archivada', ".edit-price-input').forEach(inp=>{", /No se pudo guardar el precio/],
+  ['marcador',                      ".score-input').forEach(inp=>{",      /No se pudo guardar el resultado/],
+  ['goleadores',                    ".goals-input').forEach(inp=>{",      /No se pudieron guardar los goles/]
+];
+
+test("persist reports whether the save actually worked", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const persist = sliceBetween(demo, 'async function persist(){', '\n}', 'la función persist');
+
+  // Sin devolver el booleano de saveState() ningún llamador puede distinguir un
+  // guardado exitoso de uno que falló, y todos cantaban éxito igual.
+  assert.match(persist, /const ok = await saveState\(state\);/);
+  assert.match(persist, /return ok;/);
+  assert.doesNotMatch(persist, /^\s*await saveState\(state\);\s*$/m);
+});
+
+test("the match editor rolls back its own changes when saving fails", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const save = sliceBetween(demo, "document.getElementById('m-save').onclick = async ()=>{", '\n};', 'el handler de editar partido');
+
+  assert.match(save, /const ok = await persist\(\);/);
+  assert.match(save, /if\(!ok\)\{/);
+  assert.match(save, /No se pudo guardar el partido/);
+
+  // matchInfo y frequentAliases los repone el sondeo, pero sedes, formations y las
+  // posiciones ganan sobre el servidor en refreshFromServer, así que sin rollback
+  // quedarían residuos que nada corrige.
+  assert.match(save, /const previousMatchInfo = state\.matchInfo;/);
+  assert.match(save, /const previousAliases = state\.frequentAliases;/);
+  assert.match(save, /const previousFormations = state\.formations;/);
+  assert.match(save, /const previousPositions = state\.players\.map\(player=>\(\{player, pos:player\.pos\}\)\);/);
+
+  const rollback = sliceBetween(save, 'if(!ok){', 'return;', 'la rama de error de editar partido');
+  assert.match(rollback, /state\.matchInfo = previousMatchInfo;/);
+  assert.match(rollback, /state\.frequentAliases = previousAliases;/);
+  assert.match(rollback, /state\.formations = previousFormations;/);
+  assert.match(rollback, /previousPositions\.forEach\(entry=>\{ entry\.player\.pos = entry\.pos; \}\);/);
+  assert.match(rollback, /render\(\);/);
+  assert.match(rollback, /renderLocalOrganizer\(\);/);
+
+  // La cancha nueva se saca por nombre en vez de restaurar el array entero: así no
+  // se descarta una sede que otro dispositivo haya agregado y que el merge de
+  // persist() ya sumó, que updateKnownSets marcaría como conocida y no volvería.
+  assert.match(save, /let sedeAgregada = null;/);
+  assert.match(save, /sedeAgregada = newLoc;/);
+  assert.match(rollback, /if\(sedeAgregada\) state\.sedes = state\.sedes\.filter\(sede=>sede\.name !== sedeAgregada\);/);
+
+  // saveLocalFormationState() pasa a correr sólo después del éxito, para no dejar
+  // estado local de un cambio que el servidor rechazó.
+  const exito = save.slice(save.indexOf('return;', save.indexOf('if(!ok){')));
+  assert.match(exito, /saveLocalFormationState\(\);/);
+  assert.doesNotMatch(rollback, /saveLocalFormationState\(\)/);
+});
+
+test("the history inputs warn when saving fails", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Los tres se comprueban por separado: un solo aviso compartido dejaría pasar
+  // que a dos de ellos les falte.
+  for(const [nombre, marcador, aviso] of HISTORY_INPUTS){
+    const handler = sliceBetween(demo, marcador, '\n  });', `el handler de ${nombre}`);
+    assert.match(handler, /const ok = await persist\(\);/, `${nombre}: no usa el resultado de persist`);
+    assert.match(handler, /if\(!ok\)/, `${nombre}: no comprueba el resultado`);
+    assert.match(handler, aviso, `${nombre}: falta el aviso de error`);
+  }
+});
