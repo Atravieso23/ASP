@@ -1751,21 +1751,39 @@ function renderHistory(){
 
 async function persist(){
   saving = true;
-  const fresh = await fetchServerState();
-  if(fresh){
+  try{
+    const fresh = await fetchServerState();
+    // Falla cerrado. Antes, si la lectura fallaba y la escritura funcionaba, se
+    // guardaban las responses de la copia local: bastaba con eso para borrar del
+    // servidor un alta, un pago o un claim que otro teléfono acababa de hacer.
+    // Sin lectura fresca no se sabe contra qué se está escribiendo.
+    if(!fresh) return false;
     state.players = mergePlayers(fresh.players, state.players);
     state.sedes = mergeSedesArr(fresh.sedes, state.sedes);
     if(!state.formations) state.formations = fresh.formations || {};
+    // persist() no es dueño de responses: nadie que lo llame quiere cambiarlas.
+    // Las adopta del servidor en vez de serializar una copia que puede ser vieja.
+    // La segunda línea es la que evita que el arreglo quede a medias:
+    // saveLocalAvailability() reconstruye state.responses desde esta variable, así
+    // que sin sincronizarla el próximo pago o alta de invitado volvería a escribir
+    // la caché vieja y desharía el cambio remoto igual. Mismo par de asignaciones
+    // que refreshFromServer, para no inventar otra forma de aliasing.
+    state.responses = fresh.responses;
+    localAvailabilityResponses = state.responses;
+    const ok = await saveState(state);
+    // Sólo si se guardó: si no, registraría como "ya conocido" algo que nunca llegó al
+    // servidor, y mergeKeepingDeletions leería un alta ajena con ese nombre como un
+    // borrado intencional y no la repondría nunca.
+    if(ok) updateKnownSets(state);
+    // La adopción de arriba no se revierte si el guardado falla: representa lo que el
+    // servidor acaba de decir, y volver a la copia vieja restauraría justo la caché
+    // que borra los cambios ajenos en el guardado siguiente.
+    return ok;
+  }finally{
+    // Pase lo que pase, incluida la salida temprana sin lectura fresca: si no, el
+    // sondeo queda congelado hasta recargar.
+    saving = false;
   }
-  const ok = await saveState(state);
-  // Sólo si se guardó: si no, registraría como "ya conocido" algo que nunca llegó al
-  // servidor, y mergeKeepingDeletions leería un alta ajena con ese nombre como un
-  // borrado intencional y no la repondría nunca.
-  if(ok) updateKnownSets(state);
-  saving = false;
-  // Devolver el resultado deja que cada llamador decida qué hacer si falló. Los que
-  // todavía lo ignoran se comportan igual que antes.
-  return ok;
 }
 
 /* ---------- TABS ---------- */
