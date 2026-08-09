@@ -887,6 +887,7 @@
       <input type="text" id="new-sede-address" placeholder="Dirección (opcional, para el botón de mapa)">
       <button class="btn-save" id="add-sede-btn" style="flex:0 0 auto;padding:10px 14px;">Agregar</button>
     </div>
+    <p class="modal-error" id="sedes-error" role="alert" hidden></p>
     <div class="modal-actions">
       <button class="btn-cancel" id="manage-sedes-close">Cerrar</button>
     </div>
@@ -1789,6 +1790,29 @@ document.getElementById('formation-select-blanco').addEventListener('change', as
   render(); saveLocalFormationState(); await persist();
 });
 /* ---------- GESTIONAR CANCHAS ---------- */
+// Los tres handlers mutaban state.sedes y descartaban el resultado del guardado.
+// Como sedes gana localmente en refreshFromServer, un guardado rechazado quedaba
+// divergente para siempre: una cancha que sólo existe en un teléfono, una dirección
+// que sólo ese teléfono ve, o una cancha borrada que el sondeo no repone porque
+// knownSedeNames la lee como un borrado a propósito. Peor: ese borrado rechazado
+// se propagaba al grupo con el próximo guardado exitoso de cualquier otra cosa.
+const sedesError = document.getElementById('sedes-error');
+const SEDES_ERROR_GUARDADO = 'No se pudo guardar el cambio en las canchas. Revisá la conexión e intentá otra vez.';
+const SEDES_ERROR_DUPLICADO = 'Ya tenés una cancha con ese nombre.';
+function showSedesError(mensaje){ sedesError.textContent = mensaje; sedesError.hidden = false; }
+function hideSedesError(){ sedesError.hidden = true; }
+
+// Misma normalización que mergeSedesArr y updateKnownSets, que agrupan con
+// name.toLowerCase(): si dos nombres colapsan para el merge son la misma cancha.
+// El rollback del alta depende de esta invariancia. El merge de persist() junta las
+// homónimas ANTES de guardar, así que sin el guard un guardado rechazado dejaba una
+// sola entrada, y sacarla borraba la cancha real que knownSedeNames ya no repone.
+function sedeKey(name){ return (name||'').trim().toLowerCase(); }
+function sedeNombreOcupado(name, exceptoEntrada){
+  const key = sedeKey(name);
+  return (state.sedes||[]).some(sede => sede !== exceptoEntrada && sedeKey(sede.name) === key);
+}
+
 function renderSedesManageList(){
   const ul = document.getElementById('sedes-manage-list');
   ul.innerHTML = '';
@@ -1808,40 +1832,102 @@ function renderSedesManageList(){
   });
   ul.querySelectorAll('input').forEach(inp=>{
     inp.onchange = async ()=>{
-      const idx = parseInt(inp.dataset.idx);
-      state.sedes[idx][inp.dataset.field] = inp.value.trim();
-      await persist();
+      hideSedesError();
+      const entrada = state.sedes[parseInt(inp.dataset.idx)];
+      // Una fila puede quedar sin entrada si el merge colapsó homónimas que ya
+      // venían duplicadas de la fila guardada. Sin esto el handler tira
+      // "Cannot set properties of undefined".
+      if(!entrada) return;
+      const campo = inp.dataset.field;
+      const valor = inp.value.trim();
+      if(campo === 'name' && sedeNombreOcupado(valor, entrada)){
+        // Antes de tocar state y antes de llamar a Supabase: renombrar a una
+        // homónima fusionaba las dos canchas y perdía una dirección para todos.
+        showSedesError(SEDES_ERROR_DUPLICADO);
+        return;
+      }
+      const valorAnterior = entrada[campo];
+      entrada[campo] = valor;
+      const ok = await persist();
+      if(!ok){
+        // Por referencia al objeto y no por índice: el merge de persist() pudo
+        // sumar una cancha de otro dispositivo y correr las posiciones.
+        entrada[campo] = valorAnterior;
+        renderSedesManageList();
+        showSedesError(SEDES_ERROR_GUARDADO);
+        return;
+      }
       render();
     };
   });
   ul.querySelectorAll('[data-action="delete-sede"]').forEach(btn=>{
     btn.onclick = async ()=>{
+      hideSedesError();
       const idx = parseInt(btn.dataset.idx);
-      state.sedes.splice(idx,1);
+      const [eliminada] = state.sedes.splice(idx,1);
+      if(!eliminada) return;
       renderSedesManageList();
       populateLocSelect(state.matchInfo.loc);
-      await persist();
+      const ok = await persist();
+      if(!ok){
+        // Reinsertar en su posición: el sondeo no la repone porque knownSedeNames
+        // todavía la tiene y mergeKeepingDeletions lee su ausencia local como un
+        // borrado deliberado. El clamp cubre que el merge haya acortado la lista.
+        state.sedes.splice(Math.min(idx, state.sedes.length), 0, eliminada);
+        renderSedesManageList();
+        populateLocSelect(state.matchInfo.loc);
+        showSedesError(SEDES_ERROR_GUARDADO);
+        return;
+      }
     };
   });
 }
 document.getElementById('open-manage-sedes-btn').onclick = ()=>{
+  hideSedesError();
   renderSedesManageList();
   document.getElementById('manage-sedes-overlay').classList.add('open');
 };
 document.getElementById('manage-sedes-close').onclick = ()=>{
+  hideSedesError();
   document.getElementById('manage-sedes-overlay').classList.remove('open');
   populateLocSelect(state.matchInfo.loc);
 };
 document.getElementById('add-sede-btn').onclick = async ()=>{
-  const name = document.getElementById('new-sede-name').value.trim();
-  const address = document.getElementById('new-sede-address').value.trim();
+  hideSedesError();
+  const nameInput = document.getElementById('new-sede-name');
+  const addressInput = document.getElementById('new-sede-address');
+  const name = nameInput.value.trim();
+  const address = addressInput.value.trim();
   if(!name) return;
+  if(sedeNombreOcupado(name)){
+    // Antes de tocar state y antes de llamar a Supabase: agregar una homónima
+    // pisaba la dirección de la cancha que ya existía, sin aviso y para todos.
+    // Lo escrito no se limpia, así que se corrige el nombre sin retipear nada.
+    showSedesError(SEDES_ERROR_DUPLICADO);
+    return;
+  }
   if(!state.sedes) state.sedes = [];
-  state.sedes.push({name, address});
-  document.getElementById('new-sede-name').value = '';
-  document.getElementById('new-sede-address').value = '';
+  const nueva = {name, address};
+  state.sedes.push(nueva);
+  nameInput.value = '';
+  addressInput.value = '';
   renderSedesManageList();
-  await persist();
+  const ok = await persist();
+  if(!ok){
+    // Por identidad y no por nombre: en mergeKeepingDeletions los ítems locales
+    // entran primero al Map, así que esta entrada sobrevive al merge y sacarla no
+    // toca una cancha homónima que otro dispositivo haya agregado recién.
+    state.sedes = state.sedes.filter(sede => sede !== nueva);
+    nameInput.value = name;
+    addressInput.value = address;
+    renderSedesManageList();
+    showSedesError(SEDES_ERROR_GUARDADO);
+    return;
+  }
+  // La lista se dibujó antes de guardar y el merge pudo sumar canchas de otro
+  // dispositivo: sin volver a dibujarla las filas dejan de corresponderse con
+  // state.sedes y las que sobran apuntan a índices que ya no existen.
+  renderSedesManageList();
 };
 
 /* ---------- MODAL EDITAR PARTIDO ---------- */
