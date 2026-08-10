@@ -1997,27 +1997,90 @@ document.getElementById('formation-select-blanco').addEventListener('change', as
   await cambiarFormacion('blanco', e.target.value, e.target);
 });
 /* ---------- GESTIONAR CANCHAS ---------- */
-// Los tres handlers mutaban state.sedes y descartaban el resultado del guardado.
-// Como sedes gana localmente en refreshFromServer, un guardado rechazado quedaba
-// divergente para siempre: una cancha que sólo existe en un teléfono, una dirección
-// que sólo ese teléfono ve, o una cancha borrada que el sondeo no repone porque
-// knownSedeNames la lee como un borrado a propósito. Peor: ese borrado rechazado
-// se propagaba al grupo con el próximo guardado exitoso de cualquier otra cosa.
+// Los tres handlers mutaban state.sedes y llamaban a persist(), que reconcilia con
+// mergeSedesArr(fresh.sedes, state.sedes). Ese merge mete PRIMERO los locales, así que
+// la versión fresca de una cancha que ya existe localmente se descartaba: una dirección
+// corregida en otro teléfono se revertía. Y un nombre nuevo que no estaba ni en la copia
+// local ni en knownSedeNames se agregaba, así que un rename ajeno se degradaba en dos
+// canchas. Ahora cada operación se superpone sobre el estado fresco.
 const sedesError = document.getElementById('sedes-error');
 const SEDES_ERROR_GUARDADO = 'No se pudo guardar el cambio en las canchas. Revisá la conexión e intentá otra vez.';
 const SEDES_ERROR_DUPLICADO = 'Ya tenés una cancha con ese nombre.';
+// Reintentar no sirve: la cancha no está más. Por eso no comparte el mensaje de red.
+const SEDES_ERROR_SIN_OBJETIVO = 'Esa cancha ya no existe: otro dispositivo la eliminó.';
 function showSedesError(mensaje){ sedesError.textContent = mensaje; sedesError.hidden = false; }
 function hideSedesError(){ sedesError.hidden = true; }
 
+const SEDE_DUPLICADA = 'duplicado';
+const SEDE_SIN_OBJETIVO = 'sin-objetivo';
+
 // Misma normalización que mergeSedesArr y updateKnownSets, que agrupan con
 // name.toLowerCase(): si dos nombres colapsan para el merge son la misma cancha.
-// El rollback del alta depende de esta invariancia. El merge de persist() junta las
-// homónimas ANTES de guardar, así que sin el guard un guardado rechazado dejaba una
-// sola entrada, y sacarla borraba la cancha real que knownSedeNames ya no repone.
 function sedeKey(name){ return (name||'').trim().toLowerCase(); }
-function sedeNombreOcupado(name, exceptoEntrada){
-  const key = sedeKey(name);
-  return (state.sedes||[]).some(sede => sede !== exceptoEntrada && sedeKey(sede.name) === key);
+
+// La identidad de una cancha que cruza el await es su nombre normalizado. El índice
+// sale del DOM y sólo vale para el array local: si otro dispositivo agregó o eliminó
+// una cancha, esa misma posición en el estado fresco es otra cancha, o no es nada.
+function buscarSedeEnFresco(sedes, clave){
+  return (sedes||[]).findIndex(sede => sedeKey(sede.name) === clave);
+}
+
+// Se valida contra las canchas frescas y no contra las locales: el chequeo local no ve
+// la cancha que otro teléfono agregó desde el último sondeo, y dos altas simultáneas
+// del mismo nombre terminaban fusionadas sin que nadie se enterara. `clavePropia` deja
+// que renombrar sólo el capitalizado no cuente como choque consigo misma.
+function sedeOcupadaEnFresco(sedes, nombre, clavePropia){
+  const clave = sedeKey(nombre);
+  return (sedes||[]).some(sede => sedeKey(sede.name) !== clavePropia && sedeKey(sede.name) === clave);
+}
+
+// Las tres viven fuera de los handlers, sin tocar el DOM, para poder probarlas contra
+// un Supabase de mentira. Devuelven el motivo además del resultado: "ese nombre ya
+// está", "esa cancha ya no existe" y "no hay conexión" necesitan avisos distintos.
+async function agregarSede(nombre, direccion){
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    if(!fresh.sedes) fresh.sedes = [];
+    if(sedeOcupadaEnFresco(fresh.sedes, nombre)){ motivo = SEDE_DUPLICADA; return false; }
+    fresh.sedes.push({name:nombre, address:direccion});
+    return true;
+  });
+  return {ok, motivo};
+}
+
+async function editarSede(clavePropia, campo, valor){
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    const indice = buscarSedeEnFresco(fresh.sedes, clavePropia);
+    if(indice < 0){ motivo = SEDE_SIN_OBJETIVO; return false; }
+    // Renombrar a una homónima fusionaba las dos canchas y perdía una dirección para
+    // todo el grupo.
+    if(campo === 'name' && sedeOcupadaEnFresco(fresh.sedes, valor, clavePropia)){
+      motivo = SEDE_DUPLICADA;
+      return false;
+    }
+    fresh.sedes[indice][campo] = valor;
+    return true;
+  });
+  return {ok, motivo};
+}
+
+async function eliminarSede(clavePropia){
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    const indice = buscarSedeEnFresco(fresh.sedes, clavePropia);
+    // Si otro dispositivo ya la eliminó no se la resucita para volver a borrarla.
+    if(indice < 0){ motivo = SEDE_SIN_OBJETIVO; return false; }
+    fresh.sedes.splice(indice, 1);
+    return true;
+  });
+  return {ok, motivo};
+}
+
+function mensajeDeErrorDeSede(motivo){
+  if(motivo === SEDE_DUPLICADA) return SEDES_ERROR_DUPLICADO;
+  if(motivo === SEDE_SIN_OBJETIVO) return SEDES_ERROR_SIN_OBJETIVO;
+  return SEDES_ERROR_GUARDADO;
 }
 
 function renderSedesManageList(){
@@ -2031,38 +2094,34 @@ function renderSedesManageList(){
     const li = document.createElement('li');
     li.className = 'manage-row';
     li.innerHTML = `
-      <input type="text" data-idx="${idx}" data-field="name" value="${escapeHtml(s.name)}" placeholder="Nombre">
-      <input type="text" data-idx="${idx}" data-field="address" value="${escapeHtml(s.address||'')}" placeholder="Dirección">
-      <button class="icon-btn danger" data-idx="${idx}" data-action="delete-sede" title="Eliminar">✕</button>
+      <input type="text" data-sede-key="${escapeHtml(sedeKey(s.name))}" data-field="name" value="${escapeHtml(s.name)}" placeholder="Nombre">
+      <input type="text" data-sede-key="${escapeHtml(sedeKey(s.name))}" data-field="address" value="${escapeHtml(s.address||'')}" placeholder="Dirección">
+      <button class="icon-btn danger" data-sede-key="${escapeHtml(sedeKey(s.name))}" data-action="delete-sede" title="Eliminar">✕</button>
     `;
     ul.appendChild(li);
   });
+  // Los tres guardan primero y recién después tocan la pantalla. Ya no hay rollback
+  // porque no hay nada que revertir: con el guardado rechazado no se mutó nada, el
+  // input conserva lo tipeado y el reintento no obliga a reescribirlo.
   ul.querySelectorAll('input').forEach(inp=>{
     inp.onchange = async ()=>{
       hideSedesError();
-      const entrada = state.sedes[parseInt(inp.dataset.idx)];
-      // Una fila puede quedar sin entrada si el merge colapsó homónimas que ya
-      // venían duplicadas de la fila guardada. Sin esto el handler tira
-      // "Cannot set properties of undefined".
-      if(!entrada) return;
       const campo = inp.dataset.field;
       const valor = inp.value.trim();
-      if(campo === 'name' && sedeNombreOcupado(valor, entrada)){
-        // Antes de tocar state y antes de llamar a Supabase: renombrar a una
-        // homónima fusionaba las dos canchas y perdía una dirección para todos.
-        showSedesError(SEDES_ERROR_DUPLICADO);
+      const {ok, motivo} = await editarSede(inp.dataset.sedeKey, campo, valor);
+      if(!ok){
+        showSedesError(mensajeDeErrorDeSede(motivo));
         return;
       }
-      const valorAnterior = entrada[campo];
-      entrada[campo] = valor;
-      const ok = await persist();
-      if(!ok){
-        // Por referencia al objeto y no por índice: el merge de persist() pudo
-        // sumar una cancha de otro dispositivo y correr las posiciones.
-        entrada[campo] = valorAnterior;
-        renderSedesManageList();
-        showSedesError(SEDES_ERROR_GUARDADO);
-        return;
+      // Un rename cambia la clave de la fila y sin actualizarla el cambio siguiente
+      // sobre esa misma fila buscaría un nombre que ya no existe. Se reescriben los
+      // atributos en lugar de redibujar la lista: el onchange del nombre salta al
+      // pasar al campo de dirección, y redibujar le sacaría el foco recién puesto.
+      if(campo === 'name'){
+        const claveNueva = sedeKey(valor);
+        inp.closest('.manage-row').querySelectorAll('[data-sede-key]').forEach(el=>{
+          el.dataset.sedeKey = claveNueva;
+        });
       }
       render();
     };
@@ -2070,22 +2129,14 @@ function renderSedesManageList(){
   ul.querySelectorAll('[data-action="delete-sede"]').forEach(btn=>{
     btn.onclick = async ()=>{
       hideSedesError();
-      const idx = parseInt(btn.dataset.idx);
-      const [eliminada] = state.sedes.splice(idx,1);
-      if(!eliminada) return;
-      renderSedesManageList();
-      populateLocSelect(state.matchInfo.loc);
-      const ok = await persist();
+      const {ok, motivo} = await eliminarSede(btn.dataset.sedeKey);
       if(!ok){
-        // Reinsertar en su posición: el sondeo no la repone porque knownSedeNames
-        // todavía la tiene y mergeKeepingDeletions lee su ausencia local como un
-        // borrado deliberado. El clamp cubre que el merge haya acortado la lista.
-        state.sedes.splice(Math.min(idx, state.sedes.length), 0, eliminada);
-        renderSedesManageList();
-        populateLocSelect(state.matchInfo.loc);
-        showSedesError(SEDES_ERROR_GUARDADO);
+        showSedesError(mensajeDeErrorDeSede(motivo));
         return;
       }
+      renderSedesManageList();
+      populateLocSelect(state.matchInfo.loc);
+      render();
     };
   });
 }
@@ -2106,35 +2157,17 @@ document.getElementById('add-sede-btn').onclick = async ()=>{
   const name = nameInput.value.trim();
   const address = addressInput.value.trim();
   if(!name) return;
-  if(sedeNombreOcupado(name)){
-    // Antes de tocar state y antes de llamar a Supabase: agregar una homónima
-    // pisaba la dirección de la cancha que ya existía, sin aviso y para todos.
-    // Lo escrito no se limpia, así que se corrige el nombre sin retipear nada.
-    showSedesError(SEDES_ERROR_DUPLICADO);
+  const {ok, motivo} = await agregarSede(name, address);
+  if(!ok){
+    // Lo escrito no se limpia: se corrige el nombre duplicado, o se reintenta el
+    // guardado, sin retipear nada.
+    showSedesError(mensajeDeErrorDeSede(motivo));
     return;
   }
-  if(!state.sedes) state.sedes = [];
-  const nueva = {name, address};
-  state.sedes.push(nueva);
   nameInput.value = '';
   addressInput.value = '';
   renderSedesManageList();
-  const ok = await persist();
-  if(!ok){
-    // Por identidad y no por nombre: en mergeKeepingDeletions los ítems locales
-    // entran primero al Map, así que esta entrada sobrevive al merge y sacarla no
-    // toca una cancha homónima que otro dispositivo haya agregado recién.
-    state.sedes = state.sedes.filter(sede => sede !== nueva);
-    nameInput.value = name;
-    addressInput.value = address;
-    renderSedesManageList();
-    showSedesError(SEDES_ERROR_GUARDADO);
-    return;
-  }
-  // La lista se dibujó antes de guardar y el merge pudo sumar canchas de otro
-  // dispositivo: sin volver a dibujarla las filas dejan de corresponderse con
-  // state.sedes y las que sobran apuntan a índices que ya no existen.
-  renderSedesManageList();
+  render();
 };
 
 /* ---------- MODAL EDITAR PARTIDO ---------- */
