@@ -613,9 +613,9 @@ function sliceBetween(demo, startMarker, endMarker, label){
 }
 
 const HISTORY_INPUTS = [
-  ['precio de una fecha archivada', ".edit-price-input').forEach(inp=>{", /No se pudo guardar el precio/],
-  ['marcador',                      ".score-input').forEach(inp=>{",      /No se pudo guardar el resultado/],
-  ['goleadores',                    ".goals-input').forEach(inp=>{",      /No se pudieron guardar los goles/]
+  ['precio de una fecha archivada', ".edit-price-input').forEach(inp=>{", /No se pudo guardar el precio/,    /guardarPrecioDeHistorial\(inp\.dataset\.finalizedAt,/],
+  ['marcador',                      ".score-input').forEach(inp=>{",      /No se pudo guardar el resultado/, /guardarResultadoDeHistorial\(inp\.dataset\.finalizedAt,/],
+  ['goleadores',                    ".goals-input').forEach(inp=>{",      /No se pudieron guardar los goles/,/guardarGolesDeHistorial\(inp\.dataset\.finalizedAt,/]
 ];
 
 test("persist reports whether the save actually worked", async () => {
@@ -727,12 +727,74 @@ test("the history inputs warn when saving fails", async () => {
 
   // Los tres se comprueban por separado: un solo aviso compartido dejaría pasar
   // que a dos de ellos les falte.
-  for(const [nombre, marcador, aviso] of HISTORY_INPUTS){
+  for(const [nombre, marcador, aviso, llamada] of HISTORY_INPUTS){
     const handler = sliceBetween(demo, marcador, '\n  });', `el handler de ${nombre}`);
-    assert.match(handler, /const ok = await persist\(\);/, `${nombre}: no usa el resultado de persist`);
+    assert.match(handler, llamada, `${nombre}: no delega en la función nombrada`);
+    assert.match(handler, /const ok = await guardar/, `${nombre}: no usa el resultado del guardado`);
     assert.match(handler, /if\(!ok\)/, `${nombre}: no comprueba el resultado`);
     assert.match(handler, aviso, `${nombre}: falta el aviso de error`);
   }
+});
+
+test("the history inputs save before touching the screen and address dates by identity", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  for(const [nombre, marcador] of HISTORY_INPUTS){
+    const handler = sliceBetween(demo, marcador, '\n  });', `el handler de ${nombre}`);
+
+    // Save-first: mutar state y renderizar antes del guardado mostraba como aplicado
+    // algo que el servidor podía rechazar, y dependía del sondeo para revertirlo.
+    assert.doesNotMatch(handler, /state\.history\[/, `${nombre}: sigue mutando el historial local`);
+    const guardado = handler.indexOf('const ok = await guardar');
+    const render = handler.indexOf('render();');
+    assert.ok(guardado > -1 && render > guardado, `${nombre}: redibuja antes de saber si guardó`);
+
+    // El índice del DOM sólo vale para el array local: si otro dispositivo archivó o
+    // deshizo una fecha, esa posición en el estado fresco es otra fecha.
+    assert.doesNotMatch(handler, /dataset\.hidx/, `${nombre}: sigue resolviendo la fecha por índice`);
+  }
+
+  // La identidad tiene que viajar en TODOS los inputs del historial, no en algunos:
+  // el marcador son dos, uno por equipo, y al que le falte queda sin poder guardar.
+  const inputs = [...demo.matchAll(/<input[^>]*class="(?:edit-price-input|score-input|jersey-input goals-input)"[^>]*>/g)]
+    .map(([tag]) => tag);
+  assert.equal(inputs.length, 4, 'cambió la cantidad de inputs editables del historial');
+  for(const tag of inputs){
+    assert.match(tag, /data-finalized-at="\$\{escapeHtml\(h\.finalizedAt\|\|''\)\}"/,
+      `un input del historial no lleva la fecha en el markup: ${tag}`);
+  }
+
+  // Sin fecha no se escribe: falla seguro en vez de agarrar la primera entrada.
+  const helper = sliceBetween(demo, 'function conFechaDeHistorial(fresh, finalizedAt, mutar){', '\n}', 'el resolvedor de fechas');
+  assert.match(helper, /if\(!finalizedAt\) return false;/);
+  assert.match(helper, /find\(item=>item\.finalizedAt===finalizedAt\)/);
+  assert.match(helper, /if\(!fecha\) return false;/);
+});
+
+test("the focused writer starts from the server and publishes only once the save lands", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const focalizado = sliceBetween(demo, 'async function persistFocalizado(aplicar){', '\n}', 'la función persistFocalizado');
+
+  // Parte de fresh y no de la copia local: es toda la diferencia con persist().
+  assert.match(focalizado, /const fresh = await fetchServerState\(\);/);
+  assert.match(focalizado, /if\(!fresh\) return false;/);
+  assert.match(focalizado, /if\(!aplicar\(fresh\)\) return false;/);
+  assert.match(focalizado, /const ok = await saveState\(fresh\);/);
+  assert.match(focalizado, /if\(!ok\) return false;/);
+
+  // players no le pertenece a estos llamadores: los del servidor pasan intactos.
+  assert.doesNotMatch(focalizado, /mergePlayers/, 'mergea players, que no son suyos');
+  assert.doesNotMatch(focalizado, /mergeSedesArr/, 'mergea sedes, que no son suyas');
+
+  // Save-first: la publicación va después del ok, nunca antes.
+  const guardado = focalizado.indexOf('const ok = await saveState(fresh);');
+  for(const publicacion of ['state = fresh;', 'localAvailabilityResponses = state.responses;', 'updateKnownSets(state);']){
+    const idx = focalizado.indexOf(publicacion);
+    assert.ok(idx > guardado, `publica "${publicacion}" antes de saber si el servidor aceptó`);
+  }
+
+  // El sondeo no puede quedar congelado por una salida temprana.
+  assert.match(focalizado, /\}finally\{[\s\S]*saving = false;/);
 });
 
 // Las dos acciones destructivas del panel de organizador. Comparten la forma
@@ -862,6 +924,11 @@ test("finalizing a date never archives locally when the save was rejected", asyn
   assert.match(h.previo, /fresh\.history\.length > \(state\.history\|\|\[\]\)\.length/);
   // sedes lo mergeaba el segundo fetch de persist(), que acá ya no existe.
   assert.match(h.previo, /const baseSedes = mergeSedesArr\(fresh\.sedes, state\.sedes\);/);
+
+  // Los alias frecuentes son del grupo y finalizar no los toca. Desde `...state`
+  // viajaba la copia local, así que finalizar borraba el alias que otro dispositivo
+  // acababa de guardar.
+  assert.match(h.previo, /frequentAliases: fresh\.frequentAliases,/);
 
   // La fecha archivada se copia, no se referencia: si quedara apuntando a los
   // arrays vivos, limpiar el estado local después la vaciaría.
