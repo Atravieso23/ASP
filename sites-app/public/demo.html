@@ -986,18 +986,31 @@ function defaultState(){
   };
 }
 
-// Devuelve el estado guardado, o null si todavía no hay nada / falló el pedido.
-// IMPORTANTE: nunca devuelve un estado vacío "de emergencia", para no pisar
-// datos reales con un vacío cuando falla una lectura (ej: sin conexión).
-async function fetchServerState(){
-  if(!supabaseClient) return null;
+// Distingue "no pude leer el servidor" de "el servidor todavía no tiene estado".
+// Colapsar los dos en un único null hacía que el arranque tratara una lectura
+// caída como un partido nuevo: adoptaba defaultState() como copia editable y la
+// primera acción del organizador la publicaba, borrando el historial real,
+// pisando matchInfo y reseteando las formaciones.
+//
+//   'ok'           -> la fila se leyó y trae estado válido, ya normalizado.
+//   'vacio'        -> se leyó la fila y su columna `data` está en null o en {}.
+//                     Es lo único que autoriza a afirmar que no hay estado.
+//   'no-confiable' -> no se puede afirmar qué estado existe: error de Supabase,
+//                     excepción, sin cliente, o `data:null` sin error, que tanto
+//                     puede ser una fila inexistente como una que RLS ocultó.
+async function leerEstadoDelServidor(){
+  if(!supabaseClient) return { estado:null, motivo:'no-confiable' };
   try{
     const { data, error } = await supabaseClient
       .from('match_data')
       .select('data')
       .eq('id', ROW_ID)
       .maybeSingle();
-    if(error || !data || !data.data || Object.keys(data.data).length === 0) return null;
+    if(error) return { estado:null, motivo:'no-confiable' };
+    // Sin fila devuelta no se puede distinguir "no existe" de "RLS la ocultó".
+    if(!data) return { estado:null, motivo:'no-confiable' };
+    // Acá sí: la fila se leyó y su columna `data` está vacía.
+    if(!data.data || Object.keys(data.data).length === 0) return { estado:null, motivo:'vacio' };
     const parsed = data.data;
     if(!parsed.matchInfo) parsed.matchInfo = { teamName:'ASP', date:'', time:'', loc:'', type:'', priceTotal:'', alias:'' };
     if(!parsed.history) parsed.history = [];
@@ -1014,11 +1027,19 @@ async function fetchServerState(){
     if(!parsed.formations) parsed.formations = {};
     if(!parsed.responses) parsed.responses = [];
     if(!parsed.frequentAliases) parsed.frequentAliases = [];
-    return parsed;
+    return { estado:parsed, motivo:'ok' };
   }catch(e){
     console.error('Error leyendo de Supabase', e);
-    return null;
+    return { estado:null, motivo:'no-confiable' };
   }
+}
+
+// El contrato de siempre para las escrituras: el estado, o null si no hay ninguno
+// utilizable. Las nueve fallan cerrado con null y no necesitan saber por qué: sin
+// lectura fresca no se sabe contra qué se está escribiendo, y da igual el motivo.
+async function fetchServerState(){
+  const { estado } = await leerEstadoDelServidor();
+  return estado;
 }
 
 async function saveState(s){
@@ -3499,7 +3520,18 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
     session = anonymousData.session;
   }
   currentSessionUserId = session?.user?.id || '';
-  state = (await fetchServerState()) || defaultState();
+  const { estado, motivo } = await leerEstadoDelServidor();
+  // Una lectura que no sabemos si fue correcta nunca se convierte en estado
+  // editable: los defaults se ven igual que un partido recién creado y la primera
+  // acción del organizador los publicaría encima de los datos reales. Se corta
+  // acá: sin state, sin sondeo y sin acciones, igual que cuando no hay sesión.
+  if(motivo === 'no-confiable'){
+    document.body.innerHTML = '<main style="max-width:560px;margin:64px auto;padding:24px;font-family:Arial,sans-serif"><h1>No se pudo leer el partido</h1><p>Revisá la conexión y recargá la página.</p></main>';
+    return;
+  }
+  // Queda 'ok', o 'vacio': la fila se leyó y su columna está vacía, que es lo
+  // único que autoriza a arrancar con los defaults.
+  state = estado || defaultState();
   localAvailabilityResponses = (state.responses||[]).map(item=>({
     ...item,
     responseId:item.responseId || crypto.randomUUID()

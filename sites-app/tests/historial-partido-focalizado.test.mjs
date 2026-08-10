@@ -40,6 +40,8 @@ function extractFunction(source, name) {
 }
 
 const NEEDED = [
+  // fetchServerState delega la lectura cruda: sin esto no resuelve el nombre.
+  "leerEstadoDelServidor",
   "fetchServerState",
   "saveState",
   "persistFocalizado",
