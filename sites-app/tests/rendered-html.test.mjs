@@ -1009,111 +1009,140 @@ function extractSedes(demo){
 
 // Parte un handler de canchas en "antes de saber el resultado" y "rama de fallo".
 function ramas(handler, label){
-  const chequeo = handler.indexOf('const ok = await persist();');
-  assert.ok(chequeo > -1, `${label}: no usa el resultado de persist`);
+  const chequeo = handler.indexOf('const {ok, motivo} = await ');
+  assert.ok(chequeo > -1, `${label}: no usa el resultado de la operación`);
   const rama = handler.indexOf('if(!ok){', chequeo);
   assert.ok(rama > chequeo, `${label}: no comprueba el resultado del guardado`);
-  return { previo: handler.slice(0, chequeo), fallo: handler.slice(rama), todo: handler };
+  // La rama se corta en su propio return: sin acotarla, "fallo" arrastraría también
+  // el camino de éxito y cualquier aserción negativa sobre ella sería falsa.
+  const cierre = handler.indexOf('return;', rama);
+  assert.ok(cierre > rama, `${label}: la rama de error no corta la ejecución`);
+  return { previo: handler.slice(0, chequeo), fallo: handler.slice(rama, cierre + 'return;'.length), todo: handler };
+}
+
+// Las tres operaciones, ya fuera de los handlers y sin DOM.
+function extractOperacionesSede(demo){
+  return {
+    agregar: sliceBetween(demo, 'async function agregarSede(nombre, direccion){', '\n}', 'agregarSede'),
+    editar: sliceBetween(demo, 'async function editarSede(clavePropia, campo, valor){', '\n}', 'editarSede'),
+    eliminar: sliceBetween(demo, 'async function eliminarSede(clavePropia){', '\n}', 'eliminarSede'),
+  };
 }
 
 test("venue names are unique under the same normalization the merge uses", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const s = extractSedes(demo);
+  const ops = extractOperacionesSede(demo);
 
   // mergeSedesArr y updateKnownSets normalizan con name.toLowerCase(), y los
   // handlers ya recortan con trim(). Si dos nombres colapsan para el merge son la
   // misma cancha: agregar una homónima pisaba la dirección de la que ya existía y
   // renombrar a una homónima fusionaba las dos, siempre en silencio.
   assert.match(demo, /function sedeKey\(name\)\{ return \(name\|\|''\)\.trim\(\)\.toLowerCase\(\); \}/);
-  assert.match(demo, /function sedeNombreOcupado\(name, exceptoEntrada\)\{/);
-  // exceptoEntrada: renombrar una cancha cambiándole sólo las mayúsculas a sí misma
-  // no se puede rechazar contra sí misma.
-  assert.match(demo, /sede !== exceptoEntrada && sedeKey\(sede\.name\) === key/);
 
-  // El guard va antes de tocar state y antes de llamar a Supabase. Sin esa
-  // invariancia el rollback del alta no es seguro: el merge de persist() colapsa
-  // las homónimas ANTES del guardado, así que al fallar quedaría una sola entrada
-  // y sacarla borraría la cancha real, que knownSedeNames ya no deja reponer.
-  const guardAlta = s.agregar.indexOf('if(sedeNombreOcupado(name)){');
+  // La validación corre contra las canchas que se le pasan —las frescas—, no contra
+  // state: el chequeo local no ve la cancha que otro teléfono agregó desde el último
+  // sondeo, y dos altas del mismo nombre terminaban fusionadas sin aviso.
+  const ocupada = sliceBetween(demo, 'function sedeOcupadaEnFresco(sedes, nombre, clavePropia){', '\n}', 'sedeOcupadaEnFresco');
+  assert.doesNotMatch(ocupada, /state\./, 'valida contra el estado local en vez del fresco');
+  // clavePropia: renombrar una cancha cambiándole sólo las mayúsculas a sí misma no
+  // se puede rechazar contra sí misma.
+  assert.match(ocupada, /sedeKey\(sede\.name\) !== clavePropia && sedeKey\(sede\.name\) === clave/);
+
+  // El guard va antes de tocar la lista fresca, en las dos operaciones que crean nombre.
+  const guardAlta = ops.agregar.indexOf('if(sedeOcupadaEnFresco(fresh.sedes, nombre)){');
   assert.ok(guardAlta > -1, 'el alta no valida el nombre duplicado');
-  assert.ok(guardAlta < s.agregar.indexOf('state.sedes.push'), 'el alta valida después de mutar state');
-  assert.ok(guardAlta < s.agregar.indexOf('await persist()'), 'el alta valida después de llamar a Supabase');
+  assert.ok(guardAlta < ops.agregar.indexOf('fresh.sedes.push'), 'el alta valida después de mutar la lista');
 
-  const guardRename = s.editar.indexOf("if(campo === 'name' && sedeNombreOcupado(valor, entrada)){");
+  const guardRename = ops.editar.indexOf("if(campo === 'name' && sedeOcupadaEnFresco(fresh.sedes, valor, clavePropia)){");
   assert.ok(guardRename > -1, 'el rename no valida el nombre duplicado');
-  assert.ok(guardRename < s.editar.indexOf('entrada[campo] = valor;'), 'el rename valida después de mutar la entrada');
-  assert.ok(guardRename < s.editar.indexOf('await persist()'), 'el rename valida después de llamar a Supabase');
+  assert.ok(guardRename < ops.editar.indexOf('fresh.sedes[indice][campo] = valor;'), 'el rename valida después de mutar la cancha');
 
   // Y al rechazar no se limpia lo escrito: el organizador puede corregir el nombre
   // sin volver a tipear la dirección.
-  const rechazoAlta = s.agregar.slice(guardAlta, s.agregar.indexOf('return;', guardAlta));
-  assert.match(rechazoAlta, /SEDES_ERROR_DUPLICADO/);
-  assert.doesNotMatch(rechazoAlta, /\.value = ''/, 'el alta limpia los inputs al rechazar por duplicado');
-});
-
-test("adding a venue rolls back by object identity when saving fails", async () => {
-  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const h = ramas(extractSedes(demo).agregar, 'agregar cancha');
-
-  // Por identidad y no por nombre: en mergeKeepingDeletions los ítems locales entran
-  // primero al Map, así que esta entrada sobrevive al merge. Sacarla por nombre
-  // borraría además una cancha homónima que otro dispositivo acabe de agregar.
-  assert.match(h.previo, /const nueva = \{name, address\};/);
-  assert.match(h.previo, /state\.sedes\.push\(nueva\);/);
-  assert.match(h.fallo, /state\.sedes = state\.sedes\.filter\(sede => sede !== nueva\);/);
-  assert.doesNotMatch(h.fallo, /sede\.name !== name/, 'saca la cancha por nombre en vez de por identidad');
-
-  // Lo tipeado vuelve a los inputs: el handler los limpia antes del guardado, así
-  // que sin esto no queda nada que reintentar.
-  assert.match(h.fallo, /nameInput\.value = name;/);
-  assert.match(h.fallo, /addressInput\.value = address;/);
-  assert.match(h.fallo, /renderSedesManageList\(\);/);
-  assert.match(h.fallo, /SEDES_ERROR_GUARDADO/);
+  assert.doesNotMatch(h.fallo, /\.value = ''/, 'el alta limpia los inputs al rechazar');
 });
 
-test("adding a venue redraws the list after a successful save", async () => {
+test("the venue operations work on the fresh state and never on the local copy", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const h = ramas(extractSedes(demo).agregar, 'agregar cancha');
+  const ops = extractOperacionesSede(demo);
 
-  // La lista se dibuja antes del guardado, y el merge de persist() puede sumar
-  // canchas de otro dispositivo. Sin volver a dibujar, las filas dejan de
-  // corresponderse con state.sedes y las que sobran apuntan a índices que ya no
-  // existen: editarlas tira TypeError.
-  const exito = h.todo.slice(h.todo.indexOf('return;', h.todo.indexOf('if(!ok){')));
-  assert.match(exito, /renderSedesManageList\(\);/, 'no vuelve a dibujar la lista tras guardar bien');
+  for(const [nombre, cuerpo] of Object.entries(ops)){
+    // Toda la intención se aplica sobre `fresh`: partir de la copia local es lo que
+    // revertía una dirección ajena o duplicaba un rename.
+    assert.match(cuerpo, /persistFocalizado\(fresh=>\{/, `${nombre}: no usa el escritor focalizado`);
+    assert.doesNotMatch(cuerpo, /state\./, `${nombre}: toca el estado local`);
+    assert.doesNotMatch(cuerpo, /persist\(\)/, `${nombre}: sigue usando el escritor viejo`);
+    // Devuelven el motivo: "ya existe", "ya no está" y "no hay conexión" no son lo mismo.
+    assert.match(cuerpo, /return \{ok, motivo\};/, `${nombre}: no devuelve el motivo`);
+  }
+
+  // La identidad que cruza el await es la clave, nunca el índice.
+  assert.match(ops.editar, /const indice = buscarSedeEnFresco\(fresh\.sedes, clavePropia\);/);
+  assert.match(ops.eliminar, /const indice = buscarSedeEnFresco\(fresh\.sedes, clavePropia\);/);
+  for(const nombre of ['editar', 'eliminar']){
+    assert.match(ops[nombre], /if\(indice < 0\)\{ motivo = SEDE_SIN_OBJETIVO; return false; \}/,
+      `${nombre}: no falla cerrado cuando la cancha ya no está`);
+  }
+  const buscar = sliceBetween(demo, 'function buscarSedeEnFresco(sedes, clave){', '\n}', 'buscarSedeEnFresco');
+  assert.match(buscar, /findIndex\(sede => sedeKey\(sede\.name\) === clave\)/);
 });
 
-test("editing a venue restores the previous value when saving fails", async () => {
+test("the venue handlers never touch the local state before the save", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const h = ramas(extractSedes(demo).editar, 'editar cancha');
+  const s = extractSedes(demo);
 
-  // Por referencia al objeto y no por índice: el merge de persist() puede sumar una
-  // cancha de otro dispositivo y correr las posiciones.
-  assert.match(h.previo, /const entrada = state\.sedes\[parseInt\(inp\.dataset\.idx\)\];/);
-  assert.match(h.previo, /const valorAnterior = entrada\[campo\];/);
-  assert.match(h.fallo, /entrada\[campo\] = valorAnterior;/);
-  assert.doesNotMatch(h.fallo, /state\.sedes\[/, 'restaura por índice en vez de por referencia');
+  for(const [nombre, handler] of [['agregar', s.agregar], ['editar', s.editar], ['eliminar', s.eliminar]]){
+    const h = ramas(handler, nombre);
+    // Save-first: sin mutación previa no hay rollback que mantener, y un guardado
+    // rechazado no deja residuo que el sondeo tenga que corregir.
+    assert.doesNotMatch(h.previo, /state\.sedes/, `${nombre}: muta las canchas locales antes de guardar`);
+    assert.doesNotMatch(h.todo, /dataset\.idx/, `${nombre}: sigue resolviendo la cancha por índice`);
+    // La rama de fallo no revierte nada porque no hay nada revertido.
+    assert.doesNotMatch(h.fallo, /state\.sedes/, `${nombre}: revierte estado que nunca tocó`);
+  }
 
-  // Una fila puede quedar sin entrada si el merge colapsó homónimas de datos
-  // viejos; sin el guard el handler explota con TypeError.
-  assert.match(h.previo, /if\(!entrada\) return;/);
+  // La identidad viaja en el markup de las tres filas.
+  const fila = sliceBetween(demo, '<input type="text" data-sede-key=', '`;', 'la fila de la lista de canchas');
+  assert.equal((fila.match(/data-sede-key="\$\{escapeHtml\(sedeKey\(s\.name\)\)\}"/g) || []).length, 3,
+    'faltan claves en la fila: van en los dos inputs y en el botón de eliminar');
+  assert.match(demo, /<button class="icon-btn danger" data-sede-key="\$\{escapeHtml\(sedeKey\(s\.name\)\)\}" data-action="delete-sede"/);
+  assert.doesNotMatch(fila, /data-idx=/, 'la fila sigue llevando el índice');
 
-  assert.match(h.fallo, /renderSedesManageList\(\);/);
-  assert.match(h.fallo, /SEDES_ERROR_GUARDADO/);
+  // Los handlers pasan la clave, no el índice.
+  assert.match(s.editar, /editarSede\(inp\.dataset\.sedeKey, campo, valor\)/);
+  assert.match(s.eliminar, /eliminarSede\(btn\.dataset\.sedeKey\)/);
 });
 
-test("deleting a venue puts it back in its place when saving fails", async () => {
+test("the venue handlers only touch the screen once the save landed", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const h = ramas(extractSedes(demo).eliminar, 'eliminar cancha');
+  const s = extractSedes(demo);
 
-  // El sondeo no la repone sola: knownSedeNames todavía la tiene y
-  // mergeKeepingDeletions lee su ausencia local como un borrado a propósito. Peor,
-  // el borrado rechazado se propagaba al grupo con el próximo guardado exitoso.
-  assert.match(h.previo, /const \[eliminada\] = state\.sedes\.splice\(idx,1\);/);
-  assert.match(h.fallo, /state\.sedes\.splice\(Math\.min\(idx, state\.sedes\.length\), 0, eliminada\);/);
-  assert.match(h.fallo, /renderSedesManageList\(\);/);
-  assert.match(h.fallo, /populateLocSelect\(state\.matchInfo\.loc\);/);
-  assert.match(h.fallo, /SEDES_ERROR_GUARDADO/);
+  // El alta limpia los inputs recién con el ok: antes los vaciaba primero y tenía que
+  // reponer lo tipeado en la rama de error para que el reintento fuera posible.
+  const alta = ramas(s.agregar, 'agregar cancha');
+  assert.doesNotMatch(alta.previo, /\.value = ''/, 'limpia los inputs antes de saber si guardó');
+  assert.doesNotMatch(alta.fallo, /\.value = name/, 'sigue reponiendo lo tipeado a mano');
+  const exitoAlta = alta.todo.slice(alta.todo.indexOf('return;', alta.todo.indexOf('if(!ok){')));
+  assert.match(exitoAlta, /nameInput\.value = '';/);
+  assert.match(exitoAlta, /renderSedesManageList\(\);/, 'no vuelve a dibujar la lista tras guardar bien');
+
+  // Un rename cambia la clave de la fila: sin actualizarla, el cambio siguiente sobre
+  // esa misma fila buscaría un nombre que ya no existe. Se reescriben los atributos en
+  // vez de redibujar, porque el onchange del nombre salta al pasar al campo de
+  // dirección y redibujar le sacaría el foco recién puesto.
+  const edicion = ramas(s.editar, 'editar cancha');
+  const exitoEdicion = edicion.todo.slice(edicion.todo.indexOf('return;', edicion.todo.indexOf('if(!ok){')));
+  assert.match(exitoEdicion, /if\(campo === 'name'\)\{/, 'no actualiza la clave de la fila tras un rename');
+  assert.match(exitoEdicion, /const claveNueva = sedeKey\(valor\);/);
+  assert.match(exitoEdicion, /querySelectorAll\('\[data-sede-key\]'\)\.forEach\(el=>\{\s*\r?\n\s*el\.dataset\.sedeKey = claveNueva;/);
+  assert.doesNotMatch(exitoEdicion, /renderSedesManageList\(\);/, 'redibuja la lista y le roba el foco al campo siguiente');
+
+  // La baja repinta también el desplegable de canchas del modal de partido.
+  const baja = ramas(s.eliminar, 'eliminar cancha');
+  const exitoBaja = baja.todo.slice(baja.todo.indexOf('return;', baja.todo.indexOf('if(!ok){')));
+  assert.match(exitoBaja, /populateLocSelect\(state\.matchInfo\.loc\);/);
+  assert.doesNotMatch(baja.previo, /populateLocSelect/, 'repinta el desplegable antes de saber si guardó');
 });
 
 test("the venue manager keeps a persistent inline error until the next attempt", async () => {
@@ -1125,12 +1154,20 @@ test("the venue manager keeps a persistent inline error until the next attempt",
   assert.match(demo, /<p class="modal-error" id="sedes-error" role="alert" hidden><\/p>/);
   assert.match(demo, /const SEDES_ERROR_GUARDADO = 'No se pudo guardar el cambio en las canchas\. Revisá la conexión e intentá otra vez\.';/);
   assert.match(demo, /const SEDES_ERROR_DUPLICADO = 'Ya tenés una cancha con ese nombre\.';/);
+  // Reintentar no sirve cuando la cancha ya no existe: necesita su propio aviso en vez
+  // de compartir el de "revisá la conexión".
+  assert.match(demo, /const SEDES_ERROR_SIN_OBJETIVO = 'Esa cancha ya no existe: otro dispositivo la eliminó\.';/);
+  const mensaje = sliceBetween(demo, 'function mensajeDeErrorDeSede(motivo){', '\n}', 'el mapeo de motivos a avisos');
+  assert.match(mensaje, /if\(motivo === SEDE_DUPLICADA\) return SEDES_ERROR_DUPLICADO;/);
+  assert.match(mensaje, /if\(motivo === SEDE_SIN_OBJETIVO\) return SEDES_ERROR_SIN_OBJETIVO;/);
+  assert.match(mensaje, /return SEDES_ERROR_GUARDADO;/);
 
   // Se limpia antes de cada intento, en los tres, y también al abrir y al cerrar.
   for(const [nombre, handler] of [['agregar', s.agregar], ['editar', s.editar], ['eliminar', s.eliminar]]){
     const limpieza = handler.indexOf('hideSedesError();');
     assert.ok(limpieza > -1, `${nombre}: no limpia el aviso antes de intentar`);
-    assert.ok(limpieza < handler.indexOf('await persist()'), `${nombre}: limpia el aviso después del intento`);
+    assert.ok(limpieza < handler.indexOf('const {ok, motivo} = await '), `${nombre}: limpia el aviso después del intento`);
+    assert.match(handler, /showSedesError\(mensajeDeErrorDeSede\(motivo\)\);/, `${nombre}: no distingue el motivo del fallo`);
   }
   for(const marcador of ["document.getElementById('open-manage-sedes-btn').onclick", "document.getElementById('manage-sedes-close').onclick"]){
     const tramo = sliceBetween(demo, marcador, '\n};', marcador);
@@ -1148,7 +1185,7 @@ test("the venue handlers never claim success when the save was rejected", async 
     const h = ramas(handler, nombre);
     assert.doesNotMatch(h.fallo, /showToast/, `${nombre}: avisa el error con un toast`);
     assert.match(h.fallo, /return;/, `${nombre}: la rama de error no corta la ejecución`);
-    assert.doesNotMatch(handler, /await persist\(\);(?!\s*\r?\n\s*if\(!ok\))/,
-      `${nombre}: hay un persist cuyo resultado no se comprueba`);
+    assert.doesNotMatch(handler, /await (agregar|editar|eliminar)Sede\([^)]*\);(?!\s*\r?\n\s*if\(!ok\))/,
+      `${nombre}: hay una operación cuyo resultado no se comprueba`);
   }
 });
