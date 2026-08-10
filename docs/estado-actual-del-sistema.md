@@ -106,7 +106,7 @@ Forma del JSON:
 ```
 {
   matchInfo:  { teamName, date, time, loc, type, priceTotal, alias },
-  players:    [ { name, status, team, paid, number, pos:{x,y}, isCaptain, isFormationExtra } ],
+  players:    [ { name, status, team, paid, number, pos:{x,y}, isCaptain } ],
   responses:  [ { responseId, ownerId, ownerIds[], name, status, from, to,
                   paid, team, isGuest, invitedBy, updatedAt } ],
   history:    [ { finalizedAt, matchInfo, players[], score:{negro,blanco}, goals:{} } ],
