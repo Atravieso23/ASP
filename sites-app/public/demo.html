@@ -1208,6 +1208,19 @@ function ensureFormationDefaults(){
     }
   });
 }
+// La formación con la que se dibuja. Si nadie eligió una, o la elegida es de otro
+// tipo de cancha, cae en el default del tipo actual SIN escribirlo: un default no
+// es una decisión de nadie, y guardarlo lo convertía en intención que después se
+// publicaba y le ganaba a la formación que había elegido otro dispositivo.
+function formacionEfectiva(team){
+  const opts = getFormationOptions(state.matchInfo.type);
+  const elegida = state.formations && state.formations[team];
+  return opts.includes(elegida) ? elegida : opts[0];
+}
+// Dónde quedó dibujada la ficha de cada jugador en el último render, por equipo.
+// Es estado de pantalla: no se guarda, no se sincroniza y lo pisa cada render. El
+// arrastre lo necesita porque un jugador sin `pos` guardada igual tiene ficha.
+let posicionesDibujadas = { negro:new Map(), blanco:new Map() };
 function pitchDistance(a, b){
   return Math.hypot(a.x-b.x, a.y-b.y);
 }
@@ -1234,7 +1247,14 @@ function findOpenSidelinePosition(occupied, minimumDistance){
     occupied.every(position=>pitchDistance(candidate,position)>=minimumDistance)
   ) || findOpenPitchPosition(occupied);
 }
-function autoAssignPositions(teamPlayers, formationStr){
+// Dónde se dibuja cada jugador y quién queda de suplente. Es una PROYECCIÓN: no
+// toca `state` ni los jugadores que recibe. Una `pos` guardada es la intención del
+// organizador y se respeta tal cual mientras sirva; lo demás —el relleno de los
+// que no tienen posición, el clamp, la separación de los encimados y la banda de
+// los suplentes— es una decisión de dibujo que muere al terminar el render.
+// Mismo algoritmo y mismos umbrales que antes; lo único que cambia es que ahora
+// devuelve en vez de escribir.
+function proyectarPosiciones(teamPlayers, formationStr){
   const slots = computeSlots(formationStr);
   const minimumDistance = 14;
   const extraMinimumDistance = 12;
@@ -1247,8 +1267,8 @@ function autoAssignPositions(teamPlayers, formationStr){
   const starterSet = new Set(rankedPlayers.slice(0,slots.length).map(item=>item.player));
   const starters = teamPlayers.filter(player=>starterSet.has(player));
   const extras = teamPlayers.filter(player=>!starterSet.has(player));
-  teamPlayers.forEach(player=>{ player.isFormationExtra = !starterSet.has(player); });
 
+  const dibujadas = new Map();
   const occupied = [];
 
   starters.forEach(player=>{
@@ -1257,21 +1277,20 @@ function autoAssignPositions(teamPlayers, formationStr){
       x:Math.max(6, Math.min(94, Number(player.pos.x))),
       y:Math.max(6, Math.min(94, Number(player.pos.y)))
     };
-    if(!Number.isFinite(position.x) || !Number.isFinite(position.y) || occupied.some(other=>pitchDistance(position, other)<minimumDistance)){
-      player.pos = null;
-      return;
-    }
-    player.pos = position;
+    // Encimado o ilegible: se lo deja sin lugar acá y lo reubica el paso siguiente,
+    // igual que antes. La diferencia es que su `pos` guardada queda intacta.
+    if(!Number.isFinite(position.x) || !Number.isFinite(position.y) || occupied.some(other=>pitchDistance(position, other)<minimumDistance)) return;
+    dibujadas.set(player, position);
     occupied.push(position);
   });
 
-  starters.forEach(p=>{
-    if(!p.pos){
-      const freeSlot = slots.find(slot=>occupied.every(position=>pitchDistance(slot, position)>=minimumDistance));
-      const position = freeSlot || findOpenPitchPosition(occupied);
-      p.pos = {x:position.x, y:position.y};
-      occupied.push(p.pos);
-    }
+  starters.forEach(player=>{
+    if(dibujadas.has(player)) return;
+    const freeSlot = slots.find(slot=>occupied.every(position=>pitchDistance(slot, position)>=minimumDistance));
+    const libre = freeSlot || findOpenPitchPosition(occupied);
+    const position = {x:libre.x, y:libre.y};
+    dibujadas.set(player, position);
+    occupied.push(position);
   });
 
   extras.forEach(player=>{
@@ -1279,13 +1298,16 @@ function autoAssignPositions(teamPlayers, formationStr){
     const staysOnSideline = current && Number.isFinite(current.x) && Number.isFinite(current.y) &&
       (current.x<=12 || current.x>=88) &&
       occupied.every(position=>pitchDistance(current,position)>=extraMinimumDistance);
-    if(!staysOnSideline){
-      player.pos = findOpenSidelinePosition(occupied,extraMinimumDistance);
-    }else{
-      player.pos = current;
-    }
-    occupied.push(player.pos);
+    const position = staysOnSideline ? current : findOpenSidelinePosition(occupied,extraMinimumDistance);
+    dibujadas.set(player, position);
+    occupied.push(position);
   });
+
+  return teamPlayers.map(player=>({
+    player,
+    pos: dibujadas.get(player),
+    esExtra: !starterSet.has(player)
+  }));
 }
 function saveLocalFormationState(){
   if(!DEMO_MODE || !state) return;
@@ -1441,8 +1463,9 @@ function attachDragHandlers(chip, team){
       let y = parseFloat(chip.style.top);
       const p = state.players.find(pl=>pl.name===name);
       if(!p){ return; }
-      // "Imán": si soltó cerca de un círculo punteado de la formación, se engancha ahí
-      const slots = computeSlots(state.formations[team]);
+      // "Imán": si soltó cerca de un círculo punteado de la formación, se engancha ahí.
+      // La formación efectiva, porque el default ya no se escribe en state.
+      const slots = computeSlots(formacionEfectiva(team));
       let nearestSlot = null, nearestSlotDist = Infinity;
       slots.forEach(s=>{
         const d = Math.hypot(s.x - x, s.y - y);
@@ -1454,15 +1477,25 @@ function attachDragHandlers(chip, team){
       // Antes de mutar: el intercambio lee la posición original del arrastrado, así que
       // hay que guardarla ahora. Sin esto un guardado rechazado dejaba la posición sólo
       // en este teléfono, y el sondeo no la corrige porque players gana localmente.
+      // `posPrevia` sale del dato guardado y puede ser null: es lo que hay que
+      // restaurar si el guardado falla. La posición dibujada NO sirve para eso, o un
+      // arrastre rechazado dejaría persistida la ubicación que eligió el render.
       const posPrevia = p.pos;
+      // Para el intercambio, en cambio, hace falta dónde se lo veía: el desplazado
+      // hereda el lugar del que arrastraste, y ese lugar puede ser sólo proyección.
+      const dibujadas = posicionesDibujadas[team] || new Map();
+      const posDibujadaPrevia = dibujadas.get(name);
       let intercambiado = null, posPreviaIntercambiado = null;
-      const others = state.players.filter(pl=>pl.team===team && pl.status==='in' && pl.name!==name && pl.pos);
+      const others = posDibujadaPrevia
+        ? state.players.filter(pl=>pl.team===team && pl.status==='in' && pl.name!==name && dibujadas.has(pl.name))
+        : [];
       for(const other of others){
-        const dx = other.pos.x - x, dy = other.pos.y - y;
+        const posOtro = dibujadas.get(other.name);
+        const dx = posOtro.x - x, dy = posOtro.y - y;
         if(Math.sqrt(dx*dx+dy*dy) < 5){
           intercambiado = other;
           posPreviaIntercambiado = other.pos;
-          other.pos = {x:p.pos.x, y:p.pos.y};
+          other.pos = {x:posDibujadaPrevia.x, y:posDibujadaPrevia.y};
           break;
         }
       }
@@ -1488,9 +1521,9 @@ function attachDragHandlers(chip, team){
   });
 }
 function renderFormationView(inList){
-  ensureFormationDefaults();
   ['negro','blanco'].forEach(team=>{
     const teamPlayers = inList.filter(p=>p.team===team);
+    const formacion = formacionEfectiva(team);
     const sel = document.getElementById('formation-select-'+team);
     const wasFocused = document.activeElement === sel;
     if(!wasFocused){
@@ -1499,23 +1532,26 @@ function renderFormationView(inList){
         const opt = document.createElement('option'); opt.value=f; opt.textContent=f;
         sel.appendChild(opt);
       });
-      sel.value = state.formations[team];
+      sel.value = formacion;
     }
-    autoAssignPositions(teamPlayers, state.formations[team]);
+    const proyeccion = proyectarPosiciones(teamPlayers, formacion);
+    // El arrastre necesita saber dónde quedó dibujado cada uno: para un jugador sin
+    // `pos` guardada, la ficha que se ve es lo único que existe.
+    posicionesDibujadas[team] = new Map(proyeccion.map(item=>[item.player.name, item.pos]));
 
     const pitch = document.getElementById('pitch-'+team);
     pitch.innerHTML = '';
-    computeSlots(state.formations[team]).forEach(s=>{
+    computeSlots(formacion).forEach(s=>{
       const slotEl = document.createElement('div');
       slotEl.className = 'pitch-slot';
       slotEl.style.left = s.x+'%'; slotEl.style.top = s.y+'%';
       slotEl.textContent = s.label;
       pitch.appendChild(slotEl);
     });
-    teamPlayers.filter(p=>p.pos).forEach(p=>{
+    proyeccion.forEach(({player:p, pos, esExtra})=>{
       const chip = document.createElement('div');
-      chip.className = 'field-chip ' + team + (p.isFormationExtra ? ' extra' : '');
-      chip.style.left = p.pos.x+'%'; chip.style.top = p.pos.y+'%';
+      chip.className = 'field-chip ' + team + (esExtra ? ' extra' : '');
+      chip.style.left = pos.x+'%'; chip.style.top = pos.y+'%';
       chip.dataset.name = p.name;
       chip.tabIndex = 0;
       chip.setAttribute('role','button');
@@ -1957,10 +1993,9 @@ async function persistFocalizado(aplicar){
     const playersLocales = state.players;
     state = fresh;
     // Al servidor fueron los players del servidor, intactos. Para la copia local se
-    // conservan los de este dispositivo, igual que hace el sondeo: `pos` lo regenera
-    // autoAssignPositions en cada render y no se lee nunca de vuelta, así que es
-    // estado de pantalla. Sin esto, cargar un resultado en el historial movería las
-    // fichas de la cancha, que no es asunto de esta acción.
+    // conservan los de este dispositivo, igual que hace el sondeo: las posiciones
+    // guardadas son asunto de Equipos y no de esta acción. Sin esto, cargar un
+    // resultado en el historial movería las fichas de la cancha.
     state.players = playersLocales;
     localAvailabilityResponses = state.responses;
     // Sólo con el ok: registrar como "ya conocido" algo que nunca llegó al servidor
@@ -2004,8 +2039,11 @@ async function cambiarFormacion(team, valor, select){
     state.formations[team] = formacionPrevia;
     posicionesPrevias.forEach(entrada=>{ entrada.player.pos = entrada.pos; });
     // El <select> hay que devolverlo a mano: renderFormationView no lo repone mientras
-    // tenga el foco, que es justo el caso después de cambiarlo.
-    select.value = formacionPrevia;
+    // tenga el foco, que es justo el caso después de cambiarlo. Va la formación
+    // efectiva y no `formacionPrevia`: si nadie había elegido nunca, lo guardado es
+    // undefined y el selector quedaba en blanco contradiciendo a la cancha, que
+    // sigue dibujando el default. Al estado vuelve lo persistido; acá, lo que se veía.
+    select.value = formacionEfectiva(team);
     render();
     saveLocalFormationState();
     showToast('No se pudo cambiar la formación. Revisá la conexión e intentá otra vez.');
@@ -2938,7 +2976,7 @@ function syncLocalAvailabilityWithPlayers(target = state, responses = localAvail
       player.status = playerStatus;
       player.paid = response.status === 'in' && response.paid === true;
       // Una posición pertenece al equipo en el que se la dibujó: si el equipo cambia,
-      // la posición deja de significar algo y la reasigna autoAssignPositions.
+      // la posición deja de significar algo y el render lo ubica en la cancha nueva.
       if(player.team !== nextTeam) player.pos = null;
       player.team = nextTeam;
     }else{

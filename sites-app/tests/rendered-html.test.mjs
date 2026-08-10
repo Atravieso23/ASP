@@ -63,7 +63,9 @@ test("shows editable formations only in the organizer view", async () => {
   assert.doesNotMatch(demo.slice(userStart, organizerStart), /id="pitch-(negro|blanco)"/);
   assert.match(demo.slice(organizerStart), /id="team-formations-title"[\s\S]*id="pitch-negro"[\s\S]*id="pitch-blanco"/);
   assert.match(demo, /const LOCAL_FORMATIONS_KEY = 'asp_formations_demo_v1'/);
-  assert.match(demo, /autoAssignPositions\(teamPlayers, state\.formations\[team\]\)/);
+  // La cancha se dibuja desde una proyección con la formación efectiva: el default
+  // del tipo ya no se escribe en state.formations.
+  assert.match(demo, /const proyeccion = proyectarPosiciones\(teamPlayers, formacion\)/);
   assert.doesNotMatch(demo, /reset-negro-btn|reset-blanco-btn|Reordenar según formación/);
   assert.doesNotMatch(demo, /view-formacion-btn|teams-view-formacion/);
 });
@@ -90,9 +92,12 @@ test("places new formation players in unoccupied positions", async () => {
   assert.match(demo, /slots\.find\(slot=>occupied\.every\(position=>pitchDistance\(slot, position\)>=minimumDistance\)\)/);
   assert.match(demo, /const starterSet = new Set\(rankedPlayers\.slice\(0,slots\.length\)/);
   assert.match(demo, /const extras = teamPlayers\.filter\(player=>!starterSet\.has\(player\)\)/);
-  assert.match(demo, /player\.isFormationExtra = !starterSet\.has\(player\)/);
+  // Ser suplente es un dato de la proyección, no del jugador: nadie lo lee fuera
+  // del render y escribirlo lo mandaba al servidor en cada guardado.
+  assert.match(demo, /esExtra: !starterSet\.has\(player\)/);
+  assert.doesNotMatch(demo, /isFormationExtra/);
   assert.match(demo, /findOpenSidelinePosition\(occupied,extraMinimumDistance\)/);
-  assert.match(demo, /p\.isFormationExtra \? ' extra' : ''/);
+  assert.match(demo, /esExtra \? ' extra' : ''/);
   assert.match(demo, /\.field-chip\.extra\{/);
 });
 
