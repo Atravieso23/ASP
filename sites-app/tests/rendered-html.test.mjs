@@ -46,7 +46,9 @@ test("connects the hosted app to Supabase using anonymous authentication", async
 test("reflects locally saved availability in the player lists", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /function syncLocalAvailabilityWithPlayers\(\)/);
+  // Con parámetros opcionales: las escrituras de responses derivan sobre un estado
+  // que todavía no es el global. Sin argumentos sigue operando sobre state.
+  assert.match(demo, /function syncLocalAvailabilityWithPlayers\(/);
   assert.match(demo, /playerStatus = response\.status/);
   assert.match(demo, /syncLocalAvailabilityWithPlayers\(\);\s*render\(\);\s*renderLocalOrganizer\(\);/);
   assert.match(demo, /restoreCurrentLocalResponse\(\);/);
@@ -170,7 +172,7 @@ test("keeps player state derived from universal responses without reseeding demo
   assert.match(demo, /state\.responses = localAvailabilityResponses/);
   assert.match(demo, /asp_availability_local_backup_v1/);
   assert.doesNotMatch(demo, /localAvailabilityResponses\.length >= 18/);
-  assert.match(demo, /state\.players = state\.players\.filter\(player=>responseNames\.has/);
+  assert.match(demo, /target\.players = target\.players\.filter\(player=>responseNames\.has/);
   // El equipo viaja de la respuesta al jugador, nunca al revés: la respuesta es la
   // fuente de verdad y players.team se deriva de ella en cada sincronización.
   assert.match(demo, /player\.team = nextTeam/);
@@ -293,7 +295,8 @@ test("manages per-date guests from the collapsed player status", async () => {
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
-  assert.match(demo, /invitedBy:owner\.name/);
+  // El anfitrión se relocaliza en las responses frescas antes de colgarle el invitado.
+  assert.match(demo, /invitedBy:anfitrion\.name/);
   assert.match(demo, /class="guest-paid-check/);
   assert.match(demo, /data-guest-paid="\$\{guest\.responseId\}"/);
   assert.match(demo, /data-remove-guest/);
@@ -320,7 +323,9 @@ test("collapses my status into a mobile-first quick summary with reversible paym
   assert.match(demo, /`\$\{response\.name\} · \$\{availability\}/);
   assert.match(demo, /class="my-status-summary-title">Mi estado/);
   assert.match(demo, /class="my-status-paid"/);
-  assert.match(demo, /response\.paid = button\.dataset\.value === 'yes'/);
+  // El pago sigue siendo reversible desde los dos botones, pero ya no se pinta antes
+  // de guardar: la escritura focalizada decide y el resumen se repinta con el ok.
+  assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
   assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
   assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste al registrarte\? Cambiar jugador/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
@@ -334,10 +339,12 @@ test("defaults to F8 and assigns every confirmed player to a balanced team", asy
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /type:'F8'/);
-  assert.match(demo, /function chooseBalancedTeam\(excludeName=''\)/);
+  assert.match(demo, /function chooseBalancedTeam\(excludeName=''/);
   assert.match(demo, /counts\.negro <= counts\.blanco \? 'negro' : 'blanco'/);
   assert.match(demo, /existingResponse\?\.team \|\| chooseBalancedTeam\(playerName\)/);
-  assert.match(demo, /team:chooseBalancedTeam\(guestName\)/);
+  // El invitado se balancea contra las responses del servidor, no contra la copia
+  // local, que ignora a los que se sumaron desde el último sondeo.
+  assert.match(demo, /team:chooseBalancedTeam\(nombre, responses\)/);
 });
 
 test("shows how many are confirmed against the field target in the ticket", async () => {
@@ -505,13 +512,13 @@ test("undoing a finalization rolls back and warns when saving fails", async () =
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const undo = extractUndoHandler(demo);
 
-  // Mismo patrón que el borrado de jugadores e invitados: snapshot previo,
-  // esperar el guardado, revertir y avisar si falló. persist() no sirve acá
-  // porque no devuelve si el guardado funcionó, y sin eso el cartel de éxito
-  // salía igual y el sondeo revertía todo a los 4 segundos.
+  // Snapshot previo, esperar el guardado, revertir y avisar si falló. persist() no
+  // sirve acá porque adopta las responses del servidor, y el undo justamente las
+  // reemplaza. Tampoco usa la escritura focalizada de pagos/invitados: no modifica
+  // una response puntual y ya trae su propia lectura fresca más arriba.
   assert.match(undo.previo, /const previousState = state;/);
   assert.match(undo.previo, /const previousResponses = localAvailabilityResponses;/);
-  assert.match(undo.previo, /const ok = await saveLocalAvailability\(\);/);
+  assert.match(undo.previo, /const ok = await saveState\(state\);/);
   assert.doesNotMatch(undo.todo, /await persist\(\)/);
 
   // El estado viejo no se muta: se reemplaza por uno nuevo, así que devolver la

@@ -36,7 +36,6 @@ const NEEDED = [
   "mergePlayers",
   "mergeSedesArr",
   "syncLocalAvailabilityWithPlayers",
-  "saveLocalAvailability",
   "persist",
 ];
 
