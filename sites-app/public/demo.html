@@ -595,12 +595,12 @@
         <label for="my-player-name" id="my-player-name-label">Nombre del jugador</label>
         <div class="player-picker-row">
           <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
-          <button type="button" class="player-picker-mode" id="first-time-player-btn">Registrarme</button>
+          <button type="button" class="player-picker-mode" id="first-time-player-btn">Este soy yo</button>
         </div>
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
-        <p class="player-picker-help" id="player-picker-help">Buscá tu nombre. Si no aparecés, tocá “Registrarme”.</p>
+        <p class="player-picker-help" id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados.</p>
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
-        <button type="button" class="change-player-btn" id="change-player-btn" hidden>¿Te equivocaste al registrarte? Cambiar jugador</button>
+        <button type="button" class="change-player-btn" id="change-player-btn" hidden>¿Te equivocaste de nombre? Cambiar jugador</button>
       </div>
       <span class="my-status-label">Disponibilidad</span>
       <div class="my-status-choice" role="group" aria-label="Disponibilidad">
@@ -2964,10 +2964,10 @@ function setRegisteredPlayerNameMode(allowChange=false){
   }else if(ownResponse){
     label.textContent = 'Cambiar jugador';
     help.textContent = 'Corregí el nombre y volvé a confirmar. No podrás usar un nombre que ya pertenezca a otra persona.';
-    showPlayerNameFeedback('info','Cambio de jugador activado.',' Usalo solamente si te equivocaste al registrarte.');
+    showPlayerNameFeedback('info','Cambio de jugador activado.',' Usalo solamente si te equivocaste de nombre.');
   }else{
     label.textContent = 'Nombre del jugador';
-    help.textContent = 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
+    help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
   }
 }
 function renderRecurrentPlayerMenu(){
@@ -2983,7 +2983,7 @@ function renderRecurrentPlayerMenu(){
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
       <button type="button" class="recurrent-player-delete" data-delete-recurrent-index="${item.index}" aria-label="Quitar a ${escapeHtml(item.name)} de jugadores recurrentes">×</button>
-    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Tocá “Registrarme” para crear tu jugador.</p>';
+    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Tocá “Este soy yo” para usar uno nuevo.</p>';
   menu.hidden = false;
   input.setAttribute('aria-expanded','true');
   menu.querySelectorAll('[data-recurrent-index]').forEach(button=>{
@@ -3052,11 +3052,11 @@ function setFirstTimeRegistration(active,preserveValue=false){
   const confirm = document.getElementById('my-status-confirm');
   if(!preserveValue) input.value = '';
   button.classList.toggle('active', active);
-  button.textContent = active ? 'Cancelar' : 'Registrarme';
-  label.textContent = active ? 'Registrar jugador' : 'Nombre del jugador';
+  button.textContent = active ? 'Cancelar' : 'Este soy yo';
+  label.textContent = active ? 'Tu nombre' : 'Nombre del jugador';
   input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
-  help.textContent = active ? 'Modo registro activado. Escribí un nombre que te identifique y confirmalo abajo.' : 'Buscá tu nombre. Si no aparecés, tocá “Registrarme”.';
-  confirm.textContent = active ? 'Registrarme y confirmar' : 'Confirmar';
+  help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
+  confirm.textContent = active ? 'Confirmar mi respuesta' : 'Confirmar';
   if(active){
     const typedName = input.value.trim();
     const duplicate = recurrentPlayers.some(name=>name.toLocaleLowerCase('es')===typedName.toLocaleLowerCase('es'));
@@ -3510,8 +3510,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   // el motivo de ese modo. Los controles de nombre duplicado siguen aplicando.
   if(!registeringFirstTime && !changingRegisteredPlayer && !recurrentMatch){
     nameInput.setAttribute('aria-invalid','true');
-    showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Registrarme” para crear uno nuevo.');
-    showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Registrarme”.');
+    showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Este soy yo”.');
+    showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Este soy yo”.');
     renderRecurrentPlayerMenu();
     return;
   }

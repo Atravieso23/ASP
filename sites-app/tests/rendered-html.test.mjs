@@ -254,17 +254,21 @@ test("rebuilds formations for every field type change", async () => {
     'vuelve a materializar el default del tipo nuevo');
 });
 
-test("supports recurrent players and first-time registration", async () => {
+test("supports recurrent players with identity-focused first-time copy", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /LOCAL_RECURRENT_PLAYERS_KEY/);
-  assert.match(demo, /id="first-time-player-btn">Registrarme/);
+  assert.match(demo, /id="first-time-player-btn">Este soy yo/);
+  assert.match(demo, /id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados\./);
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
   assert.match(demo, /data-delete-recurrent-index/);
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
   assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
-  assert.match(demo, /Si no aparecés, tocá “Registrarme”/);
+  assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
+  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre del jugador';/);
+  assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
+  assert.match(demo, /confirm\.textContent = active \? 'Confirmar mi respuesta' : 'Confirmar';/);
   assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
 });
@@ -284,7 +288,7 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /'Nombre ya tomado\.'/);
   assert.match(demo, /agregá tu apellido o apodo para diferenciarte/);
   assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
-  assert.match(demo, /Modo registro activado/);
+  assert.match(demo, /Usá siempre el mismo nombre para evitar duplicados\./);
   assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
 });
 
@@ -343,7 +347,7 @@ test("collapses my status into a mobile-first quick summary with reversible paym
   // de guardar: la escritura focalizada decide y el resumen se repinta con el ok.
   assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
   assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
-  assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste al registrarte\? Cambiar jugador/);
+  assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste de nombre\? Cambiar jugador/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
   assert.match(demo, /Estás editando la respuesta de \$\{ownResponse\.name\}/);
