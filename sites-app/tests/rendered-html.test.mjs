@@ -778,7 +778,7 @@ test("the history inputs save before touching the screen and address dates by id
 
 test("the focused writer starts from the server and publishes only once the save lands", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const focalizado = sliceBetween(demo, 'async function persistFocalizado(aplicar){', '\n}', 'la función persistFocalizado');
+  const focalizado = sliceBetween(demo, 'async function persistFocalizado(aplicar, opciones){', '\n}', 'la función persistFocalizado');
 
   // Parte de fresh y no de la copia local: es toda la diferencia con persist().
   assert.match(focalizado, /const fresh = await fetchServerState\(\);/);
@@ -790,6 +790,12 @@ test("the focused writer starts from the server and publishes only once the save
   // players no le pertenece a estos llamadores: los del servidor pasan intactos.
   assert.doesNotMatch(focalizado, /mergePlayers/, 'mergea players, que no son suyos');
   assert.doesNotMatch(focalizado, /mergeSedesArr/, 'mergea sedes, que no son suyas');
+
+  // Quien no es dueño de players conserva los suyos; los de Equipos reconcilian igual
+  // que el sondeo. Sin eso, el arrastre y la formación descartarían su propia intención
+  // recién guardada al quedarse con la copia local vieja.
+  assert.match(focalizado, /state\.players = playersLocales;/);
+  assert.match(focalizado, /if\(adoptarPlayers\) reconciliarPlayers\(playersRemotos\);/);
 
   // Save-first: la publicación va después del ok, nunca antes.
   const guardado = focalizado.indexOf('const ok = await saveState(fresh);');
