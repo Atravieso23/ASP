@@ -24,7 +24,7 @@ Toda la aplicación es **un único archivo HTML estático de ~3.150 líneas** (`
 Detalles verificados:
 
 - `sites-app/app/page.tsx` (11 líneas) renderiza únicamente un iframe hacia `/demo.html`.
-- `sites-app/app/layout.tsx` define metadata/OpenGraph ("ASP · Picado del sábado") y nada más.
+- `sites-app/app/layout.tsx` define metadata/OpenGraph ("Organizador de Partidos ASP") y nada más.
 - `sites-app/db/schema.ts`: `// Intentionally empty by default. export {};`
 - Supabase se carga por CDN externo: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">` (demo.html:1001). Si ese CDN falla o está bloqueado, la app muestra "No se pudo conectar" y no arranca.
 - En la raíz del repo hay `index.html` (2.201 líneas) e `index-original.html` (1.845 líneas): versiones anteriores que **no se sirven** desde la app actual. Conviene decidir si se archivan.

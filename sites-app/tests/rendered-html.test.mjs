@@ -29,7 +29,7 @@ test("renders the ASP demo shell", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /ASP · Picado del sábado/i);
+  assert.match(html, /Organizador de Partidos ASP/i);
   assert.match(html, /src="\/demo\.html"/i);
 });
 

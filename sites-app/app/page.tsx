@@ -4,7 +4,7 @@ export default function Home() {
       <iframe
         className="site-preview"
         src="/demo.html"
-        title="ASP · Picado del sábado"
+        title="Organizador de Partidos ASP"
       />
     </main>
   );
