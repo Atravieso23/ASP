@@ -294,17 +294,34 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
 });
 
-test("lets a trusted player reuse an existing profile on another device", async () => {
+test("lets a trusted player reuse an existing response on another device", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const claimModal = sliceBetween(
+    demo,
+    '<div class="modal-overlay" id="claim-player-overlay">',
+    '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>',
+    'el modal para confirmar el jugador',
+  );
+  const claimHandler = sliceBetween(
+    demo,
+    "document.getElementById('claim-player-confirm').onclick = async ()=>{",
+    'clearConfirmBtn.onclick = async ()=>{',
+    'el handler para confirmar el jugador',
+  );
 
-  assert.match(demo, /<h2>Ya estoy registrado<\/h2>/);
-  assert.match(demo, /Sí, usar este jugador/);
+  assert.match(claimModal, /<h2>Confirmá quién sos<\/h2>/);
+  assert.match(claimModal, /Desde este dispositivo vas a poder editar su asistencia, horario y pago durante esta fecha\./);
+  assert.match(claimModal, /Sí, usar este jugador/);
   assert.match(demo, /¿Sos \$\{selectedResponse\.name\}\?/);
   assert.match(demo, /function responseBelongsToCurrentDevice\(response\)/);
   assert.match(demo, /response\.ownerIds\|\|\[\]/);
-  assert.match(demo, /addCurrentDeviceToResponse\(target\)/);
-  assert.match(demo, /restoreCurrentLocalResponse\(\)/);
-  assert.match(demo, /quedó vinculado a este dispositivo/);
+  assert.match(claimHandler, /addCurrentDeviceToResponse\(target\)/);
+  assert.match(claimHandler, /button\.textContent = 'Confirmando…'/);
+  assert.match(claimHandler, /No pudimos permitirte editar a \$\{target\.name\} desde este dispositivo\. Intentá nuevamente\./);
+  assert.match(claimHandler, /restoreCurrentLocalResponse\(\)/);
+  assert.match(claimHandler, /Ya podés editar a \$\{target\.name\} desde este dispositivo\./);
+  assert.doesNotMatch(claimModal + claimHandler, /Ya estoy registrado|recordará al jugador|Vinculando|vincular este dispositivo|quedó vinculado/i);
+  assert.doesNotMatch(demo, /No se pudo recordar al jugador local/);
 });
 
 test("manages per-date guests from the collapsed player status", async () => {
