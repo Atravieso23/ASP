@@ -2387,69 +2387,97 @@ document.getElementById('edit-match-btn').onclick = ()=>{
   overlay.classList.add('open');
 };
 document.getElementById('m-cancel').onclick = ()=>{ matchError.hidden = true; overlay.classList.remove('open'); };
+// Editar partido es UNA intención y una sola escritura focalizada sobre el estado
+// fresco. Era el último caller de persist(), que serializa la copia local: adopta del
+// servidor players, sedes y responses, pero matchInfo, history y frequentAliases viajan
+// como estaban acá. Y el modal frena el sondeo mientras está abierto, así que esa copia
+// puede tener minutos de atraso justo cuando se guarda: alcanzaba con corregir la hora
+// para borrar la fecha que otro acababa de finalizar o el alias que otro acababa de
+// guardar.
+//
+// `datos` es lo que expresa el formulario, ya leído del DOM. Save-first: nada del estado
+// global se toca hasta que el servidor confirmó, así que no hay rollback que hacer.
+//
+// Devuelve también si cambió el tipo, que el llamador necesita y sólo se sabe acá: la
+// comparación es contra `fresh.matchInfo.type` y no contra la copia local. Si otro
+// dispositivo cambió el tipo mientras el modal estaba abierto, guardar el formulario lo
+// revierte, y quedarse con las posiciones del tipo que se va dejaría posiciones de una
+// cancha con el tipo de otra.
+async function guardarPartido(datos){
+  let cambioDeTipo = false;
+  const ok = await persistFocalizado(fresh=>{
+    // El alta opcional de cancha se superpone sobre las frescas y se revalida contra
+    // ellas: el chequeo local no ve la que otro dispositivo agregó desde el último
+    // sondeo, que con el modal abierto puede ser hace rato. Misma normalización que
+    // usan el merge y la gestión de canchas, así que "CANCHA" y "Cancha" son una sola.
+    if(datos.sedeNueva){
+      if(!fresh.sedes) fresh.sedes = [];
+      if(!fresh.sedes.some(sede=>sedeKey(sede.name)===sedeKey(datos.sedeNueva))){
+        fresh.sedes.push({name:datos.sedeNueva, address:''});
+      }
+    }
+    cambioDeTipo = fresh.matchInfo.type !== datos.type;
+    fresh.matchInfo = {
+      teamName: datos.teamName,
+      date: datos.date,
+      time: datos.time,
+      loc: datos.loc,
+      type: datos.type,
+      priceTotal: datos.priceTotal,
+      alias: datos.alias,
+    };
+    // El alias usado encabeza los frecuentes FRESCOS: superponerse y no reemplazar es
+    // toda la diferencia con la copia local, que no tiene los que agregaron los demás.
+    if(datos.alias){
+      const otros = (fresh.frequentAliases||[]).filter(alias=>
+        alias.toLocaleLowerCase('es')!==datos.alias.toLocaleLowerCase('es')
+      );
+      fresh.frequentAliases = [datos.alias, ...otros].slice(0, 10);
+    }
+    // Semántica de siempre para el cambio de tipo: las posiciones y las formaciones
+    // elegidas eran de la cancha anterior y se descartan. No se materializan los
+    // defaults del tipo nuevo —ensureFormationDefaults() hacía eso— porque
+    // formacionEfectiva() ya proyecta exactamente ese valor sin escribirlo: la vista es
+    // idéntica y persistirlo sólo lo volvería indistinguible de la elección de alguien,
+    // que es lo que D1 sacó del render y D2 volvió estado compartido.
+    if(cambioDeTipo){
+      fresh.formations = {};
+      (fresh.players||[]).forEach(player=>{ player.pos = null; });
+    }
+    return true;
+  // Cuando cambia el tipo esta acción sí es dueña de players: anula las posiciones. Y
+  // cuando no lo es, reconciliar es exactamente lo que haría el sondeo, así que la
+  // copia local termina donde termina el servidor en los dos casos.
+  }, {adoptarPlayers:true});
+  return {ok, cambioDeTipo};
+}
 document.getElementById('m-save').onclick = async ()=>{
   // Se limpia antes de intentar: si vuelve a fallar se muestra de nuevo, y si sale
   // bien no queda un aviso viejo colgado.
   matchError.hidden = true;
-  const previousFieldType = state.matchInfo.type;
-  const nextFieldType = document.getElementById('m-type').value;
-  const nextAlias = document.getElementById('m-alias').value.trim();
 
-  // Snapshot de lo único que este handler puede tocar, para revertirlo si el
-  // guardado falla. Desde D2 el sondeo repone del servidor los cuatro —matchInfo,
-  // frequentAliases, formations y las posiciones—, así que esto ya no evita
-  // residuos permanentes: evita que la pantalla muestre hasta el próximo ciclo un
-  // cambio que el servidor rechazó. Los tres primeros se reasignan enteros, así que
-  // guardar la referencia alcanza; pos se anula jugador por jugador, así que se
-  // guarda contra el objeto y no por índice.
-  const previousMatchInfo = state.matchInfo;
-  const previousAliases = state.frequentAliases;
-  const previousFormations = state.formations;
-  const previousPositions = state.players.map(player=>({player, pos:player.pos}));
-  let sedeAgregada = null;
-
+  // La cancha nueva es opcional y sólo cuenta si se tipeó un nombre. El alta la resuelve
+  // el writer contra las canchas frescas; acá sólo se lee lo que el organizador eligió.
   let loc = document.getElementById('m-loc').value;
+  let sedeNueva = null;
   if(loc === '__new__'){
-    const newLoc = document.getElementById('m-loc-new').value.trim();
-    if(newLoc){
-      loc = newLoc;
-      if(!state.sedes) state.sedes = [];
-      if(!state.sedes.some(s=>s.name.toLowerCase()===newLoc.toLowerCase())){
-        state.sedes.push({name:newLoc, address:''});
-        sedeAgregada = newLoc;
-      }
-    } else { loc = ''; }
+    const nueva = document.getElementById('m-loc-new').value.trim();
+    if(nueva){ sedeNueva = nueva; loc = nueva; } else { loc = ''; }
   }
-  state.matchInfo = {
+
+  const {ok, cambioDeTipo} = await guardarPartido({
     teamName: document.getElementById('m-teamname').value.trim() || 'ASP',
     date: document.getElementById('m-date').value.trim(),
     time: document.getElementById('m-time').value.trim(),
-    loc: loc,
-    type: nextFieldType,
+    loc,
+    sedeNueva,
+    type: document.getElementById('m-type').value,
     priceTotal: document.getElementById('m-price').value.trim(),
-    alias: nextAlias,
-  };
-  if(nextAlias){
-    state.frequentAliases = (state.frequentAliases||[]).filter(alias=>alias.toLocaleLowerCase('es')!==nextAlias.toLocaleLowerCase('es'));
-    state.frequentAliases.unshift(nextAlias);
-    state.frequentAliases = state.frequentAliases.slice(0, 10);
-  }
-  if(previousFieldType!==nextFieldType){
-    state.formations = {};
-    state.players.forEach(player=>{ player.pos = null; });
-    ensureFormationDefaults();
-  }
-  const ok = await persist();
+    alias: document.getElementById('m-alias').value.trim(),
+  });
+
   if(!ok){
-    state.matchInfo = previousMatchInfo;
-    state.frequentAliases = previousAliases;
-    state.formations = previousFormations;
-    previousPositions.forEach(entry=>{ entry.player.pos = entry.pos; });
-    // Por nombre y no restaurando el array entero: el merge de persist() pudo sumar
-    // una sede de otro dispositivo y descartarla acá la dejaría afuera.
-    if(sedeAgregada) state.sedes = state.sedes.filter(sede=>sede.name !== sedeAgregada);
-    render();
-    renderLocalOrganizer();
+    // No hay nada que revertir ni que redibujar: save-first, el estado quedó intacto.
     // El modal queda abierto a propósito. Los inputs sólo se cargan al abrirlo, así
     // que lo que el organizador tipeó sigue ahí y puede reintentar sin reescribirlo.
     // El aviso va inline y no como toast: tiene que seguir visible mientras el
@@ -2460,7 +2488,7 @@ document.getElementById('m-save').onclick = async ()=>{
   overlay.classList.remove('open');
   render();
   // Recién acá: no dejar estado local de un cambio que el servidor rechazó.
-  if(previousFieldType!==nextFieldType) saveLocalFormationState();
+  if(cambioDeTipo) saveLocalFormationState();
 };
 
 /* ---------- FINALIZAR / LIMPIAR ---------- */
