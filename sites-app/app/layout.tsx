@@ -16,11 +16,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const socialImage = `${protocol}://${host}/og.png`;
 
   return {
-    title: "ASP · Picado del sábado",
+    title: "Organizador de Partidos ASP",
     description:
       "Demo interactiva para organizar disponibilidad, equipos y pagos.",
     openGraph: {
-      title: "ASP · Picado del sábado",
+      title: "Organizador de Partidos ASP",
       description:
         "Demo interactiva para organizar disponibilidad, equipos y pagos.",
       type: "website",
@@ -29,7 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: "ASP · Picado del sábado",
+      title: "Organizador de Partidos ASP",
       description:
         "Demo interactiva para organizar disponibilidad, equipos y pagos.",
       images: [socialImage],
