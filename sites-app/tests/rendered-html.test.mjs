@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import vm from "node:vm";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -254,17 +255,22 @@ test("rebuilds formations for every field type change", async () => {
     'vuelve a materializar el default del tipo nuevo');
 });
 
-test("supports recurrent players and first-time registration", async () => {
+test("supports recurrent players with identity-focused first-time copy", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /LOCAL_RECURRENT_PLAYERS_KEY/);
-  assert.match(demo, /id="first-time-player-btn">Registrarme/);
+  assert.match(demo, /id="first-time-player-btn">Este soy yo/);
+  assert.match(demo, /id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados\./);
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
   assert.match(demo, /data-delete-recurrent-index/);
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
   assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
-  assert.match(demo, /Si no aparecés, tocá “Registrarme”/);
+  assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
+  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre del jugador';/);
+  assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
+  assert.match(demo, /confirm\.textContent = active \? 'Confirmar mi respuesta' : 'Confirmar';/);
+  assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
   assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
 });
@@ -284,7 +290,7 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /'Nombre ya tomado\.'/);
   assert.match(demo, /agregá tu apellido o apodo para diferenciarte/);
   assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
-  assert.match(demo, /Modo registro activado/);
+  assert.match(demo, /Usá siempre el mismo nombre para evitar duplicados\./);
   assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
 });
 
@@ -306,8 +312,7 @@ test("manages per-date guests from the collapsed player status", async () => {
 
   assert.match(demo, /¿A tu invitado le dio paja registrarse\?/);
   assert.match(demo, /Gestioná su asistencia y pago desde acá\./);
-  assert.match(demo, /id="guest-manager-toggle"[^>]*>Gestionar invitados/);
-  assert.match(demo, /manager\.hidden \? 'Gestionar invitados' : 'Cerrar gestión'/);
+  assert.match(demo, /id="guest-manager-toggle"[^>]*>Agregar invitado/);
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
@@ -320,6 +325,40 @@ test("manages per-date guests from the collapsed player status", async () => {
   assert.doesNotMatch(demo, /<details class="guest-item">/);
   assert.match(demo, /Invitado de \$\{escapeHtml\(item\.invitedBy/);
   assert.match(demo, /localStorage\.removeItem\(LOCAL_AVAILABILITY_KEY\)/);
+});
+
+test("renders the guest CTA from the manager visibility", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const guestManagerRenderer = sliceBetween(
+    demo,
+    'function renderGuestManager(){',
+    '\nfunction renderLocalOrganizer(){',
+    'renderGuestManager',
+  );
+  const manager = { hidden: true };
+  const toggle = { textContent: '' };
+  const list = { innerHTML: '', querySelectorAll(){ return []; } };
+  const count = { textContent: '' };
+  const elements = {
+    'guest-manager': manager,
+    'guest-manager-toggle': toggle,
+    'guest-list': list,
+    'guest-manager-count': count,
+  };
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    getCurrentPlayerGuests(){ return []; },
+  });
+
+  new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
+    .runInContext(context);
+
+  context.renderGuestManager();
+  assert.equal(toggle.textContent, 'Agregar invitado');
+
+  manager.hidden = false;
+  context.renderGuestManager();
+  assert.equal(toggle.textContent, 'Cerrar invitados');
 });
 
 test("keeps the user team summary compact", async () => {
@@ -343,7 +382,7 @@ test("collapses my status into a mobile-first quick summary with reversible paym
   // de guardar: la escritura focalizada decide y el resumen se repinta con el ok.
   assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
   assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
-  assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste al registrarte\? Cambiar jugador/);
+  assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste de nombre\? Cambiar jugador/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
   assert.match(demo, /Estás editando la respuesta de \$\{ownResponse\.name\}/);
@@ -627,6 +666,57 @@ function sliceBetween(demo, startMarker, endMarker, label){
   assert.ok(end > start, `no ubiqué el final de ${label}`);
   return demo.slice(start, end);
 }
+
+test("sets the complete availability range from the full-day control", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const availabilityHelpers = sliceBetween(
+    demo,
+    'const mockHourOptions =',
+    'function restoreCurrentLocalResponse',
+    'los helpers de disponibilidad',
+  );
+  const makeSelect = (initialValue, optionValues = []) => {
+    let values = optionValues;
+    let value = initialValue;
+    return {
+      get value(){ return value; },
+      set value(nextValue){ value = values.includes(nextValue) ? nextValue : ''; },
+      get optionValues(){ return values; },
+      set innerHTML(markup){
+        values = [...markup.matchAll(/value="([^"]+)"/g)].map(([, optionValue]) => optionValue);
+        value = values.includes(value) ? value : '';
+      },
+    };
+  };
+  const hourOptions = [
+    '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00',
+    '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00',
+  ];
+  const mockFrom = makeSelect('16:00', hourOptions);
+  const mockTo = makeSelect('20:00', hourOptions);
+  const fullDayButton = {};
+  const context = vm.createContext({
+    mockFrom,
+    mockTo,
+    document: {
+      getElementById(id){ return id === 'my-status-full-day' ? fullDayButton : null; },
+    },
+  });
+
+  new vm.Script(`${availabilityHelpers}\nglobalThis.setFullDayAvailability = setFullDayAvailability;`)
+    .runInContext(context);
+  const clickConnection = demo.match(/document\.getElementById\('my-status-full-day'\)\.onclick = setFullDayAvailability;/);
+  assert.ok(clickConnection, 'el botón de día completo no está conectado al helper');
+  new vm.Script(clickConnection[0]).runInContext(context);
+  fullDayButton.onclick();
+
+  assert.equal(mockFrom.value, '09:00');
+  assert.deepEqual(mockTo.optionValues, [
+    '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00',
+    '17:00', '18:00', '19:00', '20:00', '21:00', '22:00',
+  ]);
+  assert.equal(mockTo.value, '22:00');
+});
 
 const HISTORY_INPUTS = [
   ['precio de una fecha archivada', ".edit-price-input').forEach(inp=>{", /No se pudo guardar el precio/,    /guardarPrecioDeHistorial\(inp\.dataset\.finalizedAt,/],
