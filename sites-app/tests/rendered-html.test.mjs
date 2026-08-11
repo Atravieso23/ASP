@@ -311,8 +311,7 @@ test("manages per-date guests from the collapsed player status", async () => {
 
   assert.match(demo, /¿A tu invitado le dio paja registrarse\?/);
   assert.match(demo, /Gestioná su asistencia y pago desde acá\./);
-  assert.match(demo, /id="guest-manager-toggle"[^>]*>Gestionar invitados/);
-  assert.match(demo, /manager\.hidden \? 'Gestionar invitados' : 'Cerrar gestión'/);
+  assert.match(demo, /id="guest-manager-toggle"[^>]*>Agregar invitado/);
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
@@ -325,6 +324,40 @@ test("manages per-date guests from the collapsed player status", async () => {
   assert.doesNotMatch(demo, /<details class="guest-item">/);
   assert.match(demo, /Invitado de \$\{escapeHtml\(item\.invitedBy/);
   assert.match(demo, /localStorage\.removeItem\(LOCAL_AVAILABILITY_KEY\)/);
+});
+
+test("renders the guest CTA from the manager visibility", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const guestManagerRenderer = sliceBetween(
+    demo,
+    'function renderGuestManager(){',
+    '\nfunction renderLocalOrganizer(){',
+    'renderGuestManager',
+  );
+  const manager = { hidden: true };
+  const toggle = { textContent: '' };
+  const list = { innerHTML: '', querySelectorAll(){ return []; } };
+  const count = { textContent: '' };
+  const elements = {
+    'guest-manager': manager,
+    'guest-manager-toggle': toggle,
+    'guest-list': list,
+    'guest-manager-count': count,
+  };
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    getCurrentPlayerGuests(){ return []; },
+  });
+
+  new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
+    .runInContext(context);
+
+  context.renderGuestManager();
+  assert.equal(toggle.textContent, 'Agregar invitado');
+
+  manager.hidden = false;
+  context.renderGuestManager();
+  assert.equal(toggle.textContent, 'Cerrar invitados');
 });
 
 test("keeps the user team summary compact", async () => {

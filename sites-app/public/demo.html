@@ -677,7 +677,7 @@
           <span>Gestioná su asistencia y pago desde acá.</span>
         </div>
         <div class="guest-manager-actions">
-          <button type="button" class="guest-manager-toggle" id="guest-manager-toggle" aria-expanded="false">Gestionar invitados</button>
+          <button type="button" class="guest-manager-toggle" id="guest-manager-toggle" aria-expanded="false">Agregar invitado</button>
           <span class="guest-manager-count" id="guest-manager-count">0 invitados</span>
         </div>
       </div>
@@ -3218,7 +3218,7 @@ function renderGuestManager(){
   if(!manager || !toggle || !list || !count) return;
   const guests = getCurrentPlayerGuests();
   const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
-  toggle.textContent = manager.hidden ? 'Gestionar invitados' : 'Cerrar gestión';
+  toggle.textContent = manager.hidden ? 'Agregar invitado' : 'Cerrar invitados';
   count.textContent = label;
   list.innerHTML = guests.length ? guests.map(guest=>{
     return `<div class="guest-item">
