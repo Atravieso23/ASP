@@ -96,6 +96,9 @@ const NEEDED = [
   "mergeSedesArr",
   "syncLocalAvailabilityWithPlayers",
   "persist",
+  // Desde D2 la formación es una escritura focalizada: sin esto el selector no se
+  // puede ejercitar acá.
+  "persistFocalizado",
   "cambiarFormacion",
 ];
 
@@ -141,6 +144,8 @@ function makeWorld({ row, activeElementId = null, failWrite = false } = {}) {
     `
     ${extractDecl(demo, "FORMATIONS")}
     ${extractDecl(demo, "TEAM_LABELS")}
+    ${extractDecl(demo, "FORMACION_ERROR_GUARDADO")}
+    ${extractDecl(demo, "FORMACION_ERROR_TIPO")}
     let state = null;
     let saving = false;
     let localAvailabilityResponses = [];
@@ -429,16 +434,21 @@ test("el arrastre nunca lee pos.x de un jugador sin posición persistida", () =>
     "el intercambio no usa la posición dibujada");
 });
 
-test("el rollback de un arrastre rechazado vuelve a null, no a la posición dibujada", () => {
+// D1 exigía que el snapshot del rollback saliera del dato persistido y no de la
+// proyección. D2 eliminó el rollback: el arrastre es save-first y no toca el estado
+// global hasta que el servidor confirmó, así que no hay posición previa que guardar y
+// una proyección no puede filtrarse por esa vía. Lo que se conserva es la mitad que
+// sigue viva: lo que se escribe son las coordenadas donde se soltó la ficha, y la
+// posición dibujada se usa sólo para el desplazado de un intercambio.
+test("el arrastre escribe donde se soltó la ficha y no lo que había dibujado el render", () => {
   const drag = extractFunction(demo, "attachDragHandlers");
-  // El snapshot del rollback tiene que salir del dato persistido, no de la proyección.
-  assert.match(drag, /const posPrevia = p\.pos;/,
-    "el snapshot del rollback dejó de ser la posición persistida");
-  assert.match(drag, /p\.pos = posPrevia;/,
-    "el rollback dejó de restaurar la posición persistida");
-  const asignacion = drag.indexOf("const posPrevia = p.pos;");
-  const escritura = drag.indexOf("p.pos = {x, y};");
-  assert.ok(asignacion < escritura, "el snapshot se toma después de escribir la nueva posición");
+  assert.match(drag, /guardarPosicionArrastrada\(team, name, \{x, y\}, intercambio\)/,
+    "lo que se guarda dejó de ser la posición del arrastre");
+  assert.ok(!/\.pos\s*=/.test(drag),
+    "el arrastre volvió a escribir posiciones en el estado global");
+  // La única lectura de la proyección es la del desplazado.
+  const usos = drag.match(/posDibujadaPrevia\.[xy]/g) || [];
+  assert.equal(usos.length, 2, "la posición dibujada se usa fuera del intercambio");
 });
 
 /* ---------- El render dejó de tener writers ---------- */

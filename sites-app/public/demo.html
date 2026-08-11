@@ -1088,6 +1088,45 @@ function mergeSedesArr(freshSedes, localSedes){
   return mergeKeepingDeletions(freshSedes, localSedes, knownSedeNames, s=>s.name.toLowerCase());
 }
 
+// `players.pos` es estado COMPARTIDO del partido: si el organizador arrastró una
+// ficha, esa intención es del partido y los demás dispositivos tienen que verla.
+// mergePlayers conserva el objeto local entero para no resucitar borrados, así que
+// una posición remota ya confirmada no llegaba nunca por sondeo: la local vieja la
+// tapaba para siempre. Acá se le devuelve al servidor la autoridad sobre ese campo.
+//
+// Sobre ese campo y nada más: team, status y paid se derivan de responses, que sigue
+// siendo su única autoridad, y number, isCaptain y el nombre tal como se escribió no
+// son de esta política y no se tocan a ciegas.
+//
+// Va SIEMPRE al final de la reconciliación, después de derivar: la derivación anula la
+// posición cuando ve que el equipo cambió, así que adoptar antes dejaría que anulara
+// justo la posición remota que se acaba de adoptar.
+function adoptarPosicionesCompartidas(players, freshPlayers){
+  const remotos = new Map((freshPlayers||[]).map(p=>[p.name.toLowerCase(), p]));
+  players.forEach(player=>{
+    const remoto = remotos.get(player.name.toLowerCase());
+    if(!remoto || remoto===player) return;
+    // `|| null` y no la referencia cruda: un `undefined` desaparece al serializar, y el
+    // jugador viajaría sin la clave en vez de con la posición borrada.
+    player.pos = remoto.pos || null;
+  });
+  return players;
+}
+
+// La reconciliación de players, en un orden y en un solo lugar. La usan el sondeo y las
+// escrituras de Equipos, que necesitan terminar en el mismo estado que dejaría un sondeo.
+//
+//   1. merge: la lista local no se tira —no se resucita lo que este dispositivo borró a
+//      propósito ni se pierde lo que ya derivó de una response que el blob todavía no
+//      refleja—, y se suman las altas ajenas;
+//   2. derivación: status, paid y team salen de las responses frescas;
+//   3. adopción: `pos` sale del servidor, que es su dueño.
+function reconciliarPlayers(freshPlayers){
+  state.players = mergePlayers(freshPlayers, state.players);
+  syncLocalAvailabilityWithPlayers();
+  adoptarPosicionesCompartidas(state.players, freshPlayers);
+}
+
 async function refreshFromServer(){
   const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
@@ -1095,15 +1134,27 @@ async function refreshFromServer(){
   if(anyModalOpen || editingHistory || saving) return;
   const fresh = await fetchServerState();
   if(!fresh || saving) return;
-  fresh.players = mergePlayers(fresh.players, state ? state.players : []);
+  // Los del servidor se guardan aparte: la reconciliación los necesita enteros al final,
+  // y el merge reemplaza la lista.
+  const playersRemotos = fresh.players;
+  fresh.players = state ? state.players : playersRemotos;
   fresh.sedes = mergeSedesArr(fresh.sedes, state ? state.sedes : []);
-  if(state && state.formations) fresh.formations = {...fresh.formations, ...state.formations};
+  // `formations` es estado compartido igual que `pos`, y se adopta entero: el servidor
+  // manda. Antes las claves locales se superponían a las frescas, así que la formación
+  // que este dispositivo había elegido alguna vez le ganaba para siempre a la que
+  // eligió otro. Con la adopción de posiciones eso quedaba peor que incoherente: un
+  // cambio de formación ajeno reacomoda a su equipo, así que este teléfono adoptaba las
+  // fichas reseteadas y las dibujaba contra los slots de la formación vieja.
+  //
+  // Adoptar no materializa nada: si `fresh.formations` viene vacío, formacionEfectiva()
+  // dibuja el default del tipo sin escribirlo, que es lo que fijó D1. Una formación
+  // local sin guardar no existe: cambiarFormacion es save-first y bloquea el sondeo.
   state = fresh;
   localAvailabilityResponses = Array.isArray(state.responses) ? state.responses : [];
   const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   currentLocalResponseName = ownResponse?.name || '';
   recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))].sort((a,b)=>a.localeCompare(b,'es'));
-  syncLocalAvailabilityWithPlayers();
+  reconciliarPlayers(playersRemotos);
   updateKnownSets(state);
   render();
   renderLocalOrganizer();
@@ -1372,50 +1423,35 @@ async function cambiarEquipoDeJugador(name, nextTeam){
   );
   if(!response) return false;
   const responseId = response.responseId;
-  const buscarJugador = ()=> state.players.find(item=>
-    item.name.toLocaleLowerCase('es')===normalizado
-  );
-  const jugadorPrevio = buscarJugador();
-  const posPrevia = jugadorPrevio ? jugadorPrevio.pos : null;
-  const capitanPrevio = jugadorPrevio ? jugadorPrevio.isCaptain : false;
-  // El valor a restaurar se toma del servidor y no de la copia local: si otro
-  // dispositivo ya lo había cambiado, revertir a lo local dejaría una tercera versión.
-  let teamPrevio = response.team;
 
-  const ok = await persist(responses=>{
-    const target = responses.find(item=>item.responseId===responseId);
+  const ok = await persistFocalizado(fresh=>{
+    const target = (fresh.responses||[]).find(item=>item.responseId===responseId);
     if(!target) return false;
-    teamPrevio = target.team;
     target.team = nextTeam;
     target.updatedAt = new Date().toISOString();
+    // La derivación corre sobre el estado fresco, antes de guardar: players.team sale
+    // de responses, y la posición del equipo que se deja queda anulada ahí adentro.
+    // Recorre todos los jugadores y no sólo el objetivo, igual que ejecutarCambioEnResponses:
+    // es la misma regla de siempre y no una segunda. La contra es que si el blob del
+    // servidor viene desincronizado —players.team distinto de responses.team, que hoy
+    // sólo puede dejar el persist() de Editar partido— esta acción también le anula la
+    // posición a ese otro jugador. Se prefiere eso a duplicar acá las reglas de derivación.
+    syncLocalAvailabilityWithPlayers(fresh, fresh.responses);
+    const jugador = fresh.players.find(item=>item.name.toLocaleLowerCase('es')===normalizado);
+    // Se conserva el comportamiento anterior: sacar a alguien de todo equipo le quita la
+    // cinta. isCaptain es legado y no se toca más allá de esto.
+    if(jugador && !jugador.team) jugador.isCaptain = false;
     return true;
-  });
+  }, {adoptarPlayers:true});
 
-  if(!ok){
-    // Puede no estar: si el guardado falló porque otro dispositivo borró la respuesta,
-    // ya no hay nada que revertir y lo adoptado del servidor es lo correcto.
-    const target = localAvailabilityResponses.find(item=>item.responseId===responseId);
-    if(target) target.team = teamPrevio;
-    syncLocalAvailabilityWithPlayers();
-    const jugador = buscarJugador();
-    // syncLocalAvailabilityWithPlayers anula la posición al detectar el cambio de
-    // equipo, así que la de antes se repone a mano.
-    if(jugador){ jugador.pos = posPrevia; jugador.isCaptain = capitanPrevio; }
-    render();
-    saveLocalFormationState();
-    renderLocalOrganizer();
-    showToast('No se pudo cambiar el equipo. Revisá la conexión e intentá otra vez.');
-    return false;
-  }
-
-  const jugador = buscarJugador();
-  // Se conserva el comportamiento anterior: sacar a alguien de todo equipo le quita la
-  // cinta. isCaptain es legado y no se toca más allá de esto.
-  if(jugador && !jugador.team) jugador.isCaptain = false;
+  // Save-first: con el guardado rechazado no hay nada que revertir. Antes se mutaba
+  // primero y el rollback tenía que reponer a mano el equipo previo, la posición y la
+  // cinta, con las dos escrituras pudiendo dejar pantalla y servidor en desacuerdo.
   render();
   saveLocalFormationState();
   renderLocalOrganizer();
-  return true;
+  if(!ok) showToast('No se pudo cambiar el equipo. Revisá la conexión e intentá otra vez.');
+  return ok;
 }
 
 async function switchPlayerTeamFromPitch(name){
@@ -1427,6 +1463,47 @@ async function switchPlayerTeamFromPitch(name){
   if(await cambiarEquipoDeJugador(name, nextTeam)){
     showToast(`${name} pasó al ${TEAM_LABELS[nextTeam]}.`);
   }
+}
+// La posición que el organizador arrastra es intención explícita y estado compartido
+// del partido: se guarda, y de ahí la leen los demás dispositivos. La que calcula
+// proyectarPosiciones() es sólo dibujo y no se persiste, con UNA excepción a propósito:
+// el desplazado de un intercambio hereda el lugar donde se veía al arrastrado, y ese
+// lugar puede ser proyección. Ahí la intención igual es explícita —el organizador soltó
+// una ficha encima de otra y vio moverse a las dos—, y sin persistirla el intercambio
+// existiría sólo en esta pantalla.
+//
+// Escritura focalizada sobre el estado fresco: antes esto era persist(), que serializa
+// la copia local, así que un arrastre publicaba también el matchInfo, el historial, las
+// canchas y los alias que este teléfono tenía desde hacía rato.
+//
+// La identidad de un jugador dentro de `players` es su nombre normalizado: es la que ya
+// usan mergePlayers, updateKnownSets y la derivación desde responses. No hay id propio y
+// no se inventa uno acá. `responseId` identifica a la response, que es otra cosa.
+// (Conviven dos normalizaciones heredadas —toLowerCase en los merges,
+// toLocaleLowerCase('es') en la derivación— que coinciden en español. Acá se usa la de
+// la derivación, que es contra la que hay que validar equipo y status.)
+//
+// Falla cerrado si el objetivo ya no está, dejó de estar confirmado o se fue a otro
+// equipo: una posición pertenece al equipo en el que se la arrastró, y escribirla igual
+// la dejaría en una cancha que el organizador nunca miró. Con `intercambio` valen las
+// mismas condiciones para el desplazado: medio intercambio deja a los dos encimados, que
+// no es lo que se pidió.
+async function guardarPosicionArrastrada(team, name, pos, intercambio){
+  const mismoJugador = (jugador, nombre)=>
+    jugador.name.toLocaleLowerCase('es')===String(nombre).toLocaleLowerCase('es');
+  const enEquipo = (fresh, nombre)=>{
+    const jugador = (fresh.players||[]).find(item=>mismoJugador(item, nombre));
+    return jugador && jugador.status==='in' && jugador.team===team ? jugador : null;
+  };
+  return persistFocalizado(fresh=>{
+    const target = enEquipo(fresh, name);
+    if(!target) return false;
+    const desplazado = intercambio ? enEquipo(fresh, intercambio.name) : null;
+    if(intercambio && !desplazado) return false;
+    if(desplazado) desplazado.pos = {x:intercambio.pos.x, y:intercambio.pos.y};
+    target.pos = {x:pos.x, y:pos.y};
+    return true;
+  }, {adoptarPlayers:true});
 }
 function attachDragHandlers(chip, team){
   chip.addEventListener('pointerdown', (e)=>{
@@ -1461,8 +1538,7 @@ function attachDragHandlers(chip, team){
       }
       let x = parseFloat(chip.style.left);
       let y = parseFloat(chip.style.top);
-      const p = state.players.find(pl=>pl.name===name);
-      if(!p){ return; }
+      if(!state.players.some(pl=>pl.name===name)) return;
       // "Imán": si soltó cerca de un círculo punteado de la formación, se engancha ahí.
       // La formación efectiva, porque el default ya no se escribe en state.
       const slots = computeSlots(formacionEfectiva(team));
@@ -1474,18 +1550,11 @@ function attachDragHandlers(chip, team){
       if(nearestSlot && nearestSlotDist < 9){
         x = nearestSlot.x; y = nearestSlot.y;
       }
-      // Antes de mutar: el intercambio lee la posición original del arrastrado, así que
-      // hay que guardarla ahora. Sin esto un guardado rechazado dejaba la posición sólo
-      // en este teléfono, y el sondeo no la corrige porque players gana localmente.
-      // `posPrevia` sale del dato guardado y puede ser null: es lo que hay que
-      // restaurar si el guardado falla. La posición dibujada NO sirve para eso, o un
-      // arrastre rechazado dejaría persistida la ubicación que eligió el render.
-      const posPrevia = p.pos;
-      // Para el intercambio, en cambio, hace falta dónde se lo veía: el desplazado
-      // hereda el lugar del que arrastraste, y ese lugar puede ser sólo proyección.
+      // Para el intercambio hace falta dónde se veía al arrastrado: el desplazado hereda
+      // ese lugar, y ese lugar puede ser sólo proyección.
       const dibujadas = posicionesDibujadas[team] || new Map();
       const posDibujadaPrevia = dibujadas.get(name);
-      let intercambiado = null, posPreviaIntercambiado = null;
+      let intercambio = null;
       const others = posDibujadaPrevia
         ? state.players.filter(pl=>pl.team===team && pl.status==='in' && pl.name!==name && dibujadas.has(pl.name))
         : [];
@@ -1493,21 +1562,23 @@ function attachDragHandlers(chip, team){
         const posOtro = dibujadas.get(other.name);
         const dx = posOtro.x - x, dy = posOtro.y - y;
         if(Math.sqrt(dx*dx+dy*dy) < 5){
-          intercambiado = other;
-          posPreviaIntercambiado = other.pos;
-          other.pos = {x:posDibujadaPrevia.x, y:posDibujadaPrevia.y};
+          intercambio = {name:other.name, pos:{x:posDibujadaPrevia.x, y:posDibujadaPrevia.y}};
           break;
         }
       }
-      p.pos = {x, y};
+      // Save-first: nada del estado se toca hasta que el servidor confirmó, así que no
+      // hay rollback que hacer. Mientras tanto la ficha se queda donde la soltaron, que
+      // es su estilo inline y no estado de nadie. Antes se mutaba `p.pos` y se rendereaba
+      // primero: un guardado rechazado dejaba la posición sólo en este teléfono y el
+      // sondeo no la corregía, porque players ganaba localmente.
+      //
+      // Lo que se paga: en un intercambio el desplazado no se mueve hasta el ok, así que
+      // las dos fichas se ven encimadas durante el viaje. Es el precio de no fabricar
+      // localmente un estado que el servidor todavía no aceptó.
+      const ok = await guardarPosicionArrastrada(team, name, {x, y}, intercambio);
       render();
       saveLocalFormationState();
-      const ok = await persist();
       if(!ok){
-        p.pos = posPrevia;
-        if(intercambiado) intercambiado.pos = posPreviaIntercambiado;
-        render();
-        saveLocalFormationState();
         showToast('No se pudo guardar la posición. Revisá la conexión e intentá otra vez.');
       }
     };
@@ -1965,11 +2036,11 @@ async function persist(overlayResponses){
 // intención del llamador. Todo lo que la acción no toca sale de `fresh` y sobrevive
 // por construcción, sin lista de campos que haya que mantener al día.
 //
-// Convive a propósito con persist(), que sigue sirviendo a equipos, arrastre,
-// formaciones y canchas. La diferencia está en el punto de partida: persist()
-// serializa la copia local y adopta del servidor sólo players, sedes y responses, así
-// que matchInfo, history y frequentAliases viajan viejos y pisan lo que otro
-// dispositivo acababa de guardar. Acá la copia local no está en el camino.
+// Convive con persist(), al que ya no le queda más que el guardado de Editar partido.
+// La diferencia está en el punto de partida: persist() serializa la copia local y adopta
+// del servidor sólo players, sedes y responses, así que matchInfo, history y
+// frequentAliases viajan viejos y pisan lo que otro dispositivo acababa de guardar. Acá
+// la copia local no está en el camino.
 //
 // No mergea players: no le pertenecen a estos llamadores. `fresh.players` llega al
 // servidor tal como vino, salvo que `aplicar` los toque a propósito.
@@ -1979,7 +2050,14 @@ async function persist(overlayResponses){
 // guardarCambioEnResponses().
 //
 // Save-first estricto: nada del estado global se toca hasta que el servidor confirmó.
-async function persistFocalizado(aplicar){
+//
+// `adoptarPlayers` distingue a los dos tipos de llamador. Historial y canchas no son
+// dueños de players: le devuelven a la copia local los suyos. Los de Equipos —arrastre,
+// formación, cambio de equipo— sí lo son: acaban de escribir players a propósito, y
+// quedarse con los locales viejos descartaría su propia intención recién guardada y
+// las posiciones ajenas que venían en la lectura fresca.
+async function persistFocalizado(aplicar, opciones){
+  const adoptarPlayers = Boolean(opciones && opciones.adoptarPlayers);
   saving = true;
   try{
     const fresh = await fetchServerState();
@@ -1991,13 +2069,21 @@ async function persistFocalizado(aplicar){
     const ok = await saveState(fresh);
     if(!ok) return false;
     const playersLocales = state.players;
+    const playersRemotos = fresh.players;
     state = fresh;
-    // Al servidor fueron los players del servidor, intactos. Para la copia local se
-    // conservan los de este dispositivo, igual que hace el sondeo: las posiciones
-    // guardadas son asunto de Equipos y no de esta acción. Sin esto, cargar un
-    // resultado en el historial movería las fichas de la cancha.
     state.players = playersLocales;
     localAvailabilityResponses = state.responses;
+    // Sin `adoptarPlayers`: al servidor fueron los players del servidor, intactos, y la
+    // copia local se queda con los de este dispositivo. Las posiciones guardadas son
+    // asunto de Equipos y no de esta acción; sin esto, cargar un resultado en el
+    // historial movería las fichas de la cancha.
+    //
+    // Con `adoptarPlayers`: la acción SÍ acaba de escribir players a propósito, así que
+    // hay que terminar donde terminaría un sondeo. Misma reconciliación y mismo orden,
+    // para no inventar una segunda política: si acá se conservaran los locales, la
+    // intención recién guardada y las posiciones ajenas que trajo la lectura fresca se
+    // perderían hasta el próximo ciclo.
+    if(adoptarPlayers) reconciliarPlayers(playersRemotos);
     // Sólo con el ok: registrar como "ya conocido" algo que nunca llegó al servidor
     // haría que mergeKeepingDeletions leyera un alta ajena como un borrado propio.
     updateKnownSets(state);
@@ -2021,33 +2107,47 @@ document.getElementById('tab-btn-historial').onclick = ()=> setTab('historial');
 
 /* ---------- FORMACIONES DEL ORGANIZADOR ---------- */
 // Los dos selectores descartaban el resultado del guardado. Como formations y las
-// posiciones ganan localmente en refreshFromServer, una formación rechazada quedaba
-// sólo en este teléfono y encima se le imponía al grupo con el próximo guardado
-// exitoso de cualquier otra cosa.
+// posiciones ganaban localmente en refreshFromServer, una formación rechazada quedaba
+// sólo en este teléfono y encima se le imponía al grupo con el próximo guardado exitoso
+// de cualquier otra cosa. Las dos cosas son estado compartido y hoy las adopta el sondeo.
+//
+// Elegir formación y reacomodar a ese equipo son UNA sola intención y una sola
+// escritura focalizada sobre el estado fresco. Antes era persist(), que serializa la
+// copia local: cambiar la formación publicaba también el matchInfo, el historial y los
+// alias viejos de este teléfono. Y save-first, así que un rechazo no tiene nada que
+// revertir: el único rollback que queda es el del <select>, que es pantalla.
+//
+// Se conserva la semántica de siempre: la formación nueva descarta las posiciones de
+// SU equipo —las fichas se reacomodan solas en los slots nuevos— y no toca al otro.
+const FORMACION_ERROR_GUARDADO = 'No se pudo cambiar la formación. Revisá la conexión e intentá otra vez.';
+// Reintentar no sirve: las opciones que se ven ya no son las del partido. El sondeo
+// repuebla el selector con las del tipo nuevo en el próximo ciclo.
+const FORMACION_ERROR_TIPO = 'Cambió el tipo de cancha en otro dispositivo. Elegí la formación otra vez.';
 async function cambiarFormacion(team, valor, select){
-  const formacionPrevia = state.formations[team];
-  // Por referencia al objeto: el merge de persist() puede reordenar state.players.
-  const posicionesPrevias = state.players
-    .filter(p=>p.team===team)
-    .map(p=>({player:p, pos:p.pos}));
-  state.formations[team] = valor;
-  posicionesPrevias.forEach(entrada=>{ entrada.player.pos = null; });
+  let motivoTipo = false;
+  const ok = await persistFocalizado(fresh=>{
+    // Contra el tipo fresco y no contra el local: si otro dispositivo lo cambió, esta
+    // formación no existe para el partido y guardarla dejaría una que nadie puede
+    // dibujar. Falla cerrado.
+    if(!getFormationOptions(fresh.matchInfo.type).includes(valor)){
+      motivoTipo = true;
+      return false;
+    }
+    if(!fresh.formations) fresh.formations = {};
+    fresh.formations[team] = valor;
+    (fresh.players||[]).forEach(player=>{ if(player.team===team) player.pos = null; });
+    return true;
+  }, {adoptarPlayers:true});
+  // El <select> hay que devolverlo a mano: renderFormationView no lo repone mientras
+  // tenga el foco, que es justo el caso después de cambiarlo. Va la formación
+  // efectiva y no la guardada: si nadie había elegido nunca, lo guardado es undefined
+  // y el selector quedaba en blanco contradiciendo a la cancha, que sigue dibujando
+  // el default.
+  if(!ok) select.value = formacionEfectiva(team);
   render();
   saveLocalFormationState();
-  const ok = await persist();
-  if(!ok){
-    state.formations[team] = formacionPrevia;
-    posicionesPrevias.forEach(entrada=>{ entrada.player.pos = entrada.pos; });
-    // El <select> hay que devolverlo a mano: renderFormationView no lo repone mientras
-    // tenga el foco, que es justo el caso después de cambiarlo. Va la formación
-    // efectiva y no `formacionPrevia`: si nadie había elegido nunca, lo guardado es
-    // undefined y el selector quedaba en blanco contradiciendo a la cancha, que
-    // sigue dibujando el default. Al estado vuelve lo persistido; acá, lo que se veía.
-    select.value = formacionEfectiva(team);
-    render();
-    saveLocalFormationState();
-    showToast('No se pudo cambiar la formación. Revisá la conexión e intentá otra vez.');
-  }
+  if(!ok) showToast(motivoTipo ? FORMACION_ERROR_TIPO : FORMACION_ERROR_GUARDADO);
+  return ok;
 }
 document.getElementById('formation-select-negro').addEventListener('change', async (e)=>{
   await cambiarFormacion('negro', e.target.value, e.target);
@@ -2296,11 +2396,12 @@ document.getElementById('m-save').onclick = async ()=>{
   const nextAlias = document.getElementById('m-alias').value.trim();
 
   // Snapshot de lo único que este handler puede tocar, para revertirlo si el
-  // guardado falla. matchInfo y frequentAliases los repondría el sondeo, pero
-  // formations y las posiciones ganan sobre el servidor en refreshFromServer, así
-  // que sin esto quedarían residuos que nada corrige. Los tres se reasignan
-  // enteros, así que guardar la referencia alcanza; pos se anula jugador por
-  // jugador, así que se guarda contra el objeto y no por índice.
+  // guardado falla. Desde D2 el sondeo repone del servidor los cuatro —matchInfo,
+  // frequentAliases, formations y las posiciones—, así que esto ya no evita
+  // residuos permanentes: evita que la pantalla muestre hasta el próximo ciclo un
+  // cambio que el servidor rechazó. Los tres primeros se reasignan enteros, así que
+  // guardar la referencia alcanza; pos se anula jugador por jugador, así que se
+  // guarda contra el objeto y no por índice.
   const previousMatchInfo = state.matchInfo;
   const previousAliases = state.frequentAliases;
   const previousFormations = state.formations;
