@@ -165,8 +165,9 @@ test("remembers frequent payment aliases without clearing match information", as
 
   assert.match(demo, /list="frequent-aliases"/);
   assert.match(demo, /frequentAliases: \[\]/);
-  assert.match(demo, /state\.frequentAliases\.unshift\(nextAlias\)/);
-  assert.match(demo, /state\.frequentAliases = state\.frequentAliases\.slice\(0, 10\)/);
+  // Desde D3 el alias usado encabeza los frecuentes FRESCOS: superponerse en vez de
+  // reemplazar es lo que evita borrar el que agregó otro dispositivo.
+  assert.match(demo, /fresh\.frequentAliases = \[datos\.alias, \.\.\.otros\]\.slice\(0, 10\);/);
 });
 
 test("keeps player state derived from universal responses without reseeding demo profiles", async () => {
@@ -239,8 +240,18 @@ test("rebuilds formations for every field type change", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   for(const type of ['F5','F7','F8','F9','F11']) assert.match(demo, new RegExp(`${type}: \\[`));
-  assert.match(demo, /const previousFieldType = state\.matchInfo\.type/);
-  assert.match(demo, /if\(previousFieldType!==nextFieldType\)\{[\s\S]*state\.formations = \{\}[\s\S]*player\.pos = null[\s\S]*ensureFormationDefaults\(\)/);
+  // El cambio de tipo se decide contra el estado fresco y descarta lo que era de la
+  // cancha anterior. No materializa los defaults del tipo nuevo: formacionEfectiva()
+  // proyecta ese mismo valor sin escribirlo, así que la vista es idéntica y el default
+  // no se disfraza de elección de nadie.
+  assert.match(demo, /cambioDeTipo = fresh\.matchInfo\.type !== datos\.type;/);
+  assert.match(demo, /if\(cambioDeTipo\)\{\s*\r?\n\s*fresh\.formations = \{\};[\s\S]*?player\.pos = null;/);
+  // Sin los comentarios: el de acá al lado nombra la función justo para explicar por
+  // qué dejó de llamarse.
+  const guardar = sliceBetween(demo, 'async function guardarPartido(datos){', '\n}', 'el writer de editar partido')
+    .replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(guardar, /ensureFormationDefaults\(\)/,
+    'vuelve a materializar el default del tipo nuevo');
 });
 
 test("supports recurrent players and first-time registration", async () => {
@@ -642,55 +653,45 @@ test("persist reports whether the save actually worked", async () => {
   assert.doesNotMatch(persist, /^\s*updateKnownSets\(state\);\s*$/m);
 });
 
-test("the match editor rolls back its own changes when saving fails", async () => {
+test("the match editor never touches local state before the save lands", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const save = sliceBetween(demo, "document.getElementById('m-save').onclick = async ()=>{", '\n};', 'el handler de editar partido');
 
-  assert.match(save, /const ok = await persist\(\);/);
-  assert.match(save, /if\(!ok\)\{/);
+  // Desde D3 no hay rollback porque no hay nada que revertir: el handler lee el
+  // formulario y delega la escritura, que parte del estado fresco y no publica hasta
+  // que el servidor confirmó. Lo que antes eran cuatro snapshots y una rama de
+  // restauración -matchInfo, alias, formations, posiciones y la cancha agregada- es
+  // ahora la ausencia de mutaciones.
+  assert.match(save, /const \{ok, cambioDeTipo\} = await guardarPartido\(\{/);
+  assert.doesNotMatch(save, /await persist\(\)/, 'sigue serializando la copia local');
+  for(const mutacion of [/state\.matchInfo\s*=/, /state\.frequentAliases/, /state\.formations\s*=/, /state\.sedes/, /\.pos\s*=[^=]/]){
+    assert.doesNotMatch(save, mutacion, `el handler muta ${mutacion} antes de guardar`);
+  }
+  assert.doesNotMatch(save, /previous(MatchInfo|Aliases|Formations|Positions|FieldType)/,
+    'quedaron snapshots de un rollback que ya no existe');
 
-  // matchInfo y frequentAliases los repone el sondeo, pero sedes, formations y las
-  // posiciones ganan sobre el servidor en refreshFromServer, así que sin rollback
-  // quedarían residuos que nada corrige.
-  assert.match(save, /const previousMatchInfo = state\.matchInfo;/);
-  assert.match(save, /const previousAliases = state\.frequentAliases;/);
-  assert.match(save, /const previousFormations = state\.formations;/);
-  assert.match(save, /const previousPositions = state\.players\.map\(player=>\(\{player, pos:player\.pos\}\)\);/);
+  const fallo = sliceBetween(save, 'if(!ok){', 'return;', 'la rama de error de editar partido');
+  assert.doesNotMatch(fallo, /render\(\)/, 'redibuja sin que nada haya cambiado');
 
-  const rollback = sliceBetween(save, 'if(!ok){', 'return;', 'la rama de error de editar partido');
-  assert.match(rollback, /state\.matchInfo = previousMatchInfo;/);
-  assert.match(rollback, /state\.frequentAliases = previousAliases;/);
-  assert.match(rollback, /state\.formations = previousFormations;/);
-  assert.match(rollback, /previousPositions\.forEach\(entry=>\{ entry\.player\.pos = entry\.pos; \}\);/);
-  assert.match(rollback, /render\(\);/);
-  assert.match(rollback, /renderLocalOrganizer\(\);/);
-
-  // La cancha nueva se saca por nombre en vez de restaurar el array entero: así no
-  // se descarta una sede que otro dispositivo haya agregado y que el merge de
-  // persist() ya sumó, que updateKnownSets marcaría como conocida y no volvería.
-  assert.match(save, /let sedeAgregada = null;/);
-  assert.match(save, /sedeAgregada = newLoc;/);
-  assert.match(rollback, /if\(sedeAgregada\) state\.sedes = state\.sedes\.filter\(sede=>sede\.name !== sedeAgregada\);/);
-
-  // saveLocalFormationState() pasa a correr sólo después del éxito, para no dejar
-  // estado local de un cambio que el servidor rechazó.
+  // saveLocalFormationState() corre sólo después del éxito y sólo si cambió el tipo,
+  // para no dejar estado local de un cambio que el servidor rechazó.
   const exito = save.slice(save.indexOf('return;', save.indexOf('if(!ok){')));
-  assert.match(exito, /saveLocalFormationState\(\);/);
-  assert.doesNotMatch(rollback, /saveLocalFormationState\(\)/);
+  assert.match(exito, /if\(cambioDeTipo\) saveLocalFormationState\(\);/);
+  assert.doesNotMatch(fallo, /saveLocalFormationState\(\)/);
 
   // El modal se cierra recién con el guardado confirmado. Si se cerrara antes, un
   // fallo dejaría al organizador sin los seis campos que acababa de tipear.
   const cierre = save.indexOf("overlay.classList.remove('open');");
-  const chequeo = save.indexOf('const ok = await persist();');
+  const chequeo = save.indexOf('await guardarPartido(');
   assert.ok(cierre > -1, 'el handler no cierra el modal en ninguna parte');
   assert.ok(cierre > chequeo, 'el modal se cierra antes de saber si el guardado funcionó');
   assert.match(exito, /overlay\.classList\.remove\('open'\);/);
-  assert.doesNotMatch(rollback, /overlay\.classList\.remove\('open'\)/);
+  assert.doesNotMatch(fallo, /overlay\.classList\.remove\('open'\)/);
 
   // Y al fallar nadie reescribe el formulario: los inputs sólo se cargan al abrir
   // el modal, así que lo tipeado sigue ahí para reintentar sin volver a escribirlo.
-  assert.doesNotMatch(rollback, /getElementById\('m-(teamname|date|time|type|price|alias|loc|loc-new)'\)/);
-  assert.doesNotMatch(rollback, /populateLocSelect/);
+  assert.doesNotMatch(fallo, /getElementById\('m-(teamname|date|time|type|price|alias|loc|loc-new)'\)/);
+  assert.doesNotMatch(fallo, /populateLocSelect/);
 });
 
 test("the match editor keeps a persistent inline error until the next attempt", async () => {
@@ -708,17 +709,17 @@ test("the match editor keeps a persistent inline error until the next attempt", 
 
   // Se limpia antes de cada intento y se muestra solo si fallo.
   const limpieza = save.indexOf('matchError.hidden = true;');
-  const chequeo = save.indexOf('const ok = await persist();');
+  const chequeo = save.indexOf('await guardarPartido(');
   assert.ok(limpieza > -1, 'el handler no limpia el error antes de intentar');
   assert.ok(limpieza < chequeo, 'el error se tiene que limpiar antes del intento, no despues');
 
-  const rollback = sliceBetween(save, 'if(!ok){', 'return;', 'la rama de error de editar partido');
-  assert.match(rollback, /matchError\.hidden = false;/);
+  const fallo = sliceBetween(save, 'if(!ok){', 'return;', 'la rama de error de editar partido');
+  assert.match(fallo, /matchError\.hidden = false;/);
   const exito = save.slice(save.indexOf('return;', save.indexOf('if(!ok){')));
   assert.doesNotMatch(exito, /matchError\.hidden = false/);
 
   // No se duplica el mismo texto en un toast: el inline es la unica fuente.
-  assert.doesNotMatch(rollback, /showToast/);
+  assert.doesNotMatch(fallo, /showToast/);
 
   // Abrir y cancelar tambien lo limpian, para que no reaparezca un error viejo.
   const abrir = sliceBetween(demo, "document.getElementById('edit-match-btn').onclick = ()=>{", '\n};', 'el handler que abre el modal');
