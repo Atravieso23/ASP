@@ -38,8 +38,16 @@ test("connects the hosted app to Supabase using anonymous authentication", async
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /const DEMO_MODE = false/);
-  assert.match(demo, /https:\/\/[a-z0-9-]+\.supabase\.co/i);
-  assert.match(demo, /sb_publishable_[a-zA-Z0-9_-]+/);
+  // Backend oficial de producción: el proyecto Supabase de Agustín, que ya contiene
+  // los datos reales del grupo (responses, players, history). Si demo.html vuelve a
+  // apuntar a otro proyecto, la app queda hablando con un backend vacío, así que se
+  // fija el ref y se prohíbe explícitamente el proyecto de prueba anterior.
+  assert.match(demo, /https:\/\/bfmdozufgvjektqgbpli\.supabase\.co/);
+  assert.doesNotMatch(demo, /wzjlcbiyasxamkfjmidr/,
+    "demo.html volvió a apuntar al proyecto Supabase de prueba en vez del de Agustín");
+  // El proyecto de Agustín usa la anon key clásica (JWT con role:anon). Es pública
+  // por diseño y la protege RLS; lo único que no puede aparecer es una service key.
+  assert.match(demo, /SUPABASE_ANON_KEY = 'eyJ[A-Za-z0-9_.-]+'/);
   assert.match(demo, /auth\.signInAnonymously\(\)/);
   assert.doesNotMatch(demo, /sb_secret_|service_role/i);
 });
