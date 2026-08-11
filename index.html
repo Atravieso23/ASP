@@ -435,6 +435,11 @@ color:var(--muted); padding:10px 12px; font:700 13px 'Inter',sans-serif; cursor:
 .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02;}
 .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
 .my-status-times{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+.my-status-allday-btn{
+grid-column:1 / -1; border:1px solid var(--card-border); border-radius:9px; background:transparent;
+color:var(--celeste-deep); font:700 12px 'Inter',sans-serif; padding:9px; cursor:pointer;
+}
+.my-status-allday-btn:active{transform:scale(0.98);}
 .my-status-confirm{
 width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
 background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
@@ -583,7 +588,7 @@ opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s eas
 
 <div class="tabs">
 <button class="tab-btn active" id="tab-btn-partido">⚽ Partido</button>
-<button class="tab-btn" id="tab-btn-historial">?? Historial</button>
+<button class="tab-btn" id="tab-btn-historial">🕘 Historial</button>
 </div>
 
 <div id="tab-partido">
@@ -646,6 +651,7 @@ opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s eas
 <option value="22:00">22:00</option>
 </select>
 </div>
+<button type="button" class="my-status-allday-btn" id="my-status-allday-btn">🕐 Puedo todo el día</button>
 </div>
 <button type="button" class="my-status-confirm" id="my-status-confirm">Confirmar</button>
 </div>
@@ -702,7 +708,7 @@ opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s eas
 <div class="sb-label">Cancha</div>
 <div class="loc-row">
 <div class="sb-value" id="sb-loc">—</div>
-<button class="copy-alias-btn" id="maps-btn" title="Cómo llegar">??</button>
+<button class="copy-alias-btn" id="maps-btn" title="Cómo llegar">📍</button>
 </div>
 </div>
 <div class="sb-item"><div class="sb-label">Cancha (total)</div><div class="sb-value" id="sb-price-total">—</div></div>
@@ -711,7 +717,7 @@ opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s eas
 <div class="sb-label">Alias</div>
 <div class="alias-row">
 <div class="sb-value" id="sb-alias">—</div>
-<button class="copy-alias-btn" id="copy-alias-btn" title="Copiar alias">??</button>
+<button class="copy-alias-btn" id="copy-alias-btn" title="Copiar alias">📋</button>
 </div>
 </div>
 </div>
@@ -822,11 +828,11 @@ así que una región viva reanunciaría el conteo sin parar. -->
 <section class="organizer-card organizer-actions" aria-labelledby="organizer-actions-title">
 <h2 class="organizer-card-title" id="organizer-actions-title">Cerrar o reiniciar la fecha</h2>
 <div class="finalize-box">
-<button class="finalize-btn" id="finalize-btn">?? Finalizar esta fecha</button>
+<button class="finalize-btn" id="finalize-btn">🏁 Finalizar esta fecha</button>
 <p class="finalize-hint">Guarda las respuestas actuales en el historial y deja el panel listo para la próxima fecha.</p>
 </div>
 <div class="finalize-box danger-zone">
-<button class="finalize-btn" id="clear-btn">?? Limpiar todo</button>
+<button class="finalize-btn" id="clear-btn">🧹 Limpiar todo</button>
 <p class="finalize-hint">Borra respuestas, equipos, formaciones y datos del partido actual sin guardarlos en el historial.</p>
 </div>
 </section>
@@ -951,7 +957,7 @@ console.error('No se pudo inicializar Supabase:', e);
 const ROW_ID = 1; // todo el equipo comparte esta misma fila
 
 const DIVISOR_MAP = {F5:10, F7:14, F8:16, F9:18, F11:22};
-const TEAM_LABELS = {negro:'Equipo Negro', blanco:'Equipo Blanco'};
+const TEAM_LABELS = {negro:'Roca Juniors', blanco:'La Cole'};
 const FORMATIONS = {
 F5: ['1-2-1','2-1-1','2-2'],
 F7: ['2-3-1','3-2-1','2-2-2'],
@@ -2578,7 +2584,7 @@ finalizeOverlay.classList.remove('open');
 render();
 renderLocalOrganizer();
 resetMyStatusCard();
-showToast('Fecha finalizada. Arrancás de cero para la próxima ??');
+showToast('Fecha finalizada. Arrancás de cero para la próxima 👌');
 }finally{
 // Pase lo que pase: si no, el panel queda con el botón muerto y el sondeo
 // congelado hasta recargar.
@@ -3479,6 +3485,13 @@ mockStatusCard.classList.remove('collapsed');
 
 mockFrom.addEventListener('change', syncMockToOptions);
 syncMockToOptions();
+
+const mockAllDayBtn = document.getElementById('my-status-allday-btn');
+mockAllDayBtn.addEventListener('click', ()=>{
+mockFrom.value = mockHourOptions[0];
+syncMockToOptions();
+mockTo.value = mockHourOptions[mockHourOptions.length-1];
+});
 
 document.querySelectorAll('.my-status-choice button').forEach(btn=>{
 btn.onclick = ()=>{
