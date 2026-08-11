@@ -270,6 +270,7 @@ test("supports recurrent players with identity-focused first-time copy", async (
   assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre del jugador';/);
   assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
   assert.match(demo, /confirm\.textContent = active \? 'Confirmar mi respuesta' : 'Confirmar';/);
+  assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
   assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
 });
