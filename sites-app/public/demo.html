@@ -435,6 +435,11 @@
   .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02;}
   .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
   .my-status-times{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .my-status-full-day{
+    grid-column:1/-1; min-height:44px; border:1px solid var(--celeste-deep); border-radius:9px;
+    background:rgba(25,126,168,.08); color:var(--celeste-deep); padding:10px 12px;
+    font:700 13px 'Inter',sans-serif; cursor:pointer;
+  }
   .my-status-confirm{
     width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
     background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
@@ -646,6 +651,7 @@
             <option value="22:00">22:00</option>
           </select>
         </div>
+        <button type="button" class="my-status-full-day" id="my-status-full-day">Puedo todo el día</button>
       </div>
       <button type="button" class="my-status-confirm" id="my-status-confirm">Confirmar</button>
     </div>
@@ -3410,6 +3416,12 @@ function syncMockToOptions(){
   mockTo.value = validHours.includes(previousTo) ? previousTo : validHours[0];
 }
 
+function setFullDayAvailability(){
+  mockFrom.value = mockHourOptions[0];
+  syncMockToOptions();
+  mockTo.value = mockHourOptions[mockHourOptions.length-1];
+}
+
 function restoreCurrentLocalResponse(){
   if(!currentLocalResponseName) return;
   const response = localAvailabilityResponses.find(item=>
@@ -3478,6 +3490,7 @@ function resetMyStatusCard(){
 }
 
 mockFrom.addEventListener('change', syncMockToOptions);
+document.getElementById('my-status-full-day').onclick = setFullDayAvailability;
 syncMockToOptions();
 
 document.querySelectorAll('.my-status-choice button').forEach(btn=>{

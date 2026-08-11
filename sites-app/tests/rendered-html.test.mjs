@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import vm from "node:vm";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -631,6 +632,57 @@ function sliceBetween(demo, startMarker, endMarker, label){
   assert.ok(end > start, `no ubiqué el final de ${label}`);
   return demo.slice(start, end);
 }
+
+test("sets the complete availability range from the full-day control", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const availabilityHelpers = sliceBetween(
+    demo,
+    'const mockHourOptions =',
+    'function restoreCurrentLocalResponse',
+    'los helpers de disponibilidad',
+  );
+  const makeSelect = (initialValue, optionValues = []) => {
+    let values = optionValues;
+    let value = initialValue;
+    return {
+      get value(){ return value; },
+      set value(nextValue){ value = values.includes(nextValue) ? nextValue : ''; },
+      get optionValues(){ return values; },
+      set innerHTML(markup){
+        values = [...markup.matchAll(/value="([^"]+)"/g)].map(([, optionValue]) => optionValue);
+        value = values.includes(value) ? value : '';
+      },
+    };
+  };
+  const hourOptions = [
+    '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00',
+    '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00',
+  ];
+  const mockFrom = makeSelect('16:00', hourOptions);
+  const mockTo = makeSelect('20:00', hourOptions);
+  const fullDayButton = {};
+  const context = vm.createContext({
+    mockFrom,
+    mockTo,
+    document: {
+      getElementById(id){ return id === 'my-status-full-day' ? fullDayButton : null; },
+    },
+  });
+
+  new vm.Script(`${availabilityHelpers}\nglobalThis.setFullDayAvailability = setFullDayAvailability;`)
+    .runInContext(context);
+  const clickConnection = demo.match(/document\.getElementById\('my-status-full-day'\)\.onclick = setFullDayAvailability;/);
+  assert.ok(clickConnection, 'el botón de día completo no está conectado al helper');
+  new vm.Script(clickConnection[0]).runInContext(context);
+  fullDayButton.onclick();
+
+  assert.equal(mockFrom.value, '09:00');
+  assert.deepEqual(mockTo.optionValues, [
+    '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00',
+    '17:00', '18:00', '19:00', '20:00', '21:00', '22:00',
+  ]);
+  assert.equal(mockTo.value, '22:00');
+});
 
 const HISTORY_INPUTS = [
   ['precio de una fecha archivada', ".edit-price-input').forEach(inp=>{", /No se pudo guardar el precio/,    /guardarPrecioDeHistorial\(inp\.dataset\.finalizedAt,/],
