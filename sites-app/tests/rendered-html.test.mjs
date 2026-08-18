@@ -719,28 +719,51 @@ test("sets the complete availability range from the full-day control", async () 
   ];
   const mockFrom = makeSelect('16:00', hourOptions);
   const mockTo = makeSelect('20:00', hourOptions);
-  const fullDayButton = {};
+  const fullDayControl = { checked: false };
+  const timeClasses = new Set();
+  const mockTimes = {
+    classList: {
+      toggle(name, force){ if(force){ timeClasses.add(name); } else { timeClasses.delete(name); } return force; },
+      contains(name){ return timeClasses.has(name); },
+    },
+  };
   const context = vm.createContext({
     mockFrom,
     mockTo,
+    mockFullDay: fullDayControl,
+    mockTimes,
     document: {
-      getElementById(id){ return id === 'my-status-full-day' ? fullDayButton : null; },
+      getElementById(id){ return id === 'my-status-full-day' ? fullDayControl : null; },
     },
   });
 
   new vm.Script(`${availabilityHelpers}\nglobalThis.setFullDayAvailability = setFullDayAvailability;`)
     .runInContext(context);
   const clickConnection = demo.match(/document\.getElementById\('my-status-full-day'\)\.onclick = setFullDayAvailability;/);
-  assert.ok(clickConnection, 'el botón de día completo no está conectado al helper');
+  assert.ok(clickConnection, 'el control de día completo no está conectado al helper');
   new vm.Script(clickConnection[0]).runInContext(context);
-  fullDayButton.onclick();
 
+  // Al activar el checkbox, cubre 09:00–22:00 y deshabilita los selects, sin perder la semántica.
+  fullDayControl.checked = true;
+  fullDayControl.onclick();
   assert.equal(mockFrom.value, '09:00');
   assert.deepEqual(mockTo.optionValues, [
     '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00',
     '17:00', '18:00', '19:00', '20:00', '21:00', '22:00',
   ]);
   assert.equal(mockTo.value, '22:00');
+  assert.equal(mockFrom.disabled, true);
+  assert.equal(mockTo.disabled, true);
+  assert.ok(mockTimes.classList.contains('is-full-day'), 'no marcó el estado de día completo');
+
+  // Al desactivarlo, vuelven los valores previos y se rehabilitan los selects.
+  fullDayControl.checked = false;
+  fullDayControl.onclick();
+  assert.equal(mockFrom.value, '16:00');
+  assert.equal(mockTo.value, '20:00');
+  assert.equal(mockFrom.disabled, false);
+  assert.equal(mockTo.disabled, false);
+  assert.ok(!mockTimes.classList.contains('is-full-day'), 'no limpió el estado de día completo');
 });
 
 const HISTORY_INPUTS = [

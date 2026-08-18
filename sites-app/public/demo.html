@@ -434,12 +434,26 @@
   .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff;}
   .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02;}
   .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
-  .my-status-times{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
-  .my-status-full-day{
-    grid-column:1/-1; min-height:44px; border:1px solid var(--celeste-deep); border-radius:9px;
-    background:rgba(25,126,168,.08); color:var(--celeste-deep); padding:10px 12px;
-    font:700 13px 'Inter',sans-serif; cursor:pointer;
+  .my-status-times{display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin-top:14px;}
+  .my-status-time-pair{display:flex; align-items:center; gap:7px; min-width:0;}
+  .my-status-time-pair label{
+    margin:0; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--muted); font-weight:700; white-space:nowrap;
   }
+  .my-status-time-pair select{
+    min-width:0; background:var(--bg-bottom); border:1px solid var(--card-border);
+    color:var(--navy); border-radius:9px; padding:9px 10px; font:14px 'Inter',sans-serif; min-height:40px;
+  }
+  .my-status-time-pair select:disabled{cursor:not-allowed;}
+  .my-status-fullday{
+    display:inline-flex; align-items:center; gap:7px; margin-left:auto; min-height:40px;
+    padding:6px 12px; border:1px solid var(--celeste-deep); border-radius:999px;
+    background:rgba(25,126,168,.08); color:var(--celeste-deep);
+    font:700 12px 'Inter',sans-serif; cursor:pointer; white-space:nowrap; user-select:none;
+  }
+  .my-status-fullday input{width:16px; height:16px; margin:0; accent-color:var(--celeste-deep); cursor:pointer;}
+  .my-status-times.is-full-day .my-status-fullday{background:var(--celeste-deep); color:#fff;}
+  .my-status-times.is-full-day .my-status-time-pair{opacity:.5;}
   .my-status-confirm{
     width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
     background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
@@ -614,7 +628,7 @@
         <button type="button" data-value="out" aria-pressed="false">No estoy</button>
       </div>
       <div class="my-status-times" id="my-status-times">
-        <div class="my-status-field">
+        <div class="my-status-time-pair">
           <label for="my-status-from">Desde</label>
           <select id="my-status-from">
             <option value="09:00">09:00</option>
@@ -632,7 +646,7 @@
             <option value="21:00">21:00</option>
           </select>
         </div>
-        <div class="my-status-field">
+        <div class="my-status-time-pair">
           <label for="my-status-to">Hasta</label>
           <select id="my-status-to">
             <option value="09:00">09:00</option>
@@ -651,7 +665,10 @@
             <option value="22:00">22:00</option>
           </select>
         </div>
-        <button type="button" class="my-status-full-day" id="my-status-full-day">Puedo todo el día</button>
+        <label class="my-status-fullday" for="my-status-full-day">
+          <input type="checkbox" id="my-status-full-day">
+          <span>Todo el día</span>
+        </label>
       </div>
       <button type="button" class="my-status-confirm" id="my-status-confirm">Confirmar</button>
     </div>
@@ -3407,7 +3424,9 @@ const guestManager = document.getElementById('guest-manager');
 const guestManagerToggle = document.getElementById('guest-manager-toggle');
 const mockFrom = document.getElementById('my-status-from');
 const mockTo = document.getElementById('my-status-to');
+const mockFullDay = document.getElementById('my-status-full-day');
 const mockHourOptions = Array.from({length:14},(_,index)=>String(index+9).padStart(2,'0')+':00');
+let mockPreviousTimes = null;
 
 function syncMockToOptions(){
   const previousTo = mockTo.value;
@@ -3417,9 +3436,22 @@ function syncMockToOptions(){
 }
 
 function setFullDayAvailability(){
-  mockFrom.value = mockHourOptions[0];
-  syncMockToOptions();
-  mockTo.value = mockHourOptions[mockHourOptions.length-1];
+  const on = mockFullDay.checked;
+  mockTimes.classList.toggle('is-full-day', on);
+  mockFrom.disabled = on;
+  mockTo.disabled = on;
+  if(on){
+    // Mantiene la semántica 09:00–22:00, guardando los valores previos para restaurarlos.
+    mockPreviousTimes = { from: mockFrom.value, to: mockTo.value };
+    mockFrom.value = mockHourOptions[0];
+    syncMockToOptions();
+    mockTo.value = mockHourOptions[mockHourOptions.length-1];
+  } else if(mockPreviousTimes){
+    mockFrom.value = mockPreviousTimes.from;
+    syncMockToOptions();
+    mockTo.value = mockPreviousTimes.to;
+    mockPreviousTimes = null;
+  }
 }
 
 function restoreCurrentLocalResponse(){
@@ -3438,8 +3470,14 @@ function restoreCurrentLocalResponse(){
     option.classList.toggle('active', selected);
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
-  mockTimes.style.display = response.status === 'out' ? 'none' : 'grid';
+  mockTimes.style.display = response.status === 'out' ? 'none' : 'flex';
   if(response.status !== 'out'){
+    const isFullDay = response.from === mockHourOptions[0] && response.to === mockHourOptions[mockHourOptions.length-1];
+    mockFullDay.checked = isFullDay;
+    mockPreviousTimes = null;
+    mockFrom.disabled = isFullDay;
+    mockTo.disabled = isFullDay;
+    mockTimes.classList.toggle('is-full-day', isFullDay);
     mockFrom.value = response.from;
     syncMockToOptions();
     mockTo.value = response.to;
@@ -3473,10 +3511,15 @@ function resetMyStatusCard(){
     option.classList.toggle('active', selected);
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
+  mockFullDay.checked = false;
+  mockPreviousTimes = null;
+  mockFrom.disabled = false;
+  mockTo.disabled = false;
+  mockTimes.classList.remove('is-full-day');
   mockFrom.value = '16:00';
   syncMockToOptions();
   mockTo.value = '20:00';
-  mockTimes.style.display = 'grid';
+  mockTimes.style.display = 'flex';
   mockPayment.hidden = true;
   guestManager.hidden = true;
   guestManagerToggle.setAttribute('aria-expanded','false');
@@ -3501,7 +3544,7 @@ document.querySelectorAll('.my-status-choice button').forEach(btn=>{
       option.classList.toggle('active', selected);
       option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
-    mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'grid';
+    mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'flex';
   };
 });
 
