@@ -135,7 +135,7 @@ test("uses responses as the source for summaries and formations", async () => {
 test("offers En duda as a third availability state without counting it as confirmed", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
+  assert.match(demo, /data-value="duda" aria-pressed="false">Duda</);
   assert.match(demo, /const dudaList = getResponsePlayers\('duda'\)/);
 
   // Un dudoso no ocupa lugar en el equipo ni figura como que pago.
@@ -143,8 +143,9 @@ test("offers En duda as a third availability state without counting it as confir
   assert.match(demo, /paid:mockAvailability==='in' \? /);
   assert.match(demo, /player\.paid = response\.status === 'in' && response\.paid === true/);
 
-  // Pero si conserva su franja horaria: solo "No estoy" la descarta.
-  assert.match(demo, /from:mockAvailability==='out' \? '' : from/);
+  // Duda conserva su franja horaria; y desde PR A "No estoy" tampoco la borra:
+  // preserva from/to/paid de la respuesta guardada en vez de vaciarlos.
+  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : from\) : from/);
 });
 
 test("clears local responses and keeps date actions in organizer", async () => {
@@ -277,7 +278,7 @@ test("supports recurrent players with identity-focused first-time copy", async (
   assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
   assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre del jugador';/);
   assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
-  assert.match(demo, /confirm\.textContent = active \? 'Confirmar mi respuesta' : 'Confirmar';/);
+  assert.match(demo, /confirm\.textContent = 'Guardar';/);
   assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
   assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
@@ -291,15 +292,16 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /!responseBelongsToCurrentDevice\(item\)/);
   assert.match(demo, /document\.getElementById\('my-status-confirm'\)\.onclick = async/);
   assert.match(demo, /confirmButton\.textContent = 'Guardando…'/);
-  assert.match(demo, /Respuesta guardada y sincronizada/);
-  assert.match(demo, /No se pudo guardar en Supabase/);
+  // Desde PR A el resultado del guardado se comunica inline, no por toast efímero.
+  assert.match(demo, /showSaveFeedback\('ok','✓ Cambios guardados'\)/);
+  assert.match(demo, /showSaveFeedback\('error','No pudimos guardar\. Revisá tu conexión e intentá de nuevo\.'\)/);
   assert.match(demo, /id="player-name-feedback" role="alert" aria-live="assertive"/);
   assert.match(demo, /function showDuplicateNameFeedback\(name\)/);
   assert.match(demo, /'Nombre ya tomado\.'/);
   assert.match(demo, /agregá tu apellido o apodo para diferenciarte/);
   assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
   assert.match(demo, /Usá siempre el mismo nombre para evitar duplicados\./);
-  assert.match(demo, /showPlayerNameFeedback\('error','No pudimos guardar tu respuesta/);
+  assert.match(demo, /confirmButton\.textContent = 'Reintentar'/);
 });
 
 test("lets a trusted player reuse an existing response on another device", async () => {
@@ -413,6 +415,99 @@ test("collapses my status into a mobile-first quick summary with reversible paym
   assert.match(demo, /Estás editando la respuesta de \$\{ownResponse\.name\}/);
   assert.match(demo, /Cambio de jugador activado/);
   assert.match(demo, /input\.select\(\)/);
+});
+
+// ---- PR A · Core "Mi estado" ----
+
+test("No estoy preserva el horario y el pago de la respuesta guardada", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Prioriza siempre la existingResponse guardada; sólo cae al valor del formulario
+  // cuando todavía no hay respuesta previa (primera acción del jugador). Nada de
+  // fallback por truthiness que pueda reintroducir un select stale.
+  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : from\) : from/);
+  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : to\) : to/);
+  assert.match(demo, /: mockAvailability==='out' \? \(existingResponse \? existingResponse\.paid : null\)/);
+
+  // Ya no se vacían los campos al marcar No estoy.
+  assert.doesNotMatch(demo, /from:mockAvailability==='out' \? '' : from/);
+  assert.doesNotMatch(demo, /to:mockAvailability==='out' \? '' : to/);
+
+  // restoreCurrentLocalResponse repuebla los selects siempre que la respuesta traiga
+  // franja, para que el round-trip Estoy→No estoy→Estoy no pierda el horario.
+  assert.match(demo, /if\(response\.from && response\.to\)\{/);
+});
+
+test("aplica el copy final de Mi estado", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Estado rotula la asistencia; Disponibilidad rotula el horario.
+  assert.match(demo, /<span class="my-status-label">Estado<\/span>\s*<div class="my-status-choice" role="group" aria-label="Estado">/);
+  assert.match(demo, /<span class="my-status-label">Disponibilidad<\/span>\s*<div class="my-status-times"/);
+
+  // Duda, sin "En", en el control de Mi estado (la vista Organizador queda fuera de scope).
+  assert.match(demo, /data-value="duda" aria-pressed="false">Duda</);
+
+  // Pago binario Pagado/Pendiente con marca ✓ en la opción activa.
+  assert.match(demo, /data-value="yes" aria-pressed="false">Pagado</);
+  assert.match(demo, /data-value="no" aria-pressed="true">Pendiente</);
+  assert.match(demo, /\.my-status-paid button\.active::before\{content:'✓ ';\}/);
+
+  // La CTA es Guardar.
+  assert.match(demo, /id="my-status-confirm">Guardar</);
+  assert.doesNotMatch(demo, /id="my-status-confirm">Confirmar</);
+});
+
+test("da feedback inline de guardado y ofrece Reintentar al fallar", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /id="my-status-save-feedback" role="status" aria-live="polite" hidden/);
+  assert.match(demo, /function showSaveFeedback\(kind, ?message\)/);
+
+  const confirmHandler = sliceBetween(
+    demo,
+    "document.getElementById('my-status-confirm').onclick = async ()=>{",
+    "document.getElementById('my-status-edit').onclick",
+    'el handler de guardar Mi estado',
+  );
+  // Éxito: mensaje ✓ Cambios guardados y CTA vuelve a Guardar.
+  assert.match(confirmHandler, /showSaveFeedback\('ok','✓ Cambios guardados'\)/);
+  // Error de guardado: CTA a Reintentar y mensaje accionable, sin resetear valores.
+  assert.match(confirmHandler, /confirmButton\.textContent = 'Reintentar'/);
+  assert.match(confirmHandler, /showSaveFeedback\('error','No pudimos guardar\. Revisá tu conexión e intentá de nuevo\.'\)/);
+  // El guardado ya no se anuncia sólo por un toast efímero.
+  assert.doesNotMatch(confirmHandler, /Respuesta guardada y sincronizada/);
+});
+
+test("mueve el foco al primer campo con error al guardar", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const confirmHandler = sliceBetween(
+    demo,
+    "document.getElementById('my-status-confirm').onclick = async ()=>{",
+    "document.getElementById('my-status-edit').onclick",
+    'el handler de guardar Mi estado',
+  );
+  // Nombre no encontrado enfoca el input de nombre.
+  assert.match(confirmHandler, /No encontramos ese jugador[\s\S]*?nameInput\.focus\(\)/);
+  // Horario inválido enfoca el select "Hasta".
+  assert.match(confirmHandler, /if\(mockAvailability !== 'out' && to <= from\)\{[\s\S]*?getElementById\('my-status-to'\)\.focus\(\)/);
+});
+
+test("Cambiar jugador protege los cambios sin guardar del jugador seleccionado", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Compara contra la respuesta del jugador actualmente identificado, no la primera.
+  assert.match(demo, /function responseDelJugadorActual\(\)/);
+  assert.match(demo, /item\.name\.toLocaleLowerCase\('es'\)===currentLocalResponseName\.toLocaleLowerCase\('es'\)/);
+  assert.match(demo, /function tieneCambiosSinGuardar\(\)/);
+
+  const changeHandler = sliceBetween(
+    demo,
+    "document.getElementById('change-player-btn').onclick",
+    "guestManagerToggle.onclick",
+    'el handler de cambiar jugador',
+  );
+  assert.match(changeHandler, /if\(tieneCambiosSinGuardar\(\) && !window\.confirm\('Tenés cambios sin guardar\. ¿Descartar y cambiar de jugador\?'\)\) return;/);
 });
 
 test("defaults to F8 and assigns every confirmed player to a balanced team", async () => {

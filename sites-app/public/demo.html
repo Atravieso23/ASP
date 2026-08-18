@@ -458,6 +458,10 @@
     width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
     background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
   }
+  .my-status-save-feedback{margin:10px 2px 0; font:700 12px 'Inter',sans-serif; line-height:1.4;}
+  .my-status-save-feedback[hidden]{display:none;}
+  .my-status-save-feedback.ok{color:var(--ok);}
+  .my-status-save-feedback.error{color:var(--danger);}
   .my-status-summary{display:none;}
   .my-status-card.collapsed .my-status-form{display:none;}
   .my-status-card.collapsed .my-status-summary{display:block;}
@@ -475,6 +479,7 @@
   .my-status-payment .my-status-label{display:block;margin-bottom:7px;}
   .my-status-paid button[data-value="yes"].active{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 0 0 2px rgba(31,143,78,.16);}
   .my-status-paid button[data-value="no"].active{background:var(--danger);border-color:var(--danger);color:#fff;box-shadow:0 0 0 2px rgba(193,67,42,.14);}
+  .my-status-paid button.active::before{content:'✓ ';}
   .guest-manager-bar{display:grid;gap:9px;margin-top:13px;padding-top:13px;border-top:1px dashed var(--card-border);}
   .guest-manager-intro{display:grid;gap:2px;}
   .guest-manager-intro strong{font:700 13px 'Oswald',sans-serif;letter-spacing:.035em;color:var(--navy);}
@@ -621,12 +626,13 @@
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
         <button type="button" class="change-player-btn" id="change-player-btn" hidden>¿Te equivocaste de nombre? Cambiar jugador</button>
       </div>
-      <span class="my-status-label">Disponibilidad</span>
-      <div class="my-status-choice" role="group" aria-label="Disponibilidad">
+      <span class="my-status-label">Estado</span>
+      <div class="my-status-choice" role="group" aria-label="Estado">
         <button type="button" class="active" data-value="in" aria-pressed="true">Estoy</button>
-        <button type="button" data-value="duda" aria-pressed="false">En duda</button>
+        <button type="button" data-value="duda" aria-pressed="false">Duda</button>
         <button type="button" data-value="out" aria-pressed="false">No estoy</button>
       </div>
+      <span class="my-status-label">Disponibilidad</span>
       <div class="my-status-times" id="my-status-times">
         <div class="my-status-time-pair">
           <label for="my-status-from">Desde</label>
@@ -670,7 +676,7 @@
           <span>Todo el día</span>
         </label>
       </div>
-      <button type="button" class="my-status-confirm" id="my-status-confirm">Confirmar</button>
+      <button type="button" class="my-status-confirm" id="my-status-confirm">Guardar</button>
     </div>
     <div class="my-status-summary" aria-live="polite">
       <div class="my-status-summary-top">
@@ -681,10 +687,10 @@
       </div>
       <div class="my-status-summary-value" id="my-status-summary-value">Félix · Estoy · 16:00–20:00 · No pagado</div>
       <div class="my-status-payment">
-        <span class="my-status-label">¿Ya pagué?</span>
+        <span class="my-status-label">Pago</span>
         <div class="my-status-paid" role="group" aria-label="Estado de pago">
-          <button type="button" data-value="yes" aria-pressed="false">Sí</button>
-          <button type="button" class="active" data-value="no" aria-pressed="true">No</button>
+          <button type="button" data-value="yes" aria-pressed="false">Pagado</button>
+          <button type="button" class="active" data-value="no" aria-pressed="true">Pendiente</button>
         </div>
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
@@ -707,6 +713,7 @@
         <div class="guest-list" id="guest-list"></div>
       </section>
     </div>
+    <p class="my-status-save-feedback" id="my-status-save-feedback" role="status" aria-live="polite" hidden></p>
   </section>
 
   <div class="ticket">
@@ -3079,7 +3086,7 @@ function setFirstTimeRegistration(active,preserveValue=false){
   label.textContent = active ? 'Tu nombre' : 'Nombre del jugador';
   input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
   help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
-  confirm.textContent = active ? 'Confirmar mi respuesta' : 'Confirmar';
+  confirm.textContent = 'Guardar';
   if(active){
     const typedName = input.value.trim();
     const duplicate = recurrentPlayers.some(name=>name.toLocaleLowerCase('es')===typedName.toLocaleLowerCase('es'));
@@ -3471,7 +3478,7 @@ function restoreCurrentLocalResponse(){
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
   mockTimes.style.display = response.status === 'out' ? 'none' : 'flex';
-  if(response.status !== 'out'){
+  if(response.from && response.to){
     const isFullDay = response.from === mockHourOptions[0] && response.to === mockHourOptions[mockHourOptions.length-1];
     mockFullDay.checked = isFullDay;
     mockPreviousTimes = null;
@@ -3532,6 +3539,33 @@ function resetMyStatusCard(){
   mockStatusCard.classList.remove('collapsed');
 }
 
+let saveFeedbackTimer = null;
+function showSaveFeedback(kind, message){
+  const el = document.getElementById('my-status-save-feedback');
+  el.className = `my-status-save-feedback ${kind}`;
+  el.textContent = message;
+  el.hidden = false;
+  if(saveFeedbackTimer) clearTimeout(saveFeedbackTimer);
+  // El éxito se autodesvanece; el error queda hasta que un guardado posterior lo reemplace.
+  if(kind === 'ok') saveFeedbackTimer = setTimeout(()=>{ el.hidden = true; el.textContent = ''; }, 4000);
+}
+
+// La respuesta del jugador actualmente identificado, no la primera del dispositivo:
+// un device puede tener autorizados varios jugadores y editar uno puntual.
+function responseDelJugadorActual(){
+  return localAvailabilityResponses.find(item=>
+    !item.isGuest && responseBelongsToCurrentDevice(item) &&
+    (!currentLocalResponseName || item.name.toLocaleLowerCase('es')===currentLocalResponseName.toLocaleLowerCase('es'))
+  );
+}
+function tieneCambiosSinGuardar(){
+  const saved = responseDelJugadorActual();
+  if(!saved) return false;
+  if(mockAvailability !== saved.status) return true;
+  if(mockAvailability !== 'out') return mockFrom.value !== saved.from || mockTo.value !== saved.to;
+  return false;
+}
+
 mockFrom.addEventListener('change', syncMockToOptions);
 document.getElementById('my-status-full-day').onclick = setFullDayAvailability;
 syncMockToOptions();
@@ -3568,13 +3602,15 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     nameInput.setAttribute('aria-invalid','true');
     showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Este soy yo”.');
     showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Este soy yo”.');
+    nameInput.focus();
     renderRecurrentPlayerMenu();
     return;
   }
   if(recurrentMatch) playerName = recurrentMatch;
   nameInput.removeAttribute('aria-invalid');
   if(mockAvailability !== 'out' && to <= from){
-    showToast('El horario “Hasta” debe ser posterior a “Desde”.');
+    document.getElementById('my-status-to').focus();
+    showSaveFeedback('error','El horario “Hasta” debe ser posterior a “Desde”.');
     return;
   }
   const existingResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
@@ -3592,19 +3628,20 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     ownerIds:existingResponse?.ownerIds || [currentSessionUserId],
     name:playerName,
     status:mockAvailability,
-    from:mockAvailability==='out' ? '' : from,
-    to:mockAvailability==='out' ? '' : to,
-    paid:mockAvailability==='in' ? (existingResponse?.paid === true) : null,
+    from:mockAvailability==='out' ? (existingResponse ? existingResponse.from : from) : from,
+    to:mockAvailability==='out' ? (existingResponse ? existingResponse.to : to) : to,
+    paid:mockAvailability==='in' ? (existingResponse?.paid === true)
+      : mockAvailability==='out' ? (existingResponse ? existingResponse.paid : null)
+      : null,
     team:mockAvailability==='in' ? (existingResponse?.team || chooseBalancedTeam(playerName)) : null,
     updatedAt:new Date().toISOString()
   };
   confirmButton.disabled = true;
-  const previousLabel = confirmButton.textContent;
   confirmButton.textContent = 'Guardando…';
   const result = await savePlayerRegistration(response);
   confirmButton.disabled = false;
-  confirmButton.textContent = previousLabel;
   if(result.duplicate){
+    confirmButton.textContent = 'Guardar';
     showDuplicateNameFeedback(playerName);
     render();
     renderLocalOrganizer();
@@ -3612,10 +3649,14 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     return;
   }
   if(!result.ok){
-    showPlayerNameFeedback('error','No pudimos guardar tu respuesta.',' Revisá tu conexión e intentá nuevamente.');
-    showToast('No se pudo guardar en Supabase. Revisá la conexión e intentá otra vez.');
+    // Se conservan todos los valores editados: no se resetea nada. La CTA cambia a
+    // Reintentar y el aviso queda hasta que un guardado posterior lo reemplace.
+    confirmButton.textContent = 'Reintentar';
+    showSaveFeedback('error','No pudimos guardar. Revisá tu conexión e intentá de nuevo.');
     return;
   }
+  confirmButton.textContent = 'Guardar';
+  showSaveFeedback('ok','✓ Cambios guardados');
   currentLocalResponseName = playerName;
   hidePlayerNameFeedback();
   addRecurrentPlayer(playerName);
@@ -3631,7 +3672,6 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   updateMyStatusSummary(response);
   renderGuestManager();
   mockStatusCard.classList.add('collapsed');
-  showToast('Respuesta guardada y sincronizada.');
 };
 
 document.getElementById('my-status-edit').onclick = ()=>{
@@ -3641,6 +3681,7 @@ document.getElementById('my-status-edit').onclick = ()=>{
 };
 
 document.getElementById('change-player-btn').onclick = ()=>{
+  if(tieneCambiosSinGuardar() && !window.confirm('Tenés cambios sin guardar. ¿Descartar y cambiar de jugador?')) return;
   setRegisteredPlayerNameMode(true);
   const input = document.getElementById('my-player-name');
   input.focus();
