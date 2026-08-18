@@ -1012,7 +1012,8 @@ function defaultState(){
     sedes: [{name:'Cancha del barrio',address:''}],
     formations: {},
     responses: [],
-    frequentAliases: []
+    frequentAliases: [],
+    habitualPlayers: []
   };
 }
 
@@ -1057,6 +1058,7 @@ async function leerEstadoDelServidor(){
     if(!parsed.formations) parsed.formations = {};
     if(!parsed.responses) parsed.responses = [];
     if(!parsed.frequentAliases) parsed.frequentAliases = [];
+    if(!Array.isArray(parsed.habitualPlayers)) parsed.habitualPlayers = [];
     return { estado:parsed, motivo:'ok' };
   }catch(e){
     console.error('Error leyendo de Supabase', e);
@@ -1183,7 +1185,7 @@ async function refreshFromServer(){
   localAvailabilityResponses = Array.isArray(state.responses) ? state.responses : [];
   const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   currentLocalResponseName = ownResponse?.name || '';
-  recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))].sort((a,b)=>a.localeCompare(b,'es'));
+  recurrentPlayers = deriveSelectorNames();
   reconciliarPlayers(playersRemotos);
   updateKnownSets(state);
   render();
@@ -2583,6 +2585,7 @@ finalizeConfirmBtn.onclick = async ()=>{
       // la lectura fresca. Con `...state` viajaba la copia local: alcanzaba con
       // finalizar para borrar el alias que otro dispositivo acababa de guardar.
       frequentAliases: fresh.frequentAliases,
+      habitualPlayers: fresh.habitualPlayers || [],
       // Array nuevo en vez de push: un push in-place no se revierte solo, y con el
       // guardado rechazado dejaba una fecha archivada sólo en este teléfono. Peor:
       // al reintentar se archivaba una segunda entrada vacía que se quedaba con el
@@ -2936,9 +2939,22 @@ function saveRecurrentPlayers(){
   try{ localStorage.setItem(LOCAL_RECURRENT_PLAYERS_KEY, JSON.stringify(recurrentPlayers)); }
   catch(e){ console.error('No se pudo guardar la lista de jugadores recurrentes', e); }
 }
+function deriveSelectorNames(estado = state, responses = localAvailabilityResponses){
+  const habituales = (estado && Array.isArray(estado.habitualPlayers)) ? estado.habitualPlayers : [];
+  const nombres = [...habituales, ...(responses || []).filter(item=>!item.isGuest).map(item=>item.name)];
+  const vistos = new Set();
+  const salida = [];
+  for(const nombre of nombres){
+    if(typeof nombre !== 'string' || !nombre) continue;
+    const clave = nombre.toLocaleLowerCase('es');
+    if(vistos.has(clave)) continue;
+    vistos.add(clave);
+    salida.push(nombre);
+  }
+  return salida.sort((a,b)=>a.localeCompare(b,'es'));
+}
 function loadRecurrentPlayers(){
-  recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))]
-    .sort((a,b)=>a.localeCompare(b,'es'));
+  recurrentPlayers = deriveSelectorNames();
 }
 function addRecurrentPlayer(name){
   const existing = recurrentPlayers.find(item=>item.toLocaleLowerCase('es')===name.toLocaleLowerCase('es'));
@@ -3803,8 +3819,7 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
   state.responses = localAvailabilityResponses;
   const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   currentLocalResponseName = ownResponse?.name || '';
-  recurrentPlayers = [...new Set(localAvailabilityResponses.filter(item=>!item.isGuest).map(item=>item.name))]
-    .sort((a,b)=>a.localeCompare(b,'es'));
+  recurrentPlayers = deriveSelectorNames();
   syncLocalAvailabilityWithPlayers();
   loadLocalFormationState();
   updateKnownSets(state);
