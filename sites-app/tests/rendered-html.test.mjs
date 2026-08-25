@@ -334,7 +334,7 @@ test("lets a trusted player reuse an existing response on another device", async
   assert.doesNotMatch(demo, /No se pudo recordar al jugador local/);
 });
 
-test("manages per-date guests from the collapsed player status", async () => {
+test("manages per-date guests from the continuous player form", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /¿A tu invitado le dio paja registrarse\?/);
@@ -398,17 +398,47 @@ test("keeps the user team summary compact", async () => {
   assert.doesNotMatch(demo, /@media\(min-width:680px\)\{\.organizer-formations\{grid-template-columns:1fr 1fr;/);
 });
 
-test("collapses my status into a mobile-first quick summary with reversible payment", async () => {
+// ---- PR B · Formulario continuo de "Mi estado" ----
+
+test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /function updateMyStatusSummary\(response\)/);
-  assert.match(demo, /`\$\{response\.name\} · \$\{availability\}/);
-  assert.match(demo, /class="my-status-summary-title">Mi estado/);
+  // El resumen colapsado y su toggle desaparecen: una vez identificado el jugador se
+  // ve directamente el formulario, sin card intermedia ni botón "Editar respuesta".
+  assert.doesNotMatch(demo, /\bcollapsed\b/);
+  assert.doesNotMatch(demo, /my-status-summary/);
+  assert.doesNotMatch(demo, /id="my-status-edit"/);
+  assert.doesNotMatch(demo, /updateMyStatusSummary/);
+  assert.doesNotMatch(demo, /mockStatusCard/);
+
+  // Orden del formulario continuo: Estado → Disponibilidad → Pago → Invitados → CTA.
+  const card = sliceBetween(
+    demo,
+    'id="my-status-card"',
+    '<div class="ticket">',
+    'la card de Mi estado',
+  );
+  const orden = ['my-status-choice', 'my-status-times', 'my-status-payment', 'guest-manager-bar', 'id="my-status-confirm"'];
+  let cursor = -1;
+  for(const marca of orden){
+    const at = card.indexOf(marca);
+    assert.ok(at > cursor, `"${marca}" fuera de orden en el formulario continuo`);
+    cursor = at;
+  }
+
+  // Pago vive dentro del form, oculto por defecto y gobernado por syncPagoControls.
+  assert.match(demo, /id="my-status-payment" hidden/);
   assert.match(demo, /class="my-status-paid"/);
-  // El pago sigue siendo reversible desde los dos botones, pero ya no se pinta antes
-  // de guardar: la escritura focalizada decide y el resumen se repinta con el ok.
+  assert.match(demo, /function syncPagoControls\(\)/);
+  // Sólo se muestra con "Estoy" seleccionado y una respuesta guardada in: marcarMiPago
+  // es un writer focalizado que necesita una response persistida sobre la cual escribir.
+  assert.match(demo, /mockPayment\.hidden = !\(mockAvailability === 'in' && saved && saved\.status === 'in'\)/);
+  // El pago sigue siendo reversible desde los dos botones, vía el writer focalizado.
   assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
-  assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
+  // Cambiar de estado repinta la visibilidad del pago en vivo.
+  assert.match(demo, /mockTimes\.style\.display = mockAvailability === 'out' \? 'none' : 'flex';\s*\r?\n\s*syncPagoControls\(\);/);
+
+  // Identidad "Pablo + Cambiar" intacta.
   assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste de nombre\? Cambiar jugador/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
@@ -467,7 +497,7 @@ test("da feedback inline de guardado y ofrece Reintentar al fallar", async () =>
   const confirmHandler = sliceBetween(
     demo,
     "document.getElementById('my-status-confirm').onclick = async ()=>{",
-    "document.getElementById('my-status-edit').onclick",
+    "document.getElementById('change-player-btn').onclick",
     'el handler de guardar Mi estado',
   );
   // Éxito: mensaje ✓ Cambios guardados y CTA vuelve a Guardar.
@@ -484,7 +514,7 @@ test("mueve el foco al primer campo con error al guardar", async () => {
   const confirmHandler = sliceBetween(
     demo,
     "document.getElementById('my-status-confirm').onclick = async ()=>{",
-    "document.getElementById('my-status-edit').onclick",
+    "document.getElementById('change-player-btn').onclick",
     'el handler de guardar Mi estado',
   );
   // Nombre no encontrado enfoca el input de nombre.

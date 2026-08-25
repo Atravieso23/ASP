@@ -455,26 +455,14 @@
   .my-status-times.is-full-day .my-status-fullday{background:var(--celeste-deep); color:#fff;}
   .my-status-times.is-full-day .my-status-time-pair{opacity:.5;}
   .my-status-confirm{
-    width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
+    width:100%; border:0; border-radius:9px; padding:12px; margin-top:14px;
     background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
   }
   .my-status-save-feedback{margin:10px 2px 0; font:700 12px 'Inter',sans-serif; line-height:1.4;}
   .my-status-save-feedback[hidden]{display:none;}
   .my-status-save-feedback.ok{color:var(--ok);}
   .my-status-save-feedback.error{color:var(--danger);}
-  .my-status-summary{display:none;}
-  .my-status-card.collapsed .my-status-form{display:none;}
-  .my-status-card.collapsed .my-status-summary{display:block;}
-  .my-status-card.collapsed .my-status-heading{display:none;}
-  .my-status-summary-top{display:flex; align-items:center; justify-content:space-between; gap:12px;}
-  .my-status-summary-title{font:700 15px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
-  .my-status-summary-value{margin-top:8px;font:700 12px 'JetBrains Mono',monospace;color:var(--navy);line-height:1.5;}
-  .my-status-summary-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;}
-  .my-status-edit{
-    border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
-    background:transparent; color:var(--celeste-deep); font:700 12px 'Inter',sans-serif; cursor:pointer;
-  }
-  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:12px; padding-top:12px;}
+  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:14px; padding-top:14px;}
   .my-status-payment[hidden]{display:none;}
   .my-status-payment .my-status-label{display:block;margin-bottom:7px;}
   .my-status-paid button[data-value="yes"].active{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 0 0 2px rgba(31,143,78,.16);}
@@ -676,17 +664,7 @@
           <span>Todo el día</span>
         </label>
       </div>
-      <button type="button" class="my-status-confirm" id="my-status-confirm">Guardar</button>
-    </div>
-    <div class="my-status-summary" aria-live="polite">
-      <div class="my-status-summary-top">
-        <div class="my-status-summary-title">Mi estado</div>
-        <div class="my-status-summary-actions">
-          <button type="button" class="my-status-edit" id="my-status-edit" aria-label="Abrir o cerrar edición de mi estado">Editar respuesta</button>
-        </div>
-      </div>
-      <div class="my-status-summary-value" id="my-status-summary-value">Félix · Estoy · 16:00–20:00 · No pagado</div>
-      <div class="my-status-payment">
+      <div class="my-status-payment" id="my-status-payment" hidden>
         <span class="my-status-label">Pago</span>
         <div class="my-status-paid" role="group" aria-label="Estado de pago">
           <button type="button" data-value="yes" aria-pressed="false">Pagado</button>
@@ -712,8 +690,9 @@
         </div>
         <div class="guest-list" id="guest-list"></div>
       </section>
+      <button type="button" class="my-status-confirm" id="my-status-confirm">Guardar</button>
+      <p class="my-status-save-feedback" id="my-status-save-feedback" role="status" aria-live="polite" hidden></p>
     </div>
-    <p class="my-status-save-feedback" id="my-status-save-feedback" role="status" aria-live="polite" hidden></p>
   </section>
 
   <div class="ticket">
@@ -3063,7 +3042,6 @@ function renderRecurrentPlayerMenu(){
         try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }
         catch(e){ console.error('No se pudo olvidar al jugador local', e); }
         document.getElementById('my-player-name').value = '';
-        mockStatusCard.classList.remove('collapsed');
       }
       setRegisteredPlayerNameMode(false);
       render();
@@ -3424,7 +3402,6 @@ mainOrganizerButton.onclick = ()=> setMainView('organizer');
 
 /* ---------- MI ESTADO: GUARDADO LOCAL DE PRUEBA ---------- */
 let mockAvailability = 'in';
-const mockStatusCard = document.getElementById('my-status-card');
 const mockTimes = document.getElementById('my-status-times');
 const mockPayment = document.querySelector('.my-status-payment');
 const guestManager = document.getElementById('guest-manager');
@@ -3489,21 +3466,20 @@ function restoreCurrentLocalResponse(){
     syncMockToOptions();
     mockTo.value = response.to;
   }
-  updateMyStatusSummary(response);
+  syncPagoControls();
   renderGuestManager();
-  mockStatusCard.classList.add('collapsed');
 }
 
-function updateMyStatusSummary(response){
-  const availability = response.status === 'out'
-    ? 'No estoy'
-    : `${response.status === 'duda' ? 'En duda' : 'Estoy'} · ${response.from}–${response.to}`;
-  const payment = response.status === 'in' ? (response.paid ? 'Pagado' : 'No pagado') : '';
-  document.getElementById('my-status-summary-value').textContent =
-    `${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;
-  mockPayment.hidden = response.status !== 'in';
+// Pago vive dentro del formulario continuo, no en un resumen aparte: se muestra sólo
+// cuando el estado elegido es "Estoy" y ya existe una respuesta guardada in del jugador,
+// porque marcarMiPago es un writer focalizado que necesita una response persistida sobre
+// la cual escribir. Mostrarlo antes del primer Guardar daría un tap mudo.
+function syncPagoControls(){
+  const saved = responseDelJugadorActual();
+  const paid = saved ? saved.paid === true : false;
+  mockPayment.hidden = !(mockAvailability === 'in' && saved && saved.status === 'in');
   document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
+    const selected = option.dataset.value === (paid ? 'yes' : 'no');
     option.classList.toggle('active', selected);
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
@@ -3536,7 +3512,6 @@ function resetMyStatusCard(){
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
   renderGuestManager();
-  mockStatusCard.classList.remove('collapsed');
 }
 
 let saveFeedbackTimer = null;
@@ -3579,6 +3554,7 @@ document.querySelectorAll('.my-status-choice button').forEach(btn=>{
       option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'flex';
+    syncPagoControls();
   };
 });
 
@@ -3669,15 +3645,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   setRegisteredPlayerNameMode(false);
   render();
   renderLocalOrganizer();
-  updateMyStatusSummary(response);
+  syncPagoControls();
   renderGuestManager();
-  mockStatusCard.classList.add('collapsed');
-};
-
-document.getElementById('my-status-edit').onclick = ()=>{
-  const willOpen = mockStatusCard.classList.contains('collapsed');
-  mockStatusCard.classList.toggle('collapsed');
-  if(willOpen) setRegisteredPlayerNameMode(false);
 };
 
 document.getElementById('change-player-btn').onclick = ()=>{
@@ -3759,11 +3728,9 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
     }
     render();
     renderLocalOrganizer();
-    // Desde la lista fresca: la de antes del guardado ya no es la que está en state.
-    const actualizada = localAvailabilityResponses.find(item=>
-      !item.isGuest && responseBelongsToCurrentDevice(item)
-    );
-    if(actualizada) updateMyStatusSummary(actualizada);
+    // Repinta el pago desde la lista fresca: la de antes del guardado ya no es la
+    // que está en state.
+    syncPagoControls();
   };
 });
 
