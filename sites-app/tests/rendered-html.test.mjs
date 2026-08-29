@@ -272,7 +272,8 @@ test("supports recurrent players with identity-focused first-time copy", async (
   assert.match(demo, /id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados\./);
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
-  assert.match(demo, /data-delete-recurrent-index/);
+  // La lista base se administra por seed/patch: el menú del selector ya no borra identidades.
+  assert.doesNotMatch(demo, /data-delete-recurrent-index/);
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
   assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
   assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
@@ -739,7 +740,6 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
   assert.match(demo, /Estás editando la respuesta de \$\{ownResponse\.name\}/);
   assert.match(demo, /Cambio de jugador activado/);
-  assert.match(demo, /input\.select\(\)/);
 });
 
 // ---- PR A · Core "Mi estado" ----
@@ -833,6 +833,25 @@ test("Cambiar jugador protege los cambios sin guardar del jugador seleccionado",
     'el handler de cambiar jugador',
   );
   assert.match(changeHandler, /if\(tieneCambiosSinGuardar\(\) && !window\.confirm\('Tenés cambios sin guardar\. ¿Descartar y cambiar de jugador\?'\)\) return;/);
+});
+
+test("Cambiar jugador vacía el campo y abre el menú para una búsqueda limpia", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const changeHandler = sliceBetween(
+    demo,
+    "document.getElementById('change-player-btn').onclick",
+    "document.getElementById('edit-display-name-btn').onclick",
+    'el handler de cambiar jugador',
+  );
+  // El campo arranca vacío: cambiar de jugador es una búsqueda de identidad desde cero,
+  // no una edición del nombre prellenado (que invitaba a borrarlo a mano).
+  assert.match(changeHandler, /input\.value = '';/);
+  assert.doesNotMatch(changeHandler, /input\.select\(\)/);
+  // Y el menú del selector queda abierto y listo para filtrar.
+  assert.match(changeHandler, /renderRecurrentPlayerMenu\(\);/);
+  assert.match(changeHandler, /input\.focus\(\);/);
+  // El modo "cambiar" deja el input editable (no readOnly) para poder buscar.
+  assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
 });
 
 test("defaults to F8 and assigns every confirmed player to a balanced team", async () => {

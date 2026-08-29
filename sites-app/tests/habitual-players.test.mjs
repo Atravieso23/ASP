@@ -296,19 +296,30 @@ test("mensaje vacío cuando no falta nadie", () => {
   );
 });
 
-test("Falta confirmar es sólo lectura: no toca habitualPlayers, recurrentPlayers ni el botón X", () => {
+test("Falta confirmar es sólo lectura: no toca habitualPlayers ni recurrentPlayers", () => {
   const src = [
     extractFunction(demo, "faltanConfirmar"),
     extractFunction(demo, "mensajeFaltaConfirmar"),
     extractFunction(demo, "renderFaltaConfirmar"),
   ].join("\n");
   assert.ok(
-    !/habitualPlayers\s*=|recurrentPlayers\s*[=.]|\.splice\(|saveRecurrentPlayers|localStorage|data-delete-recurrent-index/.test(src),
-    "la feature no debe escribir habituales/recurrentes ni tocar el borrado del selector",
+    !/habitualPlayers\s*=|recurrentPlayers\s*[=.]|\.splice\(|saveRecurrentPlayers|localStorage/.test(src),
+    "la feature no debe escribir habituales/recurrentes",
   );
-  // El botón "×" del selector sigue intacto.
-  assert.match(demo, /data-delete-recurrent-index="\$\{item\.index\}"/);
-  assert.match(demo, /menu\.querySelectorAll\('\[data-delete-recurrent-index\]'\)/);
+});
+
+test("el menú del selector no tiene acción de borrar identidades base", () => {
+  // La lista base se administra por seed/patch, no desde la app: el menú "¿Quién sos?"
+  // sólo elige identidad. Nada de "×" ni de eliminarJugador colgando del selector.
+  const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
+  assert.doesNotMatch(menu, /data-delete-recurrent-index/);
+  assert.doesNotMatch(menu, /recurrent-player-delete/);
+  assert.doesNotMatch(menu, /eliminarJugador/);
+  assert.doesNotMatch(menu, /de la lista compartida/);
+  assert.doesNotMatch(demo, /data-delete-recurrent-index/);
+  assert.doesNotMatch(demo, /class="recurrent-player-delete"/);
+  // El botón de la opción es sólo el de seleccionar.
+  assert.match(menu, /class="recurrent-player-select" data-recurrent-index=/);
 });
 
 /* ---------- Selector post-release identidad base: sólo las 14, sin ruido legacy ---------- */

@@ -430,10 +430,9 @@
   #display-name-cancel{background:transparent;color:var(--celeste-deep);}
   .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:300px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
   .recurrent-player-menu[hidden]{display:none;}
-  .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;padding:4px;border-radius:8px;}
+  .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;padding:4px;border-radius:8px;}
   .recurrent-player-option:hover{background:var(--bg-bottom);}
   .recurrent-player-select{min-width:0;border:0;background:transparent;color:var(--navy);padding:7px 8px;text-align:left;font:600 12px 'Inter',sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .recurrent-player-delete{width:28px;height:28px;border:1px solid rgba(193,67,42,.35);border-radius:7px;background:transparent;color:var(--danger);font-size:13px;cursor:pointer;}
   .recurrent-player-empty{margin:0;padding:9px;color:var(--muted);font-size:11px;text-align:center;}
   .my-status-choice, .my-status-paid{display:flex; gap:8px;}
   .my-status-choice button, .my-status-paid button{
@@ -3165,8 +3164,8 @@ function setRegisteredPlayerNameMode(allowChange=false){
     hidePlayerNameFeedback();
   }else if(ownResponse){
     label.textContent = 'Cambiar jugador';
-    help.textContent = 'Corregí el nombre y volvé a confirmar. No podrás usar un nombre que ya pertenezca a otra persona.';
-    showPlayerNameFeedback('info','Cambio de jugador activado.',' Usalo solamente si te equivocaste de nombre.');
+    help.textContent = 'Elegí tu identidad de la lista, o tocá “Este soy yo” si no estás.';
+    showPlayerNameFeedback('info','Cambio de jugador activado.',' Elegí otra identidad de la lista.');
   }else{
     label.textContent = 'Nombre del jugador';
     help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
@@ -3184,7 +3183,6 @@ function renderRecurrentPlayerMenu(){
   menu.innerHTML = filtered.length ? filtered.map(item=>`
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
-      <button type="button" class="recurrent-player-delete" data-delete-recurrent-index="${item.index}" aria-label="Quitar a ${escapeHtml(item.name)} de jugadores recurrentes">×</button>
     </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Tocá “Este soy yo” para usar uno nuevo.</p>';
   menu.hidden = false;
   input.setAttribute('aria-expanded','true');
@@ -3204,45 +3202,8 @@ function renderRecurrentPlayerMenu(){
       }
     };
   });
-  menu.querySelectorAll('[data-delete-recurrent-index]').forEach(button=>{
-    button.onclick = async event=>{
-      event.stopPropagation();
-      const index = Number(button.dataset.deleteRecurrentIndex);
-      const removed = recurrentPlayers[index];
-      if(!removed) return;
-      const matches = localAvailabilityResponses.filter(item=>!item.isGuest && item.name.toLocaleLowerCase('es')===removed.toLocaleLowerCase('es'));
-      if(matches.length!==1){
-        showToast('No se puede identificar ese jugador de forma única. Usá nombre y apellido.');
-        return;
-      }
-      const target = matches[0];
-      if(!window.confirm(`¿Eliminar a ${removed} de la lista compartida?`)) return;
-      button.disabled = true;
-      const ok = await eliminarJugador(target.responseId);
-      button.disabled = false;
-      if(!ok){
-        // Nada que revertir: con el guardado save-first el estado local nunca cambió.
-        showToast(`No se pudo eliminar a ${removed}. Revisá la conexión e intentá otra vez.`);
-        return;
-      }
-      // Recién con el ok. Antes se sacaba de la lista local y del localStorage antes de
-      // guardar, así que un rechazo dejaba al jugador fuera del buscador de este
-      // teléfono aunque siguiera existiendo para el grupo.
-      recurrentPlayers.splice(index,1);
-      saveRecurrentPlayers();
-      if(responseBelongsToCurrentDevice(target)){
-        currentLocalResponseName = '';
-        try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }
-        catch(e){ console.error('No se pudo olvidar al jugador local', e); }
-        document.getElementById('my-player-name').value = '';
-      }
-      setRegisteredPlayerNameMode(false);
-      render();
-      renderLocalOrganizer();
-      renderRecurrentPlayerMenu();
-      showToast(`${removed} se eliminó de la lista compartida.`);
-    };
-  });
+  // La lista base de identidades se administra por seed/patch, no desde la app: el menú
+  // "¿Quién sos?" sólo sirve para elegir identidad, sin acción de borrado.
 }
 function setFirstTimeRegistration(active,preserveValue=false){
   registeringFirstTime = active;
@@ -3869,8 +3830,11 @@ document.getElementById('change-player-btn').onclick = ()=>{
   if(tieneCambiosSinGuardar() && !window.confirm('Tenés cambios sin guardar. ¿Descartar y cambiar de jugador?')) return;
   setRegisteredPlayerNameMode(true);
   const input = document.getElementById('my-player-name');
+  // Se vacía el campo: cambiar de jugador arranca una búsqueda limpia de identidad,
+  // no una edición del nombre que ya estaba.
+  input.value = '';
   input.focus();
-  input.select();
+  renderRecurrentPlayerMenu();
 };
 
 document.getElementById('edit-display-name-btn').onclick = ()=>{
