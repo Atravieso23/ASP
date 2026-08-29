@@ -392,10 +392,10 @@ test("renders the guest CTA from the manager visibility", async () => {
   assert.equal(toggle.textContent, 'Cerrar invitados');
 });
 
-// PR C · A — el gestor no puede recortar la lista: un anfitrión con 4, 5 o 6 invitados
-// tiene que verlos a todos, y cada fila lleva su responseId para que pago y borrado no
-// dependan de la posición ni del nombre. Si alguien reintroduce un slice(0,N) el conteo
-// de filas deja de coincidir con la cantidad de invitados y este test se cae.
+// El gestor no puede recortar la lista: un anfitrión con 4, 5 o 6 invitados tiene que
+// verlos a todos, y cada fila lleva su responseId para que pago y borrado no dependan de
+// la posición ni del nombre. Si alguien reintroduce un slice(0,N) el conteo de filas deja
+// de coincidir con la cantidad de invitados y este test se cae.
 test("renderiza todos los invitados sin recorte, con responseId por fila", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const guestManagerRenderer = sliceBetween(
@@ -416,8 +416,9 @@ test("renderiza todos los invitados sin recorte, con responseId por fila", async
     'guest-manager-count': count,
     'guest-manager-bar': bar,
   };
-  // Dos "Juan" con responseId distinto: además de las 6 filas, prueba que los nombres
-  // repetidos no se colapsan en el render (PR C · B).
+  // Dos "Juan" con responseId distinto: el alta ahora rechaza nombres repetidos, pero los
+  // datos pueden traer homónimos de antes de esa regla o de una carrera entre teléfonos.
+  // El render tiene que pintarlos como filas separadas, cada una con su responseId.
   const guests = [
     { responseId: 'g1', name: 'Ana',  paid: false },
     { responseId: 'g2', name: 'Beto', paid: true  },

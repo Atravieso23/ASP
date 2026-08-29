@@ -272,8 +272,8 @@ Tests should protect user-visible invariants and known regressions.
 
 Good examples:
 - 4+ guests all render
-- fourth guest can be paid/removed
-- duplicate guest names remain independent
+- fourth guest can be paid/removed by responseId
+- adding a guest whose name is already taken is rejected (normalized)
 - anonymous user does not see guest controls
 - clearing the current match does not erase habitual membership
 

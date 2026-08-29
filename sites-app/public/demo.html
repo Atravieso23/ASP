@@ -2856,22 +2856,32 @@ async function marcarPagoDeInvitado(responseId, paid){
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
+const INVITADO_DUPLICADO = 'duplicado';
 
-// Devuelve el motivo además del resultado: "sin anfitrión" y "no hay conexión" necesitan
-// avisos distintos. Los nombres repetidos están permitidos (PR C · B): un anfitrión puede
-// traer a dos invitados que se llaman igual, y cada uno vive por su propio responseId, que
-// es lo que usan pago y borrado. No se toca el nombre persistido.
+// Devuelve el motivo además del resultado: "sin anfitrión", "nombre ocupado" y "no hay
+// conexión" necesitan avisos distintos. El nombre del invitado tiene que ser único en la
+// fecha: se compara normalizado (trim + minúsculas) contra las responses frescas
+// —jugadores e invitados ya agregados— y contra habitualPlayers. No se muta el nombre ni
+// se agregan sufijos: el anfitrión agrega apellido o apodo. El pago y el borrado siguen
+// resolviéndose por responseId.
 async function agregarInvitado(nombre){
   const propia = localAvailabilityResponses.find(item=>
     !item.isGuest && responseBelongsToCurrentDevice(item)
   );
   if(!propia) return {ok:false, motivo:INVITADO_SIN_ANFITRION};
   const anfitrionId = propia.responseId;
+  const normalizado = nombre.trim().toLocaleLowerCase('es');
+  const habituales = Array.isArray(state.habitualPlayers) ? state.habitualPlayers : [];
   let motivo = null;
   const ok = await guardarCambioEnResponses(responses=>{
     const anfitrion = responses.find(item=>item.responseId===anfitrionId);
     // Sin anfitrión no se cuelga el invitado: otro dispositivo borró mi respuesta.
     if(!anfitrion){ motivo = INVITADO_SIN_ANFITRION; return false; }
+    // Nombre ocupado: se revalida contra las responses frescas, porque el chequeo local
+    // no ve al jugador o invitado que otro teléfono agregó desde el último sondeo.
+    const ocupado = responses.some(item=>item.name.trim().toLocaleLowerCase('es')===normalizado)
+      || habituales.some(h=>String(h).trim().toLocaleLowerCase('es')===normalizado);
+    if(ocupado){ motivo = INVITADO_DUPLICADO; return false; }
     responses.push({
       responseId:crypto.randomUUID(),
       ownerId:currentSessionUserId,
@@ -3697,8 +3707,13 @@ document.getElementById('guest-add-btn').onclick = async ()=>{
   );
   if(!owner){ showToast('Primero confirmá tu estado.'); return; }
   if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
-  // Nombres repetidos permitidos (PR C · B): dos invitados pueden llamarse igual. No se
-  // valida unicidad de nombre; cada invitado se distingue por su responseId.
+  // Aviso instantáneo para el caso común. La revalidación que manda es la de
+  // agregarInvitado(), contra las responses del servidor. Misma normalización.
+  const normalizado = guestName.toLocaleLowerCase('es');
+  const habituales = Array.isArray(state.habitualPlayers) ? state.habitualPlayers : [];
+  const ocupado = localAvailabilityResponses.some(item=>item.name.trim().toLocaleLowerCase('es')===normalizado)
+    || habituales.some(h=>String(h).trim().toLocaleLowerCase('es')===normalizado);
+  if(ocupado){ input.focus(); showToast('Ya hay alguien con ese nombre. Agregá apellido o apodo.'); return; }
   const etiquetaPrevia = button.textContent;
   button.disabled = true;
   button.textContent = 'Agregando…';
@@ -3709,7 +3724,8 @@ document.getElementById('guest-add-btn').onclick = async ()=>{
     // El input no se limpia: se reintenta sin volver a tipear, igual que los campos de
     // editar partido cuando el guardado se rechaza.
     input.focus();
-    if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
+    if(motivo===INVITADO_DUPLICADO) showToast('Ya hay alguien con ese nombre. Agregá apellido o apodo.');
+    else if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
     else showToast(`No se pudo agregar a ${guestName}. Revisá la conexión e intentá otra vez.`);
     return;
   }

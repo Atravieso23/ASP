@@ -104,9 +104,9 @@ Final report should normally contain:
 
 ### Guests
 - 4+ guests must all remain visible and manageable.
-- Duplicate guest names are allowed.
+- Guest names must be unique within a match. On add, the name is compared normalized (trim + case-insensitive) against current responses, guests already added, and `habitualPlayers`; a collision blocks the add and prompts for apellido/apodo. (Superseded the earlier "duplicate guest names are allowed" rule after real QA.)
 - Do not mutate real names with artificial suffixes.
-- Guest payment/removal must operate by `responseId`.
+- Guest payment/removal must operate by `responseId` (never by name), including when older data still contains same-named guests.
 - Guests do not disappear if the host changes to `No estoy`.
 
 ## Engineering judgment
