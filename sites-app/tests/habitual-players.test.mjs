@@ -293,3 +293,177 @@ test("Falta confirmar es sólo lectura: no toca habitualPlayers, recurrentPlayer
   assert.match(demo, /data-delete-recurrent-index="\$\{item\.index\}"/);
   assert.match(demo, /menu\.querySelectorAll\('\[data-delete-recurrent-index\]'\)/);
 });
+
+/* ---------- SPIKE: identidad base (habitualName) + nombre visible ---------- */
+
+test("faltanConfirmar descuenta al habitual vía habitualName aunque name sea un apodo", () => {
+  const w = faltaConfirmarWorld();
+  const faltan = w.faltan(
+    { habitualPlayers: ["Pablo", "Mingo"] },
+    [{ name: 'Pablo "el Capi"', habitualName: "Pablo", isGuest: false, status: "duda" }],
+  );
+  assert.deepEqual(faltan, ["Mingo"], "habitualName:'Pablo' descuenta a Pablo; el apodo no aparece");
+});
+
+test("faltanConfirmar: datos viejos sin habitualName siguen matcheando por name", () => {
+  const w = faltaConfirmarWorld();
+  assert.deepEqual(
+    w.faltan({ habitualPlayers: ["Pablo", "Mingo"] }, [{ name: "Pablo", isGuest: false }]),
+    ["Mingo"],
+    "sin habitualName, el fallback a name es idéntico a hoy",
+  );
+});
+
+test("faltanConfirmar: un apodo SIN habitualName no se arregla mágicamente (fallback documentado)", () => {
+  const w = faltaConfirmarWorld();
+  assert.deepEqual(
+    w.faltan({ habitualPlayers: ["Fran Forrester", "Mingo"] }, [{ name: "Frankie", isGuest: false }]),
+    ["Fran Forrester", "Mingo"],
+    "Frankie sin habitualName no descuenta a 'Fran Forrester': hay que re-identificarse una vez",
+  );
+});
+
+test("deriveSelectorNames: una response con habitualName aporta la identidad base, no el nombre visible", () => {
+  const derive = selectorWorld();
+  const nombres = derive(
+    { habitualPlayers: ["Pablo"] },
+    [{ name: 'Pablo "el Capi"', habitualName: "Pablo", isGuest: false }],
+  );
+  assert.deepEqual(nombres, ["Pablo"], "el selector muestra 'Pablo' una vez, no 'Pablo \"el Capi\"'");
+});
+
+test("deriveSelectorNames: una response no-habitual SIN habitualName sigue apareciendo en el selector", () => {
+  const derive = selectorWorld();
+  const nombres = derive({ habitualPlayers: ["Pablo"] }, [{ name: "Suplente", isGuest: false }]);
+  assert.deepEqual(nombres, ["Pablo", "Suplente"]);
+});
+
+test("al confirmar como habitual 'Pablo', la response guarda habitualName:'Pablo'", () => {
+  const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
+  // El valor sale de habitualPlayers (identidad base), nunca de un input libre.
+  assert.match(handler, /const habitualExacto = \(state\.habitualPlayers \|\| \[\]\)\.find\(/);
+  assert.match(handler, /const habitualName = habitualExacto \|\| \(esMiNombreVisible \? existingResponse\.habitualName : undefined\);/);
+  assert.match(handler, /if\(habitualName\) response\.habitualName = habitualName;/);
+  // Re-guardar tu propio nombre visible no rebota por el gate de "no encontramos ese jugador".
+  assert.match(handler, /const esMiNombreVisible = existingResponse && /);
+  assert.match(handler, /!recurrentMatch && !esMiNombreVisible\)\{/);
+});
+
+test("al confirmar como habitual, name y habitualName quedan en la identidad base exacta", () => {
+  const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
+  // El texto tipeado se normaliza a la entrada exacta del selector (= identidad base
+  // sembrada) antes de construir la response.
+  assert.match(handler, /if\(recurrentMatch\) playerName = recurrentMatch;/);
+  // La response nace con name = ese mismo string...
+  assert.match(handler, /name:\s*playerName,/);
+  // ...y habitualName sale de la entrada exacta de habitualPlayers, no de un input libre.
+  assert.match(handler, /habitualExacto = \(state\.habitualPlayers \|\| \[\]\)\.find\(h=>String\(h\)\.toLocaleLowerCase\('es'\)===playerName\.toLocaleLowerCase\('es'\)\)/);
+  // recurrentPlayers (lo que matchea recurrentMatch) se deriva de habitualPlayers.
+  assert.match(extractFunction(demo, "deriveSelectorNames"), /estado\.habitualPlayers/);
+});
+
+test("las listas del partido muestran el nombre visible (response.name), no habitualName", () => {
+  const getResponsePlayers = extractFunction(demo, "getResponsePlayers");
+  assert.match(getResponsePlayers, /response\.name\.toLocaleLowerCase\('es'\)/);
+  assert.ok(!/habitualName/.test(getResponsePlayers),
+    "el armado de las listas del partido no debe mirar habitualName");
+});
+
+test("la copy de identidad del jugador no sugiere 'apodo' como default", () => {
+  // Identidad base = nombre real/corto. El desambiguador de homónimos es el apellido.
+  assert.match(demo, /agregá tu apellido para diferenciarte/);
+  assert.match(demo, /agregá tu apellido\./);
+  assert.match(demo, /Agregá tu apellido para distinguirte/);
+  assert.doesNotMatch(demo, /agregá tu apellido o apodo/);
+  assert.doesNotMatch(demo, /Agregá apellido o apodo para distinguirte/);
+});
+
+test("los invitados nunca reciben habitualName", () => {
+  const alta = extractFunction(demo, "agregarInvitado");
+  assert.ok(!/habitualName/.test(alta), "agregarInvitado no debe setear habitualName en ningún caso");
+});
+
+test("pago/borrado de invitados sigue resolviendo por responseId", () => {
+  assert.match(extractFunction(demo, "marcarPagoDeInvitado"), /item\.responseId===responseId && item\.isGuest/);
+  assert.match(extractFunction(demo, "eliminarInvitado"), /item\.responseId===responseId && item\.isGuest/);
+});
+
+// guardarNombreVisible corriendo de verdad, con un guardarCambioEnResponses de mentira
+// que aplica el mutator sobre las responses provistas.
+function nombreVisibleWorld(responses, { device = "dev-1" } = {}) {
+  const rows = structuredClone(responses);
+  const context = vm.createContext({
+    String, Array, Object, Date, Promise, structuredClone,
+    console: { error() {}, warn() {}, log() {} },
+    localAvailabilityResponses: rows,
+    currentSessionUserId: device,
+  });
+  vm.runInContext(
+    `${extractFunction(demo, "responseBelongsToCurrentDevice")}
+     function guardarCambioEnResponses(fn){ return Promise.resolve(fn(localAvailabilityResponses)); }
+     ${extractFunction(demo, "guardarNombreVisible")}`,
+    context,
+  );
+  return {
+    rows,
+    run: (nuevo) => vm.runInContext(
+      `guardarNombreVisible(${JSON.stringify(nuevo)}).then(r => JSON.stringify(r))`,
+      context,
+    ).then((s) => JSON.parse(s)),
+  };
+}
+
+const MI_RESPONSE = () => ({
+  responseId: "r1", ownerId: "dev-1", ownerIds: ["dev-1"],
+  name: "Pablo", habitualName: "Pablo", status: "duda", paid: null, team: null,
+  isGuest: false, updatedAt: "2026-08-01T00:00:00.000Z",
+});
+
+test("editar nombre visible cambia sólo name y preserva habitualName/responseId/status/paid/team", async () => {
+  const w = nombreVisibleWorld([MI_RESPONSE()]);
+  const r = await w.run('Pablo "el Capi"');
+  assert.equal(r.ok, true);
+  const row = w.rows[0];
+  assert.equal(row.name, 'Pablo "el Capi"', "el nombre visible cambió");
+  assert.equal(row.habitualName, "Pablo", "la identidad base se preserva");
+  assert.equal(row.responseId, "r1");
+  assert.equal(row.status, "duda");
+  assert.equal(row.paid, null);
+  assert.equal(row.team, null);
+  assert.deepEqual(row.ownerIds, ["dev-1"]);
+  assert.notEqual(row.updatedAt, "2026-08-01T00:00:00.000Z", "updatedAt se toca");
+});
+
+test("editar nombre visible resuelve por responseId, no por name", async () => {
+  const otro = { ...MI_RESPONSE(), responseId: "r2", ownerId: "dev-2", ownerIds: ["dev-2"], name: "Pablo", habitualName: "Pablo" };
+  const w = nombreVisibleWorld([MI_RESPONSE(), otro]);
+  await w.run("Pablito");
+  assert.equal(w.rows.find((x) => x.responseId === "r1").name, "Pablito", "sólo cambió mi response");
+  assert.equal(w.rows.find((x) => x.responseId === "r2").name, "Pablo", "la otra response homónima no se tocó");
+});
+
+test("nombre visible vacío vuelve a habitualName", async () => {
+  const w = nombreVisibleWorld([{ ...MI_RESPONSE(), name: 'Pablo "el Capi"' }]);
+  const r = await w.run("   ");
+  assert.equal(r.ok, true);
+  assert.equal(w.rows[0].name, "Pablo", "input vacío -> identidad base");
+  assert.equal(w.rows[0].habitualName, "Pablo");
+});
+
+test("nombre visible vacío sin habitualName deja el nombre actual", async () => {
+  const sinHabitual = MI_RESPONSE();
+  delete sinHabitual.habitualName;
+  sinHabitual.name = "Suplente Ariel";
+  const w = nombreVisibleWorld([sinHabitual]);
+  await w.run("");
+  assert.equal(w.rows[0].name, "Suplente Ariel", "sin identidad base, se conserva el nombre visible");
+});
+
+test("editar nombre visible rechaza colisión con otra response no invitada", async () => {
+  const otro = { ...MI_RESPONSE(), responseId: "r2", ownerId: "dev-2", ownerIds: ["dev-2"], name: "Colo", habitualName: "Colo" };
+  const w = nombreVisibleWorld([MI_RESPONSE(), otro]);
+  const r = await w.run("colo");
+  assert.equal(r.ok, false);
+  assert.equal(r.motivo, "duplicado");
+  assert.equal(w.rows[0].name, "Pablo", "no se escribió el nombre en colisión");
+});
