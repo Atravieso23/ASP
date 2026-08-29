@@ -495,6 +495,21 @@
   .guest-empty{margin:4px 0 0;color:var(--muted);font-size:11px;text-align:center;}
   .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:9px;white-space:nowrap;}
 
+  /* FALTA CONFIRMAR — quiénes del grupo habitual todavía no respondieron */
+  .falta-confirmar{
+    display:grid; gap:8px; margin:0 0 16px; padding:12px 14px;
+    background:rgba(79,166,222,.06); border:1px solid var(--card-border); border-radius:12px;
+  }
+  .falta-confirmar[hidden]{display:none;}
+  .falta-confirmar-head{display:grid; gap:2px;}
+  .falta-confirmar-title{margin:0; font:700 12px 'Oswald',sans-serif; letter-spacing:.07em; text-transform:uppercase; color:var(--navy);}
+  .falta-confirmar-sub{margin:0; font-size:11px; line-height:1.4; color:var(--muted);}
+  .falta-confirmar--ok .falta-confirmar-sub{color:var(--ok);}
+  .falta-confirmar-names{margin:0; font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);}
+  .falta-confirmar-names[hidden]{display:none;}
+  .falta-confirmar-copy{justify-self:start; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-bottom); color:var(--celeste-deep); padding:8px 12px; font:700 11px 'Inter',sans-serif; cursor:pointer;}
+  .falta-confirmar-copy[hidden]{display:none;}
+
   /* VISTAS PRINCIPALES */
   .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:13px;}
   .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
@@ -694,6 +709,15 @@
       <button type="button" class="my-status-confirm" id="my-status-confirm">Guardar</button>
       <p class="my-status-save-feedback" id="my-status-save-feedback" role="status" aria-live="polite" hidden></p>
     </div>
+  </section>
+
+  <section class="falta-confirmar" id="falta-confirmar-block" aria-labelledby="falta-confirmar-title" hidden>
+    <div class="falta-confirmar-head">
+      <h2 class="falta-confirmar-title" id="falta-confirmar-title">Falta confirmar</h2>
+      <p class="falta-confirmar-sub" id="falta-confirmar-sub"></p>
+    </div>
+    <p class="falta-confirmar-names" id="falta-confirmar-names"></p>
+    <button type="button" class="falta-confirmar-copy" id="falta-confirmar-copy">Copiar para WhatsApp</button>
   </section>
 
   <div class="ticket">
@@ -1719,6 +1743,7 @@ function render(){
   faltanEl.innerHTML = unpaidNames.length ? `Faltan pagar: <b>${escapeHtml(unpaidNames.join(', '))}</b>` : (inList.length ? 'Ya pagaron todos ✓' : '');
 
   renderHistory();
+  renderFaltaConfirmar();
 }
 
 function setSb(id, val, emptyLabel){
@@ -2712,6 +2737,28 @@ document.getElementById('copy-alias-btn').onclick = async ()=>{
     }
   }
 };
+
+// Copiar para WhatsApp: mismo mecanismo que "Copiar alias" —clipboard nativo con fallback
+// a textarea + execCommand—, y feedback con el toast existente.
+document.getElementById('falta-confirmar-copy').onclick = async ()=>{
+  const mensaje = mensajeFaltaConfirmar();
+  if(!mensaje) return;
+  try{
+    await navigator.clipboard.writeText(mensaje);
+    showToast('Copiado para WhatsApp');
+  }catch(e){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = mensaje; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Copiado para WhatsApp');
+    }catch(e2){
+      showToast('No se pudo copiar. ' + mensaje);
+    }
+  }
+};
 document.getElementById('maps-btn').onclick = ()=>{
   const mi = state.matchInfo;
   if(!mi.loc){ showToast('Todavía no elegiste una cancha.'); return; }
@@ -2936,6 +2983,60 @@ function deriveSelectorNames(estado = state, responses = localAvailabilityRespon
     salida.push(nombre);
   }
   return salida.sort((a,b)=>a.localeCompare(b,'es'));
+}
+// faltanConfirmar = grupo habitual − responses no invitadas. Un habitual que ya respondió
+// cualquier cosa (incluso "No estoy") no falta: sólo cuenta la ausencia de una response
+// propia. Los invitados no confirman por nadie. Se preserva el nombre tal como está en
+// habitualPlayers para mostrarlo. Misma normalización (trim + minúsculas) que el resto.
+function faltanConfirmar(estado = state, responses = localAvailabilityResponses){
+  const habituales = (estado && Array.isArray(estado.habitualPlayers)) ? estado.habitualPlayers : [];
+  const respondieron = new Set(
+    (responses || [])
+      .filter(item=>!item.isGuest && typeof item.name === 'string')
+      .map(item=>item.name.trim().toLocaleLowerCase('es'))
+  );
+  return habituales.filter(nombre=>
+    typeof nombre === 'string' && nombre.trim() &&
+    !respondieron.has(nombre.trim().toLocaleLowerCase('es'))
+  );
+}
+// "Falta confirmar: Pablo, Mingo, Roca y Negro 👀" — coma entre todos menos el último,
+// que va con " y ". Vacío si no falta nadie.
+function mensajeFaltaConfirmar(estado = state, responses = localAvailabilityResponses){
+  const faltan = faltanConfirmar(estado, responses);
+  if(faltan.length === 0) return '';
+  const lista = faltan.length === 1
+    ? faltan[0]
+    : faltan.slice(0, -1).join(', ') + ' y ' + faltan[faltan.length - 1];
+  return `Falta confirmar: ${lista} 👀`;
+}
+function renderFaltaConfirmar(){
+  const block = document.getElementById('falta-confirmar-block');
+  const sub = document.getElementById('falta-confirmar-sub');
+  const namesEl = document.getElementById('falta-confirmar-names');
+  const copyBtn = document.getElementById('falta-confirmar-copy');
+  if(!block || !sub || !namesEl || !copyBtn) return;
+  const habituales = Array.isArray(state.habitualPlayers) ? state.habitualPlayers : [];
+  // Sin grupo habitual sembrado no hay con qué comparar: se oculta el bloque entero. Es
+  // lo más simple: cero copy que diseñar para un estado que sólo se ve antes del seed.
+  if(habituales.length === 0){ block.hidden = true; return; }
+  block.hidden = false;
+  const faltan = faltanConfirmar();
+  if(faltan.length === 0){
+    block.classList.add('falta-confirmar--ok');
+    sub.textContent = 'Todos respondieron ✅';
+    namesEl.textContent = '';
+    namesEl.hidden = true;
+    copyBtn.hidden = true;
+    return;
+  }
+  block.classList.remove('falta-confirmar--ok');
+  sub.textContent = faltan.length === 1
+    ? '1 del grupo todavía no respondió'
+    : `${faltan.length} del grupo todavía no respondieron`;
+  namesEl.textContent = faltan.join(', ');
+  namesEl.hidden = false;
+  copyBtn.hidden = false;
 }
 function loadRecurrentPlayers(){
   recurrentPlayers = deriveSelectorNames();
