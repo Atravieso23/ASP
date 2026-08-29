@@ -186,3 +186,110 @@ test("ninguna alta agrega automáticamente a habitualPlayers", () => {
   assert.ok(!/habitualPlayers/.test(alta),
     "registrarse NO debe tocar habitualPlayers: la pertenencia se gestiona aparte");
 });
+
+/* ---------- Falta confirmar: quiénes del grupo todavía no respondieron ---------- */
+
+function faltaConfirmarWorld() {
+  const context = vm.createContext({
+    Set, Array, Object,
+    console: { error() {}, warn() {}, log() {} },
+  });
+  vm.runInContext(
+    `let state = null; let localAvailabilityResponses = [];
+     ${extractFunction(demo, "faltanConfirmar")}
+     ${extractFunction(demo, "mensajeFaltaConfirmar")}`,
+    context,
+  );
+  return {
+    faltan: (estado, responses) => JSON.parse(vm.runInContext(
+      `JSON.stringify(faltanConfirmar(${JSON.stringify(estado)}, ${JSON.stringify(responses)}))`,
+      context,
+    )),
+    mensaje: (estado, responses) => vm.runInContext(
+      `mensajeFaltaConfirmar(${JSON.stringify(estado)}, ${JSON.stringify(responses)})`,
+      context,
+    ),
+  };
+}
+
+test("faltanConfirmar = habitualPlayers menos las responses no invitadas", () => {
+  const w = faltaConfirmarWorld();
+  const faltan = w.faltan(
+    { habitualPlayers: ["Pablo", "Mingo", "Roca", "Negro"] },
+    [
+      { name: "Pablo", isGuest: false, status: "in" },
+      { name: "Roca", isGuest: false, status: "out" },
+    ],
+  );
+  // Roca respondió "No estoy" -> respondió, no falta. Pablo respondió -> no falta.
+  assert.deepEqual(faltan, ["Mingo", "Negro"]);
+});
+
+test("un invitado no cuenta como confirmación del habitual del mismo nombre", () => {
+  const w = faltaConfirmarWorld();
+  const faltan = w.faltan(
+    { habitualPlayers: ["Pablo", "Mingo"] },
+    [{ name: "Pablo", isGuest: true, invitedBy: "Roca" }],
+  );
+  assert.deepEqual(faltan, ["Pablo", "Mingo"], "el invitado 'Pablo' no confirma por Pablo habitual");
+});
+
+test("faltanConfirmar compara normalizado y muestra el nombre de habitualPlayers", () => {
+  const w = faltaConfirmarWorld();
+  // La response llega con otra capitalización/espacios: es la misma persona.
+  assert.deepEqual(
+    w.faltan({ habitualPlayers: ["Félix BV"] }, [{ name: "  félix bv ", isGuest: false }]),
+    [],
+    "'  félix bv ' responde por 'Félix BV'",
+  );
+  assert.deepEqual(
+    w.faltan({ habitualPlayers: ["Félix BV"] }, []),
+    ["Félix BV"],
+    "se lista con el casing exacto de habitualPlayers",
+  );
+});
+
+test("sin habitualPlayers (o key ausente) faltanConfirmar es []", () => {
+  const w = faltaConfirmarWorld();
+  assert.deepEqual(w.faltan({ habitualPlayers: [] }, [{ name: "x", isGuest: false }]), []);
+  assert.deepEqual(w.faltan({}, []), []);
+});
+
+test("mensaje: varios faltantes usan coma y 'y' antes del último, con 👀", () => {
+  const w = faltaConfirmarWorld();
+  assert.equal(
+    w.mensaje({ habitualPlayers: ["Pablo", "Mingo", "Roca", "Negro"] }, []),
+    "Falta confirmar: Pablo, Mingo, Roca y Negro 👀",
+  );
+});
+
+test("mensaje: un solo faltante, sin coma ni 'y'", () => {
+  const w = faltaConfirmarWorld();
+  assert.equal(
+    w.mensaje({ habitualPlayers: ["Pablo", "Mingo"] }, [{ name: "Mingo", isGuest: false }]),
+    "Falta confirmar: Pablo 👀",
+  );
+});
+
+test("mensaje vacío cuando no falta nadie", () => {
+  const w = faltaConfirmarWorld();
+  assert.equal(
+    w.mensaje({ habitualPlayers: ["Pablo"] }, [{ name: "Pablo", isGuest: false }]),
+    "",
+  );
+});
+
+test("Falta confirmar es sólo lectura: no toca habitualPlayers, recurrentPlayers ni el botón X", () => {
+  const src = [
+    extractFunction(demo, "faltanConfirmar"),
+    extractFunction(demo, "mensajeFaltaConfirmar"),
+    extractFunction(demo, "renderFaltaConfirmar"),
+  ].join("\n");
+  assert.ok(
+    !/habitualPlayers\s*=|recurrentPlayers\s*[=.]|\.splice\(|saveRecurrentPlayers|localStorage|data-delete-recurrent-index/.test(src),
+    "la feature no debe escribir habituales/recurrentes ni tocar el borrado del selector",
+  );
+  // El botón "×" del selector sigue intacto.
+  assert.match(demo, /data-delete-recurrent-index="\$\{item\.index\}"/);
+  assert.match(demo, /menu\.querySelectorAll\('\[data-delete-recurrent-index\]'\)/);
+});

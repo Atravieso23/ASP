@@ -525,6 +525,109 @@ test("jugador identificado: el bloque de invitados se muestra", async () => {
   assert.ok(list.innerHTML.includes('data-remove-guest="g1"'), 'no se renderizó al invitado del jugador identificado');
 });
 
+// "Falta confirmar" — bloque de conciencia grupal debajo de "Mi estado": quiénes del
+// grupo habitual todavía no respondieron, con copia para WhatsApp. Sólo lectura.
+function runFaltaConfirmar(demo, { habitualPlayers, responses }){
+  const src = sliceBetween(
+    demo,
+    'function faltanConfirmar(estado',
+    '\nfunction loadRecurrentPlayers(',
+    'faltanConfirmar / renderFaltaConfirmar',
+  );
+  const mkClassList = () => {
+    const set = new Set();
+    return { add: (c) => set.add(c), remove: (c) => set.delete(c), contains: (c) => set.has(c) };
+  };
+  const block = { hidden: false, classList: mkClassList() };
+  const sub = { textContent: '' };
+  const namesEl = { textContent: '', hidden: false };
+  const copyBtn = { hidden: false };
+  const elements = {
+    'falta-confirmar-block': block,
+    'falta-confirmar-sub': sub,
+    'falta-confirmar-names': namesEl,
+    'falta-confirmar-copy': copyBtn,
+  };
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    state: { habitualPlayers },
+    localAvailabilityResponses: responses,
+    Set, Array, Object,
+    console: { error(){}, warn(){}, log(){} },
+  });
+  new vm.Script(`${src}\nglobalThis.renderFaltaConfirmar = renderFaltaConfirmar;`)
+    .runInContext(context);
+  context.renderFaltaConfirmar();
+  return { block, sub, namesEl, copyBtn };
+}
+
+test("Falta confirmar: el bloque va entre Mi estado y el ticket, con [hidden] respetado por CSS", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /<section class="falta-confirmar" id="falta-confirmar-block"[^>]*hidden>/);
+  assert.match(demo, /id="falta-confirmar-copy"[^>]*>Copiar para WhatsApp</);
+  // Ubicación: cierre de la card de Mi estado, luego el bloque, luego el ticket.
+  assert.match(demo, /<\/section>\s*<section class="falta-confirmar"[\s\S]*?<\/section>\s*<div class="ticket">/);
+  // Mismo aprendizaje que guest-manager-bar: el contenedor tiene display:grid, así que
+  // necesita la regla [hidden] explícita para ocultarse de verdad.
+  assert.match(demo, /\.falta-confirmar\[hidden\]\s*\{\s*display\s*:\s*none\s*;?\s*\}/);
+  // Y se renderiza en el ciclo normal de render().
+  assert.match(demo, /renderHistory\(\);\s*renderFaltaConfirmar\(\);/);
+});
+
+test("Falta confirmar: con faltantes muestra subtítulo plural, nombres y botón", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const { block, sub, namesEl, copyBtn } = runFaltaConfirmar(demo, {
+    habitualPlayers: ["Pablo", "Mingo", "Roca"],
+    responses: [{ name: "Roca", isGuest: false }],
+  });
+  assert.equal(block.hidden, false);
+  assert.equal(sub.textContent, "2 del grupo todavía no respondieron");
+  assert.equal(namesEl.textContent, "Pablo, Mingo");
+  assert.equal(namesEl.hidden, false);
+  assert.equal(copyBtn.hidden, false);
+  assert.equal(block.classList.contains("falta-confirmar--ok"), false);
+});
+
+test("Falta confirmar: si falta uno, subtítulo en singular", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const { sub, namesEl } = runFaltaConfirmar(demo, {
+    habitualPlayers: ["Pablo", "Mingo"],
+    responses: [{ name: "Mingo", isGuest: false }],
+  });
+  assert.equal(sub.textContent, "1 del grupo todavía no respondió");
+  assert.equal(namesEl.textContent, "Pablo");
+});
+
+test("Falta confirmar: estado vacío muestra 'Todos respondieron ✅' sin nombres ni botón", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const { block, sub, namesEl, copyBtn } = runFaltaConfirmar(demo, {
+    habitualPlayers: ["Pablo", "Mingo"],
+    responses: [{ name: "Pablo", isGuest: false }, { name: "Mingo", isGuest: false }],
+  });
+  assert.equal(block.hidden, false);
+  assert.equal(sub.textContent, "Todos respondieron ✅");
+  assert.equal(namesEl.hidden, true);
+  assert.equal(copyBtn.hidden, true);
+  assert.equal(block.classList.contains("falta-confirmar--ok"), true);
+});
+
+test("Falta confirmar: los invitados no cuentan como respuesta", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const { sub, namesEl } = runFaltaConfirmar(demo, {
+    habitualPlayers: ["Pablo", "Mingo"],
+    responses: [{ name: "Pablo", isGuest: true, invitedBy: "Roca" }],
+  });
+  assert.equal(sub.textContent, "2 del grupo todavía no respondieron");
+  assert.equal(namesEl.textContent, "Pablo, Mingo");
+});
+
+test("Falta confirmar: sin habitualPlayers el bloque entero se oculta", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const { block } = runFaltaConfirmar(demo, { habitualPlayers: [], responses: [] });
+  assert.equal(block.hidden, true, "sin grupo habitual sembrado no hay con qué comparar");
+});
+
 test("keeps the user team summary compact", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
