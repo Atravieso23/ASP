@@ -672,7 +672,7 @@
         </div>
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
-      <div class="guest-manager-bar">
+      <div class="guest-manager-bar" id="guest-manager-bar" hidden>
         <div class="guest-manager-intro">
           <strong>¿A tu invitado le dio paja registrarse?</strong>
           <span>Gestioná su asistencia y pago desde acá.</span>
@@ -3212,6 +3212,16 @@ function renderGuestManager(){
   const list = document.getElementById('guest-list');
   const count = document.getElementById('guest-manager-count');
   if(!manager || !toggle || !list || !count) return;
+  // Gating de identidad (PR B): en estado anónimo, antes de identificar al jugador, el
+  // bloque de invitados no se muestra. agregarInvitado() exige un anfitrión persistido, así
+  // que sin response propia no hay dónde colgar un invitado —mismo criterio que el pago—.
+  const bar = document.getElementById('guest-manager-bar');
+  const identified = Boolean(responseDelJugadorActual());
+  if(bar) bar.hidden = !identified;
+  if(!identified){
+    manager.hidden = true;
+    toggle.setAttribute('aria-expanded','false');
+  }
   const guests = getCurrentPlayerGuests();
   const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
   toggle.textContent = manager.hidden ? 'Agregar invitado' : 'Cerrar invitados';

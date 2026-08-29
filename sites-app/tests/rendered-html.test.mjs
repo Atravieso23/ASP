@@ -363,18 +363,22 @@ test("renders the guest CTA from the manager visibility", async () => {
     'renderGuestManager',
   );
   const manager = { hidden: true };
-  const toggle = { textContent: '' };
+  const toggle = { textContent: '', setAttribute(){} };
   const list = { innerHTML: '', querySelectorAll(){ return []; } };
   const count = { textContent: '' };
+  const bar = { hidden: false };
   const elements = {
     'guest-manager': manager,
     'guest-manager-toggle': toggle,
     'guest-list': list,
     'guest-manager-count': count,
+    'guest-manager-bar': bar,
   };
   const context = vm.createContext({
     document: { getElementById(id){ return elements[id] || null; } },
     getCurrentPlayerGuests(){ return []; },
+    // Jugador identificado: el gating de invitados no interfiere con el toggle.
+    responseDelJugadorActual(){ return { status: 'in', paid: false }; },
   });
 
   new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
@@ -451,6 +455,62 @@ test("renderiza todos los invitados sin recorte, con responseId por fila", async
   assert.equal(juanes, 2, 'los invitados con el mismo nombre se colapsaron en el render');
 
   assert.equal(count.textContent, '6 invitados');
+});
+
+// PR B · gating de identidad — el bloque de invitados no puede aparecer en estado anónimo
+// (antes de identificar al jugador). Sólo cuando existe una response propia persistida
+// —el mismo requisito que agregarInvitado()— se muestra la barra de invitados.
+function runGuestManagerConIdentidad(demo, { identified }){
+  const guestManagerRenderer = sliceBetween(
+    demo,
+    'function renderGuestManager(){',
+    '\nfunction renderLocalOrganizer(){',
+    'renderGuestManager',
+  );
+  const manager = { hidden: false };
+  const toggle = { textContent: '', _aria: {}, setAttribute(k, v){ this._aria[k] = v; } };
+  const list = { innerHTML: '', querySelectorAll(){ return []; } };
+  const count = { textContent: '' };
+  // Arranca visible a propósito: si el gating no lo oculta en anónimo, el test se cae.
+  const bar = { hidden: false };
+  const elements = {
+    'guest-manager': manager,
+    'guest-manager-toggle': toggle,
+    'guest-list': list,
+    'guest-manager-count': count,
+    'guest-manager-bar': bar,
+  };
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    getCurrentPlayerGuests(){ return identified ? [{ responseId: 'g1', name: 'Ana', paid: false }] : []; },
+    responseDelJugadorActual(){ return identified ? { status: 'in', paid: false } : undefined; },
+    escapeHtml: (value) => String(value),
+  });
+  new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
+    .runInContext(context);
+  context.renderGuestManager();
+  return { manager, toggle, list, bar };
+}
+
+test("estado anónimo: el bloque de invitados no se muestra", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // La barra arranca oculta en el HTML (default anónimo) y con id para poder gatearla.
+  assert.match(demo, /<div class="guest-manager-bar" id="guest-manager-bar" hidden>/);
+  // Y el render la mantiene oculta mientras no haya jugador identificado y persistido.
+  assert.match(demo, /const identified = Boolean\(responseDelJugadorActual\(\)\);/);
+
+  const { bar, manager } = runGuestManagerConIdentidad(demo, { identified: false });
+  assert.equal(bar.hidden, true, 'la barra de invitados quedó visible en estado anónimo');
+  assert.equal(manager.hidden, true, 'el gestor de invitados quedó abierto en estado anónimo');
+});
+
+test("jugador identificado: el bloque de invitados se muestra", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const { bar, list } = runGuestManagerConIdentidad(demo, { identified: true });
+  assert.equal(bar.hidden, false, 'la barra de invitados no aparece con jugador identificado');
+  assert.ok(list.innerHTML.includes('data-remove-guest="g1"'), 'no se renderizó al invitado del jugador identificado');
 });
 
 test("keeps the user team summary compact", async () => {
