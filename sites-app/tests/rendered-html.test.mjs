@@ -595,8 +595,11 @@ test("drops the legacy join section and the unused group roster", async () => {
   assert.doesNotMatch(demo, /manage-roster-overlay|manage-roster-btn|roster-manage-list|add-roster-btn/);
   assert.doesNotMatch(demo, /state\.roster|mergeRosterArr|knownRosterNames|renderNameSelect/);
   assert.doesNotMatch(demo, /Gestionar plantel del grupo/);
-  // El registro se apoya en los jugadores recurrentes derivados de las respuestas.
-  assert.match(demo, /recurrentPlayers = \[\.\.\.new Set\(localAvailabilityResponses/);
+  // El selector se apoya en habitualPlayers (miembros estables del grupo) unidos a
+  // las respuestas no invitadas de la fecha, vía deriveSelectorNames: sobrevive
+  // aunque responses quede vacío tras "Limpiar todo".
+  assert.match(demo, /function deriveSelectorNames\(/);
+  assert.match(demo, /recurrentPlayers = deriveSelectorNames\(\)/);
   // El campo huérfano se descarta al leer para que el próximo guardado lo saque del JSON.
   assert.match(demo, /delete parsed\.roster;/);
 });
