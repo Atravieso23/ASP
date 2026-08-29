@@ -388,6 +388,71 @@ test("renders the guest CTA from the manager visibility", async () => {
   assert.equal(toggle.textContent, 'Cerrar invitados');
 });
 
+// PR C · A — el gestor no puede recortar la lista: un anfitrión con 4, 5 o 6 invitados
+// tiene que verlos a todos, y cada fila lleva su responseId para que pago y borrado no
+// dependan de la posición ni del nombre. Si alguien reintroduce un slice(0,N) el conteo
+// de filas deja de coincidir con la cantidad de invitados y este test se cae.
+test("renderiza todos los invitados sin recorte, con responseId por fila", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const guestManagerRenderer = sliceBetween(
+    demo,
+    'function renderGuestManager(){',
+    '\nfunction renderLocalOrganizer(){',
+    'renderGuestManager',
+  );
+  const manager = { hidden: false };
+  const toggle = { textContent: '', setAttribute(){} };
+  const list = { innerHTML: '', querySelectorAll(){ return []; } };
+  const count = { textContent: '' };
+  const bar = { hidden: true };
+  const elements = {
+    'guest-manager': manager,
+    'guest-manager-toggle': toggle,
+    'guest-list': list,
+    'guest-manager-count': count,
+    'guest-manager-bar': bar,
+  };
+  // Dos "Juan" con responseId distinto: además de las 6 filas, prueba que los nombres
+  // repetidos no se colapsan en el render (PR C · B).
+  const guests = [
+    { responseId: 'g1', name: 'Ana',  paid: false },
+    { responseId: 'g2', name: 'Beto', paid: true  },
+    { responseId: 'g3', name: 'Caro', paid: false },
+    { responseId: 'g4', name: 'Juan', paid: false },
+    { responseId: 'g5', name: 'Juan', paid: true  },
+    { responseId: 'g6', name: 'Zoe',  paid: false },
+  ];
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    getCurrentPlayerGuests(){ return guests; },
+    // Jugador identificado y persistido: el gating deja pasar la lista completa.
+    responseDelJugadorActual(){ return { status: 'in', paid: false }; },
+    escapeHtml: (value) => String(value),
+  });
+
+  new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
+    .runInContext(context);
+
+  context.renderGuestManager();
+
+  const filas = (list.innerHTML.match(/class="guest-item"/g) || []).length;
+  assert.equal(filas, guests.length, 'el gestor recortó la lista de invitados');
+  const quitar = (list.innerHTML.match(/data-remove-guest="/g) || []).length;
+  assert.equal(quitar, guests.length, 'faltan botones de quitar: la lista está recortada');
+
+  // El 4º, 5º y 6º invitado existen en el DOM con su propio responseId, no por índice.
+  for(const id of ['g4', 'g5', 'g6']){
+    assert.ok(list.innerHTML.includes(`data-guest-paid="${id}"`), `falta el pago del invitado ${id}`);
+    assert.ok(list.innerHTML.includes(`data-remove-guest="${id}"`), `falta el borrado del invitado ${id}`);
+  }
+
+  // Los dos homónimos se pintan como filas separadas.
+  const juanes = (list.innerHTML.match(/>Juan</g) || []).length;
+  assert.equal(juanes, 2, 'los invitados con el mismo nombre se colapsaron en el render');
+
+  assert.equal(count.textContent, '6 invitados');
+});
+
 test("keeps the user team summary compact", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 

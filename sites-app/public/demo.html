@@ -2851,29 +2851,23 @@ async function marcarPagoDeInvitado(responseId, paid){
   });
 }
 
-const INVITADO_DUPLICADO = 'duplicado';
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
 
-// Devuelve el motivo además del resultado: "ese nombre ya está" y "no hay conexión"
-// necesitan avisos distintos, y el duplicado recién se conoce contra las frescas.
+// Devuelve el motivo además del resultado: "sin anfitrión" y "no hay conexión" necesitan
+// avisos distintos. Los nombres repetidos están permitidos (PR C · B): un anfitrión puede
+// traer a dos invitados que se llaman igual, y cada uno vive por su propio responseId, que
+// es lo que usan pago y borrado. No se toca el nombre persistido.
 async function agregarInvitado(nombre){
   const propia = localAvailabilityResponses.find(item=>
     !item.isGuest && responseBelongsToCurrentDevice(item)
   );
   if(!propia) return {ok:false, motivo:INVITADO_SIN_ANFITRION};
   const anfitrionId = propia.responseId;
-  const normalizado = nombre.toLocaleLowerCase('es');
   let motivo = null;
   const ok = await guardarCambioEnResponses(responses=>{
     const anfitrion = responses.find(item=>item.responseId===anfitrionId);
     // Sin anfitrión no se cuelga el invitado: otro dispositivo borró mi respuesta.
     if(!anfitrion){ motivo = INVITADO_SIN_ANFITRION; return false; }
-    // Revalidación contra el servidor: el chequeo local no ve al invitado que otro
-    // teléfono agregó con el mismo nombre desde el último sondeo.
-    if(responses.some(item=>item.name.toLocaleLowerCase('es')===normalizado)){
-      motivo = INVITADO_DUPLICADO;
-      return false;
-    }
     responses.push({
       responseId:crypto.randomUUID(),
       ownerId:currentSessionUserId,
@@ -3676,10 +3670,8 @@ document.getElementById('guest-add-btn').onclick = async ()=>{
   );
   if(!owner){ showToast('Primero confirmá tu estado.'); return; }
   if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
-  // Respuesta instantánea para el caso común. La revalidación que manda es la de
-  // agregarInvitado(), contra las responses del servidor.
-  const duplicate = localAvailabilityResponses.some(item=>item.name.toLocaleLowerCase('es')===guestName.toLocaleLowerCase('es'));
-  if(duplicate){ input.focus(); showToast('Ese nombre ya está registrado en esta fecha.'); return; }
+  // Nombres repetidos permitidos (PR C · B): dos invitados pueden llamarse igual. No se
+  // valida unicidad de nombre; cada invitado se distingue por su responseId.
   const etiquetaPrevia = button.textContent;
   button.disabled = true;
   button.textContent = 'Agregando…';
@@ -3690,8 +3682,7 @@ document.getElementById('guest-add-btn').onclick = async ()=>{
     // El input no se limpia: se reintenta sin volver a tipear, igual que los campos de
     // editar partido cuando el guardado se rechaza.
     input.focus();
-    if(motivo===INVITADO_DUPLICADO) showToast('Ese nombre ya está registrado en esta fecha.');
-    else if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
+    if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
     else showToast(`No se pudo agregar a ${guestName}. Revisá la conexión e intentá otra vez.`);
     return;
   }

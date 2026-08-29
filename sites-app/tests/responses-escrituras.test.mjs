@@ -113,7 +113,6 @@ function makeWorld({ row, failRead = false, failWrite = false, failWrites = 0 } 
     let knownPlayerNames = new Set();
     let knownSedeNames = new Set();
     let currentSessionUserId = ${JSON.stringify(DEVICE)};
-    ${extractDeclaration(demo, "INVITADO_DUPLICADO")}
     ${extractDeclaration(demo, "INVITADO_SIN_ANFITRION")}
     ${extractDeclaration(demo, "colaDeResponses")}
     ${NEEDED.map((n) => extractFunction(demo, n)).join("\n")}
@@ -366,19 +365,65 @@ for (const objetivo of OBJETIVOS) {
 }
 
 // ── Reglas propias de agregar invitado ──
-test("agregar invitado revalida el duplicado contra el servidor", async () => {
+// PR C · B — dos invitados pueden llamarse igual. El pago y el borrado ya resuelven por
+// responseId, así que un homónimo no rompe nada; bloquear el alta sólo impedía sumar al
+// segundo "Juan" real que trae el anfitrión.
+test("agregar invitado permite nombres duplicados y conserva el nombre real", async () => {
   const w = makeWorld();
-  // Otro teléfono agregó el mismo nombre después de nuestro último sondeo: el chequeo
-  // local no lo ve.
+  // Ya hay un "Ruso" en la fecha (invitado de otro). El anfitrión trae a otro Ruso.
   w.db.row.responses.push(RESPONSE("r-otro-ruso", "Ruso", { isGuest: true }));
-  const antes = structuredClone(w.db.row);
 
   const resultado = await w.run(`agregarInvitado("Ruso")`);
 
-  assert.equal(resultado.ok, false);
-  assert.equal(resultado.motivo, "duplicado", "el aviso tiene que distinguirse del de conexión");
-  assert.equal(w.db.writes, 0);
-  assert.deepEqual(w.db.row, antes);
+  assert.equal(resultado.ok, true, "el mismo nombre tiene que poder agregarse dos veces");
+  assert.equal(w.db.writes, 1, "el segundo invitado homónimo no se persistió");
+  const rusos = w.db.row.responses.filter((r) => r.name === "Ruso");
+  assert.equal(rusos.length, 2, "no quedaron los dos Ruso");
+  // No se toca el nombre persistido: nada de sufijos "(2)" ni desambiguación en el dato.
+  assert.ok(rusos.every((r) => r.name === "Ruso"), "se alteró el nombre persistido del invitado");
+  // Cada uno con su propio responseId, que es lo que después usan pago y borrado.
+  assert.notEqual(rusos[0].responseId, rusos[1].responseId, "dos homónimos comparten responseId");
+});
+
+// PR C · A — pago y borrado del 4º invitado, elegido por responseId aunque comparta el
+// nombre con otro. Prueba el caso real del reporte: 4 invitados y el último igual de
+// gestionable que el primero.
+function filaConCuatroInvitados() {
+  const row = BASE_ROW();
+  // Felix (r-propia) es el anfitrión del dispositivo. Le colgamos cuatro invitados
+  // propios; g4 comparte el nombre "Juan" con g3 para forzar la resolución por id.
+  row.responses.push(
+    RESPONSE("g1", "Ana",  { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+    RESPONSE("g2", "Beto", { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+    RESPONSE("g3", "Juan", { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+    RESPONSE("g4", "Juan", { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+  );
+  return row;
+}
+
+test("marcar pago del 4º invitado resuelve por responseId, no por nombre", async () => {
+  const w = makeWorld({ row: filaConCuatroInvitados() });
+
+  const ok = await w.run(`marcarPagoDeInvitado("g4", true)`);
+
+  assert.equal(ok, true);
+  assert.equal(resp(w.db.row, "g4").paid, true, "no marcó el pago del 4º invitado");
+  assert.equal(resp(w.db.row, "g3").paid, false, "marcó el pago del homónimo equivocado");
+});
+
+test("eliminar el 4º invitado resuelve por responseId, no por nombre", async () => {
+  const w = makeWorld({ row: filaConCuatroInvitados() });
+
+  const ok = await w.run(`eliminarInvitado("g4")`);
+
+  assert.equal(ok, true);
+  assert.equal(resp(w.db.row, "g4"), undefined, "no borró el 4º invitado");
+  assert.ok(resp(w.db.row, "g3"), "borró al homónimo en lugar del 4º");
+  assert.equal(
+    w.db.row.responses.filter((r) => r.name === "Juan").length,
+    1,
+    "tras borrar g4 tiene que quedar exactamente un Juan",
+  );
 });
 
 test("agregar invitado balancea contra las responses del servidor", async () => {
