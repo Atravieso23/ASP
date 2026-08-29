@@ -432,18 +432,18 @@ test("al confirmar como habitual 'Pablo', la response guarda habitualName:'Pablo
   const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
   // El valor sale de habitualPlayers (identidad base), nunca de un input libre.
   assert.match(handler, /const habitualExacto = \(state\.habitualPlayers \|\| \[\]\)\.find\(/);
-  assert.match(handler, /const habitualName = habitualExacto \|\| \(esMiNombreVisible \? existingResponse\.habitualName : undefined\);/);
+  assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
   assert.match(handler, /if\(habitualName\) response\.habitualName = habitualName;/);
-  // Re-guardar tu propio nombre visible no rebota por el gate de "no encontramos ese jugador".
-  assert.match(handler, /const esMiNombreVisible = existingResponse && /);
-  assert.match(handler, /!recurrentMatch && !esMiNombreVisible\)\{/);
+  // El dueño editando su propio estado no rebota por el gate de "no encontramos ese jugador".
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  assert.match(handler, /!recurrentMatch && !editandoMiEstado\)\{/);
 });
 
-test("al confirmar como habitual, name y habitualName quedan en la identidad base exacta", () => {
+test("al elegir identidad, name y habitualName quedan en la identidad base exacta", () => {
   const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
-  // El texto tipeado se normaliza a la entrada exacta del selector (= identidad base
-  // sembrada) antes de construir la response.
-  assert.match(handler, /if\(recurrentMatch\) playerName = recurrentMatch;/);
+  // Eligiendo identidad (no editando el estado propio) el texto se normaliza a la entrada
+  // exacta del selector (= identidad base sembrada) antes de construir la response.
+  assert.match(handler, /if\(recurrentMatch && !editandoMiEstado\) playerName = recurrentMatch;/);
   // La response nace con name = ese mismo string...
   assert.match(handler, /name:\s*playerName,/);
   // ...y habitualName sale de la entrada exacta de habitualPlayers, no de un input libre.
@@ -478,82 +478,42 @@ test("pago/borrado de invitados sigue resolviendo por responseId", () => {
   assert.match(extractFunction(demo, "eliminarInvitado"), /item\.responseId===responseId && item\.isGuest/);
 });
 
-// guardarNombreVisible corriendo de verdad, con un guardarCambioEnResponses de mentira
-// que aplica el mutator sobre las responses provistas.
-function nombreVisibleWorld(responses, { device = "dev-1" } = {}) {
-  const rows = structuredClone(responses);
-  const context = vm.createContext({
-    String, Array, Object, Date, Promise, structuredClone,
-    console: { error() {}, warn() {}, log() {} },
-    localAvailabilityResponses: rows,
-    currentSessionUserId: device,
-  });
-  vm.runInContext(
-    `${extractFunction(demo, "responseBelongsToCurrentDevice")}
-     function guardarCambioEnResponses(fn){ return Promise.resolve(fn(localAvailabilityResponses)); }
-     ${extractFunction(demo, "guardarNombreVisible")}`,
-    context,
-  );
-  return {
-    rows,
-    run: (nuevo) => vm.runInContext(
-      `guardarNombreVisible(${JSON.stringify(nuevo)}).then(r => JSON.stringify(r))`,
-      context,
-    ).then((s) => JSON.parse(s)),
-  };
-}
+/* ---------- PR #11: el nombre visible se guarda por el CTA de "Mi estado" ---------- */
+// El editor inline `guardarNombreVisible` se retiró: el input "Nombre de jugador" es
+// editable y su guardado va por el mismo handler que el estado (savePlayerRegistration).
 
-const MI_RESPONSE = () => ({
-  responseId: "r1", ownerId: "dev-1", ownerIds: ["dev-1"],
-  name: "Pablo", habitualName: "Pablo", status: "duda", paid: null, team: null,
-  isGuest: false, updatedAt: "2026-08-01T00:00:00.000Z",
+test("PR #11: no queda el editor de nombre visible separado", () => {
+  assert.ok(!/function guardarNombreVisible/.test(demo), "guardarNombreVisible se folded en el CTA");
+  assert.ok(!/function renderDisplayNameControl/.test(demo));
+  assert.doesNotMatch(demo, /id="display-name-editor"|id="edit-display-name-btn"/);
 });
 
-test("editar nombre visible cambia sólo name y preserva habitualName/responseId/status/paid/team", async () => {
-  const w = nombreVisibleWorld([MI_RESPONSE()]);
-  const r = await w.run('Pablo "el Capi"');
-  assert.equal(r.ok, true);
-  const row = w.rows[0];
-  assert.equal(row.name, 'Pablo "el Capi"', "el nombre visible cambió");
-  assert.equal(row.habitualName, "Pablo", "la identidad base se preserva");
-  assert.equal(row.responseId, "r1");
-  assert.equal(row.status, "duda");
-  assert.equal(row.paid, null);
-  assert.equal(row.team, null);
-  assert.deepEqual(row.ownerIds, ["dev-1"]);
-  assert.notEqual(row.updatedAt, "2026-08-01T00:00:00.000Z", "updatedAt se toca");
+test("editar tu nombre visible desde el CTA preserva la identidad base y no toca el selector", () => {
+  const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
+  // editandoMiEstado = ya identificado y sin estar eligiendo/cambiando identidad.
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  // La identidad base NUNCA cambia editando tu estado (aunque el nombre visible coincida
+  // con otra identidad de la lista).
+  assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
+  // Input vacío -> vuelve a la identidad base.
+  assert.match(handler, /playerName = existingResponse\.habitualName \|\| existingResponse\.name;/);
+  // El nombre visible editado NO entra al selector "¿Quién sos?".
+  assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
 });
 
-test("editar nombre visible resuelve por responseId, no por name", async () => {
-  const otro = { ...MI_RESPONSE(), responseId: "r2", ownerId: "dev-2", ownerIds: ["dev-2"], name: "Pablo", habitualName: "Pablo" };
-  const w = nombreVisibleWorld([MI_RESPONSE(), otro]);
-  await w.run("Pablito");
-  assert.equal(w.rows.find((x) => x.responseId === "r1").name, "Pablito", "sólo cambió mi response");
-  assert.equal(w.rows.find((x) => x.responseId === "r2").name, "Pablo", "la otra response homónima no se tocó");
+test("el CTA resuelve la response propia por responseId y preserva paid/team/ownerIds", () => {
+  const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
+  assert.match(handler, /responseId:existingResponse\?\.responseId \|\| crypto\.randomUUID\(\)/);
+  assert.match(handler, /ownerIds:existingResponse\?\.ownerIds \|\| \[currentSessionUserId\]/);
+  assert.match(handler, /paid:mockAvailability==='in' \? \(existingResponse\?\.paid === true\)/);
+  assert.match(handler, /team:mockAvailability==='in' \? \(existingResponse\?\.team \|\| chooseBalancedTeam\(playerName\)\)/);
+  // Colisión de nombre con otra response no invitada sigue bloqueando.
+  assert.match(handler, /item\.responseId!==existingResponse\?\.responseId && item\.name\.toLocaleLowerCase\('es'\)===playerName\.toLocaleLowerCase\('es'\)/);
 });
 
-test("nombre visible vacío vuelve a habitualName", async () => {
-  const w = nombreVisibleWorld([{ ...MI_RESPONSE(), name: 'Pablo "el Capi"' }]);
-  const r = await w.run("   ");
-  assert.equal(r.ok, true);
-  assert.equal(w.rows[0].name, "Pablo", "input vacío -> identidad base");
-  assert.equal(w.rows[0].habitualName, "Pablo");
-});
-
-test("nombre visible vacío sin habitualName deja el nombre actual", async () => {
-  const sinHabitual = MI_RESPONSE();
-  delete sinHabitual.habitualName;
-  sinHabitual.name = "Suplente Ariel";
-  const w = nombreVisibleWorld([sinHabitual]);
-  await w.run("");
-  assert.equal(w.rows[0].name, "Suplente Ariel", "sin identidad base, se conserva el nombre visible");
-});
-
-test("editar nombre visible rechaza colisión con otra response no invitada", async () => {
-  const otro = { ...MI_RESPONSE(), responseId: "r2", ownerId: "dev-2", ownerIds: ["dev-2"], name: "Colo", habitualName: "Colo" };
-  const w = nombreVisibleWorld([MI_RESPONSE(), otro]);
-  const r = await w.run("colo");
-  assert.equal(r.ok, false);
-  assert.equal(r.motivo, "duplicado");
-  assert.equal(w.rows[0].name, "Pablo", "no se escribió el nombre en colisión");
+test("tieneCambiosSinGuardar detecta un cambio de nombre visible en el input", () => {
+  const fn = extractFunction(demo, "tieneCambiosSinGuardar");
+  assert.match(fn, /document\.getElementById\('my-player-name'\)\.value\.trim\(\)/);
+  assert.match(fn, /const objetivo = escrito \|\| saved\.habitualName \|\| saved\.name;/);
+  assert.match(fn, /return objetivo\.toLocaleLowerCase\('es'\) !== saved\.name\.toLocaleLowerCase\('es'\);/);
 });

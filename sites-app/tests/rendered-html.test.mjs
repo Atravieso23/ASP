@@ -135,7 +135,7 @@ test("uses responses as the source for summaries and formations", async () => {
 test("offers En duda as a third availability state without counting it as confirmed", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /data-value="duda" aria-pressed="false">Duda</);
+  assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
   assert.match(demo, /const dudaList = getResponsePlayers\('duda'\)/);
 
   // Un dudoso no ocupa lugar en el equipo ni figura como que pago.
@@ -277,9 +277,9 @@ test("supports recurrent players with identity-focused first-time copy", async (
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
   assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
   assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
-  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre del jugador';/);
+  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre de jugador';/);
   assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
-  assert.match(demo, /confirm\.textContent = 'Guardar';/);
+  assert.match(demo, /confirm\.textContent = 'Guardar cambios';/);
   assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
   assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
   assert.match(demo, /addRecurrentPlayer\(playerName\)/);
@@ -338,9 +338,10 @@ test("lets a trusted player reuse an existing response on another device", async
 test("manages per-date guests from the continuous player form", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /¿A tu invitado le dio paja registrarse\?/);
-  assert.match(demo, /Gestioná su asistencia y pago desde acá\./);
-  assert.match(demo, /id="guest-manager-toggle"[^>]*>Agregar invitado/);
+  // Bloque de invitados compacto: label + un solo control.
+  assert.match(demo, /<div class="guest-manager-bar" id="guest-manager-bar" hidden>\s*<span class="my-status-label">Invitados<\/span>/);
+  assert.match(demo, /id="guest-manager-toggle"[^>]*>Sin invitados · Agregar/);
+  assert.doesNotMatch(demo, /¿A tu invitado le dio paja registrarse\?|guest-manager-intro|guest-manager-count/);
   assert.match(demo, /id="guest-manager"[^>]*hidden/);
   assert.match(demo, /function getCurrentPlayerGuests\(\)/);
   assert.match(demo, /item\.isGuest === true/);
@@ -366,31 +367,43 @@ test("renders the guest CTA from the manager visibility", async () => {
   const manager = { hidden: true };
   const toggle = { textContent: '', setAttribute(){} };
   const list = { innerHTML: '', querySelectorAll(){ return []; } };
-  const count = { textContent: '' };
   const bar = { hidden: false };
   const elements = {
     'guest-manager': manager,
     'guest-manager-toggle': toggle,
     'guest-list': list,
-    'guest-manager-count': count,
     'guest-manager-bar': bar,
   };
+  let guestsFixture = [];
   const context = vm.createContext({
     document: { getElementById(id){ return elements[id] || null; } },
-    getCurrentPlayerGuests(){ return []; },
+    getCurrentPlayerGuests(){ return guestsFixture; },
     // Jugador identificado: el gating de invitados no interfiere con el toggle.
     responseDelJugadorActual(){ return { status: 'in', paid: false }; },
+    escapeHtml: (value) => String(value),
   });
 
   new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
     .runInContext(context);
 
+  // Un solo control compacto: resumen · acción.
   context.renderGuestManager();
-  assert.equal(toggle.textContent, 'Agregar invitado');
+  assert.equal(toggle.textContent, 'Sin invitados · Agregar');
+
+  guestsFixture = [{ responseId: 'g1', name: 'Ana', paid: false }];
+  context.renderGuestManager();
+  assert.equal(toggle.textContent, '1 invitado · Gestionar');
+
+  guestsFixture = [
+    { responseId: 'g1', name: 'Ana', paid: false },
+    { responseId: 'g2', name: 'Beto', paid: true },
+  ];
+  context.renderGuestManager();
+  assert.equal(toggle.textContent, '2 invitados · Gestionar');
 
   manager.hidden = false;
   context.renderGuestManager();
-  assert.equal(toggle.textContent, 'Cerrar invitados');
+  assert.equal(toggle.textContent, '2 invitados · Cerrar');
 });
 
 // El gestor no puede recortar la lista: un anfitrión con 4, 5 o 6 invitados tiene que
@@ -408,13 +421,11 @@ test("renderiza todos los invitados sin recorte, con responseId por fila", async
   const manager = { hidden: false };
   const toggle = { textContent: '', setAttribute(){} };
   const list = { innerHTML: '', querySelectorAll(){ return []; } };
-  const count = { textContent: '' };
   const bar = { hidden: true };
   const elements = {
     'guest-manager': manager,
     'guest-manager-toggle': toggle,
     'guest-list': list,
-    'guest-manager-count': count,
     'guest-manager-bar': bar,
   };
   // Dos "Juan" con responseId distinto: el alta ahora rechaza nombres repetidos, pero los
@@ -456,7 +467,8 @@ test("renderiza todos los invitados sin recorte, con responseId por fila", async
   const juanes = (list.innerHTML.match(/>Juan</g) || []).length;
   assert.equal(juanes, 2, 'los invitados con el mismo nombre se colapsaron en el render');
 
-  assert.equal(count.textContent, '6 invitados');
+  // El control compacto resume la cantidad (gestor abierto -> "· Cerrar").
+  assert.equal(toggle.textContent, '6 invitados · Cerrar');
 });
 
 // PR B · gating de identidad — el bloque de invitados no puede aparecer en estado anónimo
@@ -472,14 +484,12 @@ function runGuestManagerConIdentidad(demo, { identified }){
   const manager = { hidden: false };
   const toggle = { textContent: '', _aria: {}, setAttribute(k, v){ this._aria[k] = v; } };
   const list = { innerHTML: '', querySelectorAll(){ return []; } };
-  const count = { textContent: '' };
   // Arranca visible a propósito: si el gating no lo oculta en anónimo, el test se cae.
   const bar = { hidden: false };
   const elements = {
     'guest-manager': manager,
     'guest-manager-toggle': toggle,
     'guest-list': list,
-    'guest-manager-count': count,
     'guest-manager-bar': bar,
   };
   const context = vm.createContext({
@@ -629,59 +639,83 @@ test("Falta confirmar: sin habitualPlayers el bloque entero se oculta", async ()
   assert.equal(block.hidden, true, "sin grupo habitual sembrado no hay con qué comparar");
 });
 
-// SPIKE identidad base + nombre visible: acción secundaria discreta, sólo tras identificarse.
-function runDisplayNameControl(demo, { identified, editorOpen = false }) {
+// PR #11 · Mi estado compacto: el nombre visible se consolida en el input "Nombre de
+// jugador"; el editor inline separado y el link "Editar nombre visible" desaparecen.
+function runIdentityHeader(demo, { identified, changing = false }) {
   const src = sliceBetween(
     demo,
-    "function renderDisplayNameControl(){",
+    "function renderIdentityHeader(){",
     "\nconst INVITADO_SIN_ANFITRION",
-    "renderDisplayNameControl",
+    "renderIdentityHeader",
   );
-  const btn = { hidden: false };
-  const editor = { hidden: !editorOpen };
-  const elements = { "edit-display-name-btn": btn, "display-name-editor": editor };
+  const title = { hidden: false, textContent: "" };
+  const elements = { "my-status-identity": title };
   const context = vm.createContext({
     document: { getElementById(id) { return elements[id] || null; } },
-    responseDelJugadorActual() { return identified ? { name: "Pablo", habitualName: "Pablo" } : undefined; },
+    responseDelJugadorActual() { return identified ? { name: "Pablito", habitualName: "Pablo de Achaval" } : undefined; },
+    changingRegisteredPlayer: changing,
     console: { error() {}, warn() {}, log() {} },
   });
-  new vm.Script(`${src}\nglobalThis.renderDisplayNameControl = renderDisplayNameControl;`).runInContext(context);
-  context.renderDisplayNameControl();
-  return { btn, editor };
+  new vm.Script(`${src}\nglobalThis.renderIdentityHeader = renderIdentityHeader;`).runInContext(context);
+  context.renderIdentityHeader();
+  return { title };
 }
 
-test("'Editar nombre visible' no existe en estado anónimo", async () => {
+test("Mi estado: el editor de nombre visible separado ya no existe", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  // Arranca oculto en el HTML y no es un input permanente del form.
-  assert.match(demo, /<button type="button" class="change-player-btn" id="edit-display-name-btn" hidden>Editar nombre visible<\/button>/);
-  assert.match(demo, /<div class="display-name-editor" id="display-name-editor" hidden>/);
-  assert.doesNotMatch(demo, /id="display-name-input"[^>]*\srequired/);
-
-  const { btn, editor } = runDisplayNameControl(demo, { identified: false });
-  assert.equal(btn.hidden, true, "sin response propia, no se ofrece editar el nombre visible");
-  assert.equal(editor.hidden, true);
+  assert.doesNotMatch(demo, /id="display-name-editor"|id="edit-display-name-btn"|id="display-name-save"|id="display-name-cancel"|id="display-name-input"/);
+  assert.doesNotMatch(demo, /Editar nombre visible/);
+  assert.doesNotMatch(demo, /function guardarNombreVisible|function renderDisplayNameControl/);
+  // El input de identidad queda editable (ya no hay readOnly cuando estás identificado).
+  assert.match(demo, /input\.readOnly = false;/);
+  assert.doesNotMatch(demo, /input\.readOnly = Boolean\(/);
 });
 
-test("'Editar nombre visible' aparece tras identificarse, y el editor lo reemplaza al abrir", async () => {
+test("Mi estado: el título de identidad muestra habitualName ?? name, no el nombre visible editado", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  assert.match(demo, /<p class="my-status-identity" id="my-status-identity" hidden><\/p>/);
 
-  const cerrado = runDisplayNameControl(demo, { identified: true, editorOpen: false });
-  assert.equal(cerrado.btn.hidden, false, "identificado + editor cerrado -> se ve el link");
+  const anon = runIdentityHeader(demo, { identified: false });
+  assert.equal(anon.title.hidden, true, "sin response propia no hay título de identidad");
 
-  const abierto = runDisplayNameControl(demo, { identified: true, editorOpen: true });
-  assert.equal(abierto.btn.hidden, true, "editor abierto -> el link se esconde");
+  const ident = runIdentityHeader(demo, { identified: true });
+  assert.equal(ident.title.hidden, false);
+  assert.equal(ident.title.textContent, "Pablo de Achaval", "muestra la identidad base, no 'Pablito'");
+
+  const cambiando = runIdentityHeader(demo, { identified: true, changing: true });
+  assert.equal(cambiando.title.hidden, true, "en modo 'Cambiar jugador' el título se oculta");
 });
 
-test("el editor de nombre visible cuelga de syncPagoControls (misma condición de identidad que el pago)", async () => {
+test("Mi estado: el título de identidad se refresca desde syncPagoControls (misma condición que el pago)", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /function syncPagoControls\(\)\{[\s\S]*?renderDisplayNameControl\(\);\s*\}/);
+  assert.match(demo, /function syncPagoControls\(\)\{[\s\S]*?renderIdentityHeader\(\);\s*\}/);
 });
 
-test("copy del hint del nombre visible: con y sin habitualName", async () => {
+test("Mi estado: guardar el nombre visible va por el CTA y preserva la identidad base", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /Así te ven en la lista del partido\. Tu identidad sigue siendo \$\{propia\.habitualName\}\./);
-  assert.match(demo, /: 'Así te ven en la lista del partido\.';/);
-  assert.match(demo, /showToast\('Nombre visible actualizado'\)/);
+  const handler = sliceBetween(
+    demo,
+    "document.getElementById('my-status-confirm').onclick = async ()=>{",
+    "document.getElementById('change-player-btn').onclick",
+    'el handler de guardar Mi estado',
+  );
+  // Ya identificado y sin cambiar de identidad = editar tu propio estado: el input es el
+  // nombre visible y se puede escribir libre.
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  // El gate "no encontramos ese jugador" deja pasar al dueño editando.
+  assert.match(handler, /!recurrentMatch && !editandoMiEstado\)\{/);
+  // La response nace con name = lo que escribiste y responseId/ownerIds/paid/team de la existente.
+  assert.match(handler, /name:playerName,/);
+  assert.match(handler, /responseId:existingResponse\?\.responseId \|\| crypto\.randomUUID\(\)/);
+  assert.match(handler, /ownerIds:existingResponse\?\.ownerIds \|\| \[currentSessionUserId\]/);
+  // Editar tu estado NUNCA cambia tu identidad base.
+  assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
+  // Input vacío -> vuelve a la identidad base.
+  assert.match(handler, /playerName = existingResponse\.habitualName \|\| existingResponse\.name;/);
+  // Y no ensucia el selector "¿Quién sos?" con el nombre visible.
+  assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
+  // Rechazo de colisión con otra response no invitada sigue aplicando.
+  assert.match(handler, /const nameCollision = localAvailabilityResponses\.find\(item=>\s*item\.responseId!==existingResponse\?\.responseId/);
 });
 
 test("keeps the user team summary compact", async () => {
@@ -707,14 +741,15 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   assert.doesNotMatch(demo, /updateMyStatusSummary/);
   assert.doesNotMatch(demo, /mockStatusCard/);
 
-  // Orden del formulario continuo: Estado → Disponibilidad → Pago → Invitados → CTA.
+  // Orden compacto: identidad → nombre de jugador → Estado → Disponibilidad → Pago →
+  // Invitados → CTA.
   const card = sliceBetween(
     demo,
     'id="my-status-card"',
     '<div class="ticket">',
     'la card de Mi estado',
   );
-  const orden = ['my-status-choice', 'my-status-times', 'my-status-payment', 'guest-manager-bar', 'id="my-status-confirm"'];
+  const orden = ['id="my-status-identity"', 'id="my-player-name-label"', 'my-status-choice', 'my-status-times', 'my-status-payment', 'guest-manager-bar', 'id="my-status-confirm"'];
   let cursor = -1;
   for(const marca of orden){
     const at = card.indexOf(marca);
@@ -734,11 +769,11 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   // Cambiar de estado repinta la visibilidad del pago en vivo.
   assert.match(demo, /mockTimes\.style\.display = mockAvailability === 'out' \? 'none' : 'flex';\s*\r?\n\s*syncPagoControls\(\);/);
 
-  // Identidad "Pablo + Cambiar" intacta.
+  // Identidad "Pablo + Cambiar" intacta; el campo de nombre queda editable identificado.
   assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste de nombre\? Cambiar jugador/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
-  assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
-  assert.match(demo, /Estás editando la respuesta de \$\{ownResponse\.name\}/);
+  assert.match(demo, /input\.readOnly = false;/);
+  assert.match(demo, /label\.textContent = 'Nombre de jugador';/);
   assert.match(demo, /Cambio de jugador activado/);
 });
 
@@ -763,24 +798,38 @@ test("No estoy preserva el horario y el pago de la respuesta guardada", async ()
   assert.match(demo, /if\(response\.from && response\.to\)\{/);
 });
 
-test("aplica el copy final de Mi estado", async () => {
+test("aplica el copy futbolero de Mi estado", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   // Estado rotula la asistencia; Disponibilidad rotula el horario.
   assert.match(demo, /<span class="my-status-label">Estado<\/span>\s*<div class="my-status-choice" role="group" aria-label="Estado">/);
   assert.match(demo, /<span class="my-status-label">Disponibilidad<\/span>\s*<div class="my-status-times"/);
 
-  // Duda, sin "En", en el control de Mi estado (la vista Organizador queda fuera de scope).
-  assert.match(demo, /data-value="duda" aria-pressed="false">Duda</);
+  // Estado: Estoy / En duda / Soy baja (data-value in/duda/out sin tocar).
+  assert.match(demo, /data-value="in" aria-pressed="true">Estoy</);
+  assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
+  assert.match(demo, /data-value="out" aria-pressed="false">Soy baja</);
 
-  // Pago binario Pagado/Pendiente con marca ✓ en la opción activa.
-  assert.match(demo, /data-value="yes" aria-pressed="false">Pagado</);
-  assert.match(demo, /data-value="no" aria-pressed="true">Pendiente</);
+  // Disponibilidad: "Libre" reemplaza "Todo el día".
+  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day">\s*<input type="checkbox" id="my-status-full-day">\s*<span>Libre<\/span>/);
+  assert.doesNotMatch(demo, /Todo el día/);
+
+  // Pago: Ya pagué / Debo (data-value yes/no sin tocar).
+  assert.match(demo, /data-value="yes" aria-pressed="false">Ya pagué</);
+  assert.match(demo, /data-value="no" aria-pressed="true">Debo</);
   assert.match(demo, /\.my-status-paid button\.active::before\{content:'✓ ';\}/);
 
-  // La CTA es Guardar.
-  assert.match(demo, /id="my-status-confirm">Guardar</);
-  assert.doesNotMatch(demo, /id="my-status-confirm">Confirmar</);
+  // CTA "Guardar cambios".
+  assert.match(demo, /id="my-status-confirm">Guardar cambios</);
+  assert.doesNotMatch(demo, /id="my-status-confirm">(Confirmar|Guardar)</);
+});
+
+test("Mi estado: los data-value de estado y pago no cambian con el copy futbolero", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const choice = sliceBetween(demo, '<div class="my-status-choice" role="group" aria-label="Estado">', '</div>', 'los botones de estado');
+  assert.deepEqual([...choice.matchAll(/data-value="([^"]+)"/g)].map((m) => m[1]), ["in", "duda", "out"]);
+  const paid = sliceBetween(demo, '<div class="my-status-paid" role="group" aria-label="Estado de pago">', '</div>', 'los botones de pago');
+  assert.deepEqual([...paid.matchAll(/data-value="([^"]+)"/g)].map((m) => m[1]), ["yes", "no"]);
 });
 
 test("da feedback inline de guardado y ofrece Reintentar al fallar", async () => {
@@ -840,7 +889,7 @@ test("Cambiar jugador vacía el campo y abre el menú para una búsqueda limpia"
   const changeHandler = sliceBetween(
     demo,
     "document.getElementById('change-player-btn').onclick",
-    "document.getElementById('edit-display-name-btn').onclick",
+    "guestManagerToggle.onclick",
     'el handler de cambiar jugador',
   );
   // El campo arranca vacío: cambiar de jugador es una búsqueda de identidad desde cero,
@@ -850,8 +899,8 @@ test("Cambiar jugador vacía el campo y abre el menú para una búsqueda limpia"
   // Y el menú del selector queda abierto y listo para filtrar.
   assert.match(changeHandler, /renderRecurrentPlayerMenu\(\);/);
   assert.match(changeHandler, /input\.focus\(\);/);
-  // El modo "cambiar" deja el input editable (no readOnly) para poder buscar.
-  assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
+  // El input queda editable siempre (ya no hay readOnly).
+  assert.match(demo, /input\.readOnly = false;/);
 });
 
 test("defaults to F8 and assigns every confirmed player to a balanced team", async () => {
