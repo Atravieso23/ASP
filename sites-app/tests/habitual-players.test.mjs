@@ -79,27 +79,44 @@ test("el selector sigue poblado con responses=[]: los habituales lo sostienen", 
 test("los invitados nunca entran al selector ni contaminan la lista", () => {
   const derive = selectorWorld();
   const responses = [
-    { name: "Roca", isGuest: false },
+    { name: "Roca", habitualName: "Roca", isGuest: false },
     { name: "Amigo de Roca", isGuest: true },
   ];
-  const nombres = derive({ habitualPlayers: ["Pablo"] }, responses);
+  const nombres = derive({ habitualPlayers: ["Pablo", "Roca"] }, responses);
   assert.deepEqual(nombres, ["Pablo", "Roca"]);
   assert.ok(!nombres.includes("Amigo de Roca"), "un invitado no puede aparecer en el selector");
 });
 
-test("un habitual y una response del mismo nombre cuentan una sola vez", () => {
+test("un habitual y una response con esa misma identidad base cuentan una sola vez", () => {
   const derive = selectorWorld();
-  // La response llega con otra capitalización; el habitual gana el display.
-  const nombres = derive({ habitualPlayers: ["Pablo"] }, [{ name: "pablo", isGuest: false }]);
-  assert.deepEqual(nombres, ["Pablo"], "dedup por nombre normalizado, sin duplicar a Pablo");
+  // La response ya se re-identificó: su habitualName llega con otra capitalización.
+  const nombres = derive(
+    { habitualPlayers: ["Pablo"] },
+    [{ name: 'Pablo "el Capi"', habitualName: "pablo", isGuest: false }],
+  );
+  assert.deepEqual(nombres, ["Pablo"], "dedup por identidad normalizada; el nombre visible no aparece");
 });
 
-test("una response no invitada que no es habitual igual aparece en el selector", () => {
+test("con habitualPlayers configurado, una response legacy SIN habitualName no entra al selector", () => {
   const derive = selectorWorld();
-  // Alguien se anotó esta fecha sin ser habitual: tiene que poder identificarse hoy,
-  // pero eso NO lo vuelve habitual (no se escribe en habitualPlayers).
-  const nombres = derive({ habitualPlayers: ["Pablo"] }, [{ name: "Suplente", isGuest: false }]);
-  assert.deepEqual(nombres, ["Pablo", "Suplente"]);
+  // El selector representa identidad base, no historial: un name legacy de una response
+  // vieja ("Suplente", "Achita", 'Pablo "el Capi"') no ensucia la lista de las 14.
+  const nombres = derive(
+    { habitualPlayers: ["Pablo", "Ale"] },
+    [
+      { name: "Suplente", isGuest: false },
+      { name: 'Pablo "el Capi"', isGuest: false },
+      { name: "Achita", isGuest: false },
+    ],
+  );
+  assert.deepEqual(nombres, ["Ale", "Pablo"], "sólo las identidades base, sin los names legacy");
+});
+
+test("sin habitualPlayers sembrado, el selector todavía cae al name de la response (estado pre-seed)", () => {
+  const derive = selectorWorld();
+  // Retrocompat: antes del seed no hay con qué poblar el selector salvo las responses.
+  const nombres = derive({ habitualPlayers: [] }, [{ name: "Suplente", isGuest: false }]);
+  assert.deepEqual(nombres, ["Suplente"]);
 });
 
 /* ---------- La lectura del servidor: normalización y retrocompat ---------- */
@@ -294,6 +311,63 @@ test("Falta confirmar es sólo lectura: no toca habitualPlayers, recurrentPlayer
   assert.match(demo, /menu\.querySelectorAll\('\[data-delete-recurrent-index\]'\)/);
 });
 
+/* ---------- Selector post-release identidad base: sólo las 14, sin ruido legacy ---------- */
+
+const LISTA_BASE_14 = [
+  "Pablo de Achaval", "Agustín Travieso", "Segun Campos", "Francisco Sánchez Keenan",
+  "Félix de Achaval", "Nacho Duncan", "Joaco el Deiker", "Fran Forrester",
+  "Nahuel Gutiérrez", "Félix Beccar", "Agustín Mingolla", "Juampi Ramos",
+  "Facu Santos", "Ale",
+];
+
+test("con las 14 identidades base sembradas, el selector muestra exactamente esas 14", () => {
+  const derive = selectorWorld();
+  // Escenario de producción real: 14 habituales + responses legacy del partido en curso
+  // sin habitualName (Roca, Negro, Frankie, Nahui, 'Pablo \"el Capi\"', chursi, amigo chursi 1...).
+  const responsesLegacy = [
+    "Roca", "Negro", "Achita", "Frankie", "Nahui", 'Pablo "el Capi"',
+    "chursi", "amigo chursi 1", "Juan", "Felix bv", "Mingo",
+  ].map((name) => ({ name, isGuest: false }));
+  const nombres = derive({ habitualPlayers: LISTA_BASE_14 }, responsesLegacy);
+  assert.deepEqual(nombres, [...LISTA_BASE_14].sort((a, b) => a.localeCompare(b, "es")));
+  assert.equal(nombres.length, 14, "ni uno más que las 14 identidades base");
+  for (const legacy of ["Roca", "Negro", "Frankie", "Nahui", 'Pablo "el Capi"', "chursi"]) {
+    assert.ok(!nombres.includes(legacy), `${legacy} (name legacy) no debe estar en el selector`);
+  }
+});
+
+test('buscar "Juampi" en el selector encuentra "Juampi Ramos"', () => {
+  const derive = selectorWorld();
+  const recurrentPlayers = derive({ habitualPlayers: LISTA_BASE_14 }, []);
+  // Mismo filtro que renderRecurrentPlayerMenu: substring normalizado.
+  const query = "juampi";
+  const encontrados = recurrentPlayers.filter((n) => n.toLocaleLowerCase("es").includes(query));
+  assert.deepEqual(encontrados, ["Juampi Ramos"]);
+});
+
+test("el menú del selector filtra por substring y muestra hasta 20 (entran las 14)", () => {
+  const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
+  assert.match(menu, /\.filter\(item=>item\.name\.toLocaleLowerCase\('es'\)\.includes\(query\)\)/);
+  assert.match(menu, /\.slice\(0,20\)/, "el corte sube de 12 a 20 para que las 14 bases rendericen");
+  assert.doesNotMatch(menu, /\.slice\(0,12\)/);
+});
+
+test("input libre para jugador nuevo sigue intacto ('Este soy yo' / registeringFirstTime)", () => {
+  const setFirst = extractFunction(demo, "setFirstTimeRegistration");
+  assert.match(setFirst, /registeringFirstTime = active/);
+  assert.match(demo, /id="first-time-player-btn"/);
+  assert.match(demo, /Este soy yo/);
+  // El gate de confirmación sigue admitiendo un nombre nuevo en modo alta.
+  const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
+  assert.match(handler, /!registeringFirstTime && !changingRegisteredPlayer && !recurrentMatch/);
+});
+
+test("deriveSelectorNames no toca faltanConfirmar (bloque independiente, sin cambios)", () => {
+  const falta = extractFunction(demo, "faltanConfirmar");
+  assert.ok(!/recurrentPlayers|deriveSelectorNames/.test(falta), "faltanConfirmar no depende del selector");
+  assert.match(falta, /String\(item\.habitualName \|\| item\.name\)/);
+});
+
 /* ---------- SPIKE: identidad base (habitualName) + nombre visible ---------- */
 
 test("faltanConfirmar descuenta al habitual vía habitualName aunque name sea un apodo", () => {
@@ -332,10 +406,15 @@ test("deriveSelectorNames: una response con habitualName aporta la identidad bas
   assert.deepEqual(nombres, ["Pablo"], "el selector muestra 'Pablo' una vez, no 'Pablo \"el Capi\"'");
 });
 
-test("deriveSelectorNames: una response no-habitual SIN habitualName sigue apareciendo en el selector", () => {
+test("deriveSelectorNames: una response con habitualName fuera de la lista igual ofrece su identidad base", () => {
   const derive = selectorWorld();
-  const nombres = derive({ habitualPlayers: ["Pablo"] }, [{ name: "Suplente", isGuest: false }]);
-  assert.deepEqual(nombres, ["Pablo", "Suplente"]);
+  // Un habitual que salió de la lista base (p. ej. quedó sin cupo) pero ya tiene response
+  // con habitualName: puede seguir identificándose. Distinto de un name legacy suelto.
+  const nombres = derive(
+    { habitualPlayers: ["Pablo"] },
+    [{ name: "Ex Habitual", habitualName: "Ex Habitual", isGuest: false }],
+  );
+  assert.deepEqual(nombres, ["Ex Habitual", "Pablo"]);
 });
 
 test("al confirmar como habitual 'Pablo', la response guarda habitualName:'Pablo'", () => {

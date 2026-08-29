@@ -428,7 +428,7 @@
   .display-name-actions button{flex:1;border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;font:700 12px 'Inter',sans-serif;cursor:pointer;}
   #display-name-save{background:var(--celeste-deep);color:#fff;border-color:var(--celeste-deep);}
   #display-name-cancel{background:transparent;color:var(--celeste-deep);}
-  .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:220px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
+  .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:300px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
   .recurrent-player-menu[hidden]{display:none;}
   .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;padding:4px;border-radius:8px;}
   .recurrent-player-option:hover{background:var(--bg-bottom);}
@@ -3033,9 +3033,16 @@ function saveRecurrentPlayers(){
 }
 function deriveSelectorNames(estado = state, responses = localAvailabilityResponses){
   const habituales = (estado && Array.isArray(estado.habitualPlayers)) ? estado.habitualPlayers : [];
-  // Una response con habitualName aporta su identidad base, no su nombre visible: el
-  // selector "¿Quién sos?" representa la identidad del grupo, no cómo cada uno se muestra.
-  const nombres = [...habituales, ...(responses || []).filter(item=>!item.isGuest).map(item=>item.habitualName || item.name)];
+  // El selector "¿Quién sos?" representa la identidad base del grupo, no el historial.
+  // Con habituales configurados, una response sólo aporta su identidad base (habitualName);
+  // su nombre visible legacy no ensucia la lista. Sin habituales sembrados se cae al name
+  // de la response para que el selector no quede vacío (estado previo al seed).
+  const conHabituales = habituales.length > 0;
+  const deResponses = (responses || [])
+    .filter(item=>!item.isGuest)
+    .map(item=>conHabituales ? item.habitualName : (item.habitualName || item.name))
+    .filter(nombre=>typeof nombre === 'string' && nombre);
+  const nombres = [...habituales, ...deResponses];
   const vistos = new Set();
   const salida = [];
   for(const nombre of nombres){
@@ -3173,7 +3180,7 @@ function renderRecurrentPlayerMenu(){
   const filtered = recurrentPlayers
     .map((name,index)=>({name,index}))
     .filter(item=>item.name.toLocaleLowerCase('es').includes(query))
-    .slice(0,12);
+    .slice(0,20);
   menu.innerHTML = filtered.length ? filtered.map(item=>`
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
