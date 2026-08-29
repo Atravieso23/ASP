@@ -506,6 +506,17 @@ test("estado anónimo: el bloque de invitados no se muestra", async () => {
   assert.equal(manager.hidden, true, 'el gestor de invitados quedó abierto en estado anónimo');
 });
 
+// El gate JS setea el atributo hidden, pero .guest-manager-bar tiene display:grid, que
+// pisa el display:none implícito de [hidden]. Sin esta regla la barra queda visible en
+// anónimo aunque bar.hidden sea true —el bug que se coló una vez porque los tests sólo
+// miraban la propiedad, no el CSS—. Mismo patrón que .guest-manager[hidden] y
+// .my-status-payment[hidden].
+test("el CSS oculta la barra de invitados cuando tiene el atributo hidden", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  assert.match(demo, /\.guest-manager-bar\[hidden\]\s*\{\s*display\s*:\s*none\s*;?\s*\}/);
+});
+
 test("jugador identificado: el bloque de invitados se muestra", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
