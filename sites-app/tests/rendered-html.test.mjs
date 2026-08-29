@@ -628,6 +628,61 @@ test("Falta confirmar: sin habitualPlayers el bloque entero se oculta", async ()
   assert.equal(block.hidden, true, "sin grupo habitual sembrado no hay con qué comparar");
 });
 
+// SPIKE identidad base + nombre visible: acción secundaria discreta, sólo tras identificarse.
+function runDisplayNameControl(demo, { identified, editorOpen = false }) {
+  const src = sliceBetween(
+    demo,
+    "function renderDisplayNameControl(){",
+    "\nconst INVITADO_SIN_ANFITRION",
+    "renderDisplayNameControl",
+  );
+  const btn = { hidden: false };
+  const editor = { hidden: !editorOpen };
+  const elements = { "edit-display-name-btn": btn, "display-name-editor": editor };
+  const context = vm.createContext({
+    document: { getElementById(id) { return elements[id] || null; } },
+    responseDelJugadorActual() { return identified ? { name: "Pablo", habitualName: "Pablo" } : undefined; },
+    console: { error() {}, warn() {}, log() {} },
+  });
+  new vm.Script(`${src}\nglobalThis.renderDisplayNameControl = renderDisplayNameControl;`).runInContext(context);
+  context.renderDisplayNameControl();
+  return { btn, editor };
+}
+
+test("'Editar nombre visible' no existe en estado anónimo", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  // Arranca oculto en el HTML y no es un input permanente del form.
+  assert.match(demo, /<button type="button" class="change-player-btn" id="edit-display-name-btn" hidden>Editar nombre visible<\/button>/);
+  assert.match(demo, /<div class="display-name-editor" id="display-name-editor" hidden>/);
+  assert.doesNotMatch(demo, /id="display-name-input"[^>]*\srequired/);
+
+  const { btn, editor } = runDisplayNameControl(demo, { identified: false });
+  assert.equal(btn.hidden, true, "sin response propia, no se ofrece editar el nombre visible");
+  assert.equal(editor.hidden, true);
+});
+
+test("'Editar nombre visible' aparece tras identificarse, y el editor lo reemplaza al abrir", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const cerrado = runDisplayNameControl(demo, { identified: true, editorOpen: false });
+  assert.equal(cerrado.btn.hidden, false, "identificado + editor cerrado -> se ve el link");
+
+  const abierto = runDisplayNameControl(demo, { identified: true, editorOpen: true });
+  assert.equal(abierto.btn.hidden, true, "editor abierto -> el link se esconde");
+});
+
+test("el editor de nombre visible cuelga de syncPagoControls (misma condición de identidad que el pago)", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  assert.match(demo, /function syncPagoControls\(\)\{[\s\S]*?renderDisplayNameControl\(\);\s*\}/);
+});
+
+test("copy del hint del nombre visible: con y sin habitualName", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  assert.match(demo, /Así te ven en la lista del partido\. Tu identidad sigue siendo \$\{propia\.habitualName\}\./);
+  assert.match(demo, /: 'Así te ven en la lista del partido\.';/);
+  assert.match(demo, /showToast\('Nombre visible actualizado'\)/);
+});
+
 test("keeps the user team summary compact", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
