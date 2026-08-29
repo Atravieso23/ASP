@@ -113,8 +113,8 @@ function makeWorld({ row, failRead = false, failWrite = false, failWrites = 0 } 
     let knownPlayerNames = new Set();
     let knownSedeNames = new Set();
     let currentSessionUserId = ${JSON.stringify(DEVICE)};
-    ${extractDeclaration(demo, "INVITADO_DUPLICADO")}
     ${extractDeclaration(demo, "INVITADO_SIN_ANFITRION")}
+    ${extractDeclaration(demo, "INVITADO_DUPLICADO")}
     ${extractDeclaration(demo, "colaDeResponses")}
     ${NEEDED.map((n) => extractFunction(demo, n)).join("\n")}
     `,
@@ -366,19 +366,105 @@ for (const objetivo of OBJETIVOS) {
 }
 
 // ── Reglas propias de agregar invitado ──
-test("agregar invitado revalida el duplicado contra el servidor", async () => {
+// Decisión de producto (post-QA real): el nombre del invitado tiene que ser único en la
+// fecha. Se revalida contra las responses frescas —no contra la copia local, que no ve al
+// invitado que otro teléfono agregó desde el último sondeo— y se avisa distinto del fallo
+// de red. No se muta el nombre ni se agregan sufijos.
+test("agregar invitado rechaza un nombre ya ocupado por otro invitado", async () => {
   const w = makeWorld();
-  // Otro teléfono agregó el mismo nombre después de nuestro último sondeo: el chequeo
-  // local no lo ve.
+  // Ya hay un "Ruso" en la fecha (invitado de otro, recién visto en el sondeo fresco).
   w.db.row.responses.push(RESPONSE("r-otro-ruso", "Ruso", { isGuest: true }));
   const antes = structuredClone(w.db.row);
 
-  const resultado = await w.run(`agregarInvitado("Ruso")`);
+  const resultado = await w.run(`agregarInvitado("  ruso ")`);
 
-  assert.equal(resultado.ok, false);
+  assert.equal(resultado.ok, false, "no se puede agregar un invitado con un nombre ocupado");
   assert.equal(resultado.motivo, "duplicado", "el aviso tiene que distinguirse del de conexión");
+  assert.equal(w.db.writes, 0, "no persiste el invitado duplicado");
+  assert.deepEqual(w.db.row, antes, "el servidor queda intacto");
+});
+
+test("agregar invitado rechaza un nombre ya ocupado por un jugador de la fecha", async () => {
+  const w = makeWorld();
+  // "Ariel" ya respondió como jugador (no invitado).
+  const antes = structuredClone(w.db.row);
+
+  const resultado = await w.run(`agregarInvitado("ARIEL")`);
+
+  assert.equal(resultado.ok, false, "el nombre de un jugador de la fecha también cuenta como ocupado");
+  assert.equal(resultado.motivo, "duplicado");
   assert.equal(w.db.writes, 0);
   assert.deepEqual(w.db.row, antes);
+});
+
+test("agregar invitado rechaza un nombre que ya está en habitualPlayers", async () => {
+  const w = makeWorld();
+  w.run(`state.habitualPlayers = ["Nacho", "Rulo"]`);
+
+  const resultado = await w.run(`agregarInvitado("rulo")`);
+
+  assert.equal(resultado.ok, false, "un habitual ocupa el nombre aunque no haya respondido la fecha");
+  assert.equal(resultado.motivo, "duplicado");
+  assert.equal(w.db.writes, 0);
+});
+
+test("agregar invitado permite varios invitados con nombres distintos", async () => {
+  const w = makeWorld();
+
+  const a = await w.run(`agregarInvitado("Ruso").then(r => r.ok)`);
+  const b = await w.run(`agregarInvitado("Colo").then(r => r.ok)`);
+  const c = await w.run(`agregarInvitado("Pelado").then(r => r.ok)`);
+
+  assert.deepEqual([a, b, c], [true, true, true], "nombres distintos se agregan sin problema");
+  const nuevos = w.db.row.responses.filter((r) => ["Ruso", "Colo", "Pelado"].includes(r.name));
+  assert.equal(nuevos.length, 3, "los tres invitados con nombres distintos quedaron persistidos");
+  assert.ok(nuevos.every((r) => r.isGuest && r.invitedBy === "Felix"));
+  // Cada uno con su propio responseId: es lo que usan pago y borrado.
+  const ids = new Set(nuevos.map((r) => r.responseId));
+  assert.equal(ids.size, 3, "cada invitado nace con un responseId único");
+});
+
+// Pago y borrado del 4º invitado, elegido por responseId aunque comparta el nombre con
+// otro. El alta ahora rechaza nombres repetidos, pero los datos pueden traer homónimos de
+// antes de esa regla o de una carrera entre dos teléfonos: pago y borrado tienen que
+// seguir resolviendo por id, nunca por nombre. Prueba el caso real del reporte: 4
+// invitados y el último igual de gestionable que el primero.
+function filaConCuatroInvitados() {
+  const row = BASE_ROW();
+  // Felix (r-propia) es el anfitrión del dispositivo. Le colgamos cuatro invitados
+  // propios; g4 comparte el nombre "Juan" con g3 para forzar la resolución por id.
+  row.responses.push(
+    RESPONSE("g1", "Ana",  { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+    RESPONSE("g2", "Beto", { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+    RESPONSE("g3", "Juan", { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+    RESPONSE("g4", "Juan", { ownerId: DEVICE, ownerIds: [DEVICE], isGuest: true, invitedBy: "Felix" }),
+  );
+  return row;
+}
+
+test("marcar pago del 4º invitado resuelve por responseId, no por nombre", async () => {
+  const w = makeWorld({ row: filaConCuatroInvitados() });
+
+  const ok = await w.run(`marcarPagoDeInvitado("g4", true)`);
+
+  assert.equal(ok, true);
+  assert.equal(resp(w.db.row, "g4").paid, true, "no marcó el pago del 4º invitado");
+  assert.equal(resp(w.db.row, "g3").paid, false, "marcó el pago del homónimo equivocado");
+});
+
+test("eliminar el 4º invitado resuelve por responseId, no por nombre", async () => {
+  const w = makeWorld({ row: filaConCuatroInvitados() });
+
+  const ok = await w.run(`eliminarInvitado("g4")`);
+
+  assert.equal(ok, true);
+  assert.equal(resp(w.db.row, "g4"), undefined, "no borró el 4º invitado");
+  assert.ok(resp(w.db.row, "g3"), "borró al homónimo en lugar del 4º");
+  assert.equal(
+    w.db.row.responses.filter((r) => r.name === "Juan").length,
+    1,
+    "tras borrar g4 tiene que quedar exactamente un Juan",
+  );
 });
 
 test("agregar invitado balancea contra las responses del servidor", async () => {

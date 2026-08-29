@@ -102,6 +102,7 @@ const NEEDED = [
   "adoptarPosicionesCompartidas",
   "syncLocalAvailabilityWithPlayers",
   "reconciliarPlayers",
+  "deriveSelectorNames",
   "responseBelongsToCurrentDevice",
   "persistFocalizado",
   "getFormationOptions",
