@@ -334,7 +334,7 @@ test("lets a trusted player reuse an existing response on another device", async
   assert.doesNotMatch(demo, /No se pudo recordar al jugador local/);
 });
 
-test("manages per-date guests from the collapsed player status", async () => {
+test("manages per-date guests from the continuous player form", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.match(demo, /¿A tu invitado le dio paja registrarse\?/);
@@ -363,18 +363,22 @@ test("renders the guest CTA from the manager visibility", async () => {
     'renderGuestManager',
   );
   const manager = { hidden: true };
-  const toggle = { textContent: '' };
+  const toggle = { textContent: '', setAttribute(){} };
   const list = { innerHTML: '', querySelectorAll(){ return []; } };
   const count = { textContent: '' };
+  const bar = { hidden: false };
   const elements = {
     'guest-manager': manager,
     'guest-manager-toggle': toggle,
     'guest-list': list,
     'guest-manager-count': count,
+    'guest-manager-bar': bar,
   };
   const context = vm.createContext({
     document: { getElementById(id){ return elements[id] || null; } },
     getCurrentPlayerGuests(){ return []; },
+    // Jugador identificado: el gating de invitados no interfiere con el toggle.
+    responseDelJugadorActual(){ return { status: 'in', paid: false }; },
   });
 
   new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
@@ -388,6 +392,127 @@ test("renders the guest CTA from the manager visibility", async () => {
   assert.equal(toggle.textContent, 'Cerrar invitados');
 });
 
+// PR C · A — el gestor no puede recortar la lista: un anfitrión con 4, 5 o 6 invitados
+// tiene que verlos a todos, y cada fila lleva su responseId para que pago y borrado no
+// dependan de la posición ni del nombre. Si alguien reintroduce un slice(0,N) el conteo
+// de filas deja de coincidir con la cantidad de invitados y este test se cae.
+test("renderiza todos los invitados sin recorte, con responseId por fila", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const guestManagerRenderer = sliceBetween(
+    demo,
+    'function renderGuestManager(){',
+    '\nfunction renderLocalOrganizer(){',
+    'renderGuestManager',
+  );
+  const manager = { hidden: false };
+  const toggle = { textContent: '', setAttribute(){} };
+  const list = { innerHTML: '', querySelectorAll(){ return []; } };
+  const count = { textContent: '' };
+  const bar = { hidden: true };
+  const elements = {
+    'guest-manager': manager,
+    'guest-manager-toggle': toggle,
+    'guest-list': list,
+    'guest-manager-count': count,
+    'guest-manager-bar': bar,
+  };
+  // Dos "Juan" con responseId distinto: además de las 6 filas, prueba que los nombres
+  // repetidos no se colapsan en el render (PR C · B).
+  const guests = [
+    { responseId: 'g1', name: 'Ana',  paid: false },
+    { responseId: 'g2', name: 'Beto', paid: true  },
+    { responseId: 'g3', name: 'Caro', paid: false },
+    { responseId: 'g4', name: 'Juan', paid: false },
+    { responseId: 'g5', name: 'Juan', paid: true  },
+    { responseId: 'g6', name: 'Zoe',  paid: false },
+  ];
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    getCurrentPlayerGuests(){ return guests; },
+    // Jugador identificado y persistido: el gating deja pasar la lista completa.
+    responseDelJugadorActual(){ return { status: 'in', paid: false }; },
+    escapeHtml: (value) => String(value),
+  });
+
+  new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
+    .runInContext(context);
+
+  context.renderGuestManager();
+
+  const filas = (list.innerHTML.match(/class="guest-item"/g) || []).length;
+  assert.equal(filas, guests.length, 'el gestor recortó la lista de invitados');
+  const quitar = (list.innerHTML.match(/data-remove-guest="/g) || []).length;
+  assert.equal(quitar, guests.length, 'faltan botones de quitar: la lista está recortada');
+
+  // El 4º, 5º y 6º invitado existen en el DOM con su propio responseId, no por índice.
+  for(const id of ['g4', 'g5', 'g6']){
+    assert.ok(list.innerHTML.includes(`data-guest-paid="${id}"`), `falta el pago del invitado ${id}`);
+    assert.ok(list.innerHTML.includes(`data-remove-guest="${id}"`), `falta el borrado del invitado ${id}`);
+  }
+
+  // Los dos homónimos se pintan como filas separadas.
+  const juanes = (list.innerHTML.match(/>Juan</g) || []).length;
+  assert.equal(juanes, 2, 'los invitados con el mismo nombre se colapsaron en el render');
+
+  assert.equal(count.textContent, '6 invitados');
+});
+
+// PR B · gating de identidad — el bloque de invitados no puede aparecer en estado anónimo
+// (antes de identificar al jugador). Sólo cuando existe una response propia persistida
+// —el mismo requisito que agregarInvitado()— se muestra la barra de invitados.
+function runGuestManagerConIdentidad(demo, { identified }){
+  const guestManagerRenderer = sliceBetween(
+    demo,
+    'function renderGuestManager(){',
+    '\nfunction renderLocalOrganizer(){',
+    'renderGuestManager',
+  );
+  const manager = { hidden: false };
+  const toggle = { textContent: '', _aria: {}, setAttribute(k, v){ this._aria[k] = v; } };
+  const list = { innerHTML: '', querySelectorAll(){ return []; } };
+  const count = { textContent: '' };
+  // Arranca visible a propósito: si el gating no lo oculta en anónimo, el test se cae.
+  const bar = { hidden: false };
+  const elements = {
+    'guest-manager': manager,
+    'guest-manager-toggle': toggle,
+    'guest-list': list,
+    'guest-manager-count': count,
+    'guest-manager-bar': bar,
+  };
+  const context = vm.createContext({
+    document: { getElementById(id){ return elements[id] || null; } },
+    getCurrentPlayerGuests(){ return identified ? [{ responseId: 'g1', name: 'Ana', paid: false }] : []; },
+    responseDelJugadorActual(){ return identified ? { status: 'in', paid: false } : undefined; },
+    escapeHtml: (value) => String(value),
+  });
+  new vm.Script(`${guestManagerRenderer}\nglobalThis.renderGuestManager = renderGuestManager;`)
+    .runInContext(context);
+  context.renderGuestManager();
+  return { manager, toggle, list, bar };
+}
+
+test("estado anónimo: el bloque de invitados no se muestra", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // La barra arranca oculta en el HTML (default anónimo) y con id para poder gatearla.
+  assert.match(demo, /<div class="guest-manager-bar" id="guest-manager-bar" hidden>/);
+  // Y el render la mantiene oculta mientras no haya jugador identificado y persistido.
+  assert.match(demo, /const identified = Boolean\(responseDelJugadorActual\(\)\);/);
+
+  const { bar, manager } = runGuestManagerConIdentidad(demo, { identified: false });
+  assert.equal(bar.hidden, true, 'la barra de invitados quedó visible en estado anónimo');
+  assert.equal(manager.hidden, true, 'el gestor de invitados quedó abierto en estado anónimo');
+});
+
+test("jugador identificado: el bloque de invitados se muestra", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const { bar, list } = runGuestManagerConIdentidad(demo, { identified: true });
+  assert.equal(bar.hidden, false, 'la barra de invitados no aparece con jugador identificado');
+  assert.ok(list.innerHTML.includes('data-remove-guest="g1"'), 'no se renderizó al invitado del jugador identificado');
+});
+
 test("keeps the user team summary compact", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
@@ -398,17 +523,47 @@ test("keeps the user team summary compact", async () => {
   assert.doesNotMatch(demo, /@media\(min-width:680px\)\{\.organizer-formations\{grid-template-columns:1fr 1fr;/);
 });
 
-test("collapses my status into a mobile-first quick summary with reversible payment", async () => {
+// ---- PR B · Formulario continuo de "Mi estado" ----
+
+test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /function updateMyStatusSummary\(response\)/);
-  assert.match(demo, /`\$\{response\.name\} · \$\{availability\}/);
-  assert.match(demo, /class="my-status-summary-title">Mi estado/);
+  // El resumen colapsado y su toggle desaparecen: una vez identificado el jugador se
+  // ve directamente el formulario, sin card intermedia ni botón "Editar respuesta".
+  assert.doesNotMatch(demo, /\bcollapsed\b/);
+  assert.doesNotMatch(demo, /my-status-summary/);
+  assert.doesNotMatch(demo, /id="my-status-edit"/);
+  assert.doesNotMatch(demo, /updateMyStatusSummary/);
+  assert.doesNotMatch(demo, /mockStatusCard/);
+
+  // Orden del formulario continuo: Estado → Disponibilidad → Pago → Invitados → CTA.
+  const card = sliceBetween(
+    demo,
+    'id="my-status-card"',
+    '<div class="ticket">',
+    'la card de Mi estado',
+  );
+  const orden = ['my-status-choice', 'my-status-times', 'my-status-payment', 'guest-manager-bar', 'id="my-status-confirm"'];
+  let cursor = -1;
+  for(const marca of orden){
+    const at = card.indexOf(marca);
+    assert.ok(at > cursor, `"${marca}" fuera de orden en el formulario continuo`);
+    cursor = at;
+  }
+
+  // Pago vive dentro del form, oculto por defecto y gobernado por syncPagoControls.
+  assert.match(demo, /id="my-status-payment" hidden/);
   assert.match(demo, /class="my-status-paid"/);
-  // El pago sigue siendo reversible desde los dos botones, pero ya no se pinta antes
-  // de guardar: la escritura focalizada decide y el resumen se repinta con el ok.
+  assert.match(demo, /function syncPagoControls\(\)/);
+  // Sólo se muestra con "Estoy" seleccionado y una respuesta guardada in: marcarMiPago
+  // es un writer focalizado que necesita una response persistida sobre la cual escribir.
+  assert.match(demo, /mockPayment\.hidden = !\(mockAvailability === 'in' && saved && saved\.status === 'in'\)/);
+  // El pago sigue siendo reversible desde los dos botones, vía el writer focalizado.
   assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
-  assert.match(demo, /mockStatusCard\.classList\.toggle\('collapsed'\)/);
+  // Cambiar de estado repinta la visibilidad del pago en vivo.
+  assert.match(demo, /mockTimes\.style\.display = mockAvailability === 'out' \? 'none' : 'flex';\s*\r?\n\s*syncPagoControls\(\);/);
+
+  // Identidad "Pablo + Cambiar" intacta.
   assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste de nombre\? Cambiar jugador/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = Boolean\(ownResponse && !changingRegisteredPlayer\)/);
@@ -467,7 +622,7 @@ test("da feedback inline de guardado y ofrece Reintentar al fallar", async () =>
   const confirmHandler = sliceBetween(
     demo,
     "document.getElementById('my-status-confirm').onclick = async ()=>{",
-    "document.getElementById('my-status-edit').onclick",
+    "document.getElementById('change-player-btn').onclick",
     'el handler de guardar Mi estado',
   );
   // Éxito: mensaje ✓ Cambios guardados y CTA vuelve a Guardar.
@@ -484,7 +639,7 @@ test("mueve el foco al primer campo con error al guardar", async () => {
   const confirmHandler = sliceBetween(
     demo,
     "document.getElementById('my-status-confirm').onclick = async ()=>{",
-    "document.getElementById('my-status-edit').onclick",
+    "document.getElementById('change-player-btn').onclick",
     'el handler de guardar Mi estado',
   );
   // Nombre no encontrado enfoca el input de nombre.

@@ -455,26 +455,14 @@
   .my-status-times.is-full-day .my-status-fullday{background:var(--celeste-deep); color:#fff;}
   .my-status-times.is-full-day .my-status-time-pair{opacity:.5;}
   .my-status-confirm{
-    width:100%; border:0; border-radius:9px; padding:11px; margin-top:2px;
+    width:100%; border:0; border-radius:9px; padding:12px; margin-top:14px;
     background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
   }
   .my-status-save-feedback{margin:10px 2px 0; font:700 12px 'Inter',sans-serif; line-height:1.4;}
   .my-status-save-feedback[hidden]{display:none;}
   .my-status-save-feedback.ok{color:var(--ok);}
   .my-status-save-feedback.error{color:var(--danger);}
-  .my-status-summary{display:none;}
-  .my-status-card.collapsed .my-status-form{display:none;}
-  .my-status-card.collapsed .my-status-summary{display:block;}
-  .my-status-card.collapsed .my-status-heading{display:none;}
-  .my-status-summary-top{display:flex; align-items:center; justify-content:space-between; gap:12px;}
-  .my-status-summary-title{font:700 15px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
-  .my-status-summary-value{margin-top:8px;font:700 12px 'JetBrains Mono',monospace;color:var(--navy);line-height:1.5;}
-  .my-status-summary-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;}
-  .my-status-edit{
-    border:1px solid var(--card-border); border-radius:8px; padding:8px 10px;
-    background:transparent; color:var(--celeste-deep); font:700 12px 'Inter',sans-serif; cursor:pointer;
-  }
-  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:12px; padding-top:12px;}
+  .my-status-payment{border-top:1px dashed var(--card-border); margin-top:14px; padding-top:14px;}
   .my-status-payment[hidden]{display:none;}
   .my-status-payment .my-status-label{display:block;margin-bottom:7px;}
   .my-status-paid button[data-value="yes"].active{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 0 0 2px rgba(31,143,78,.16);}
@@ -676,17 +664,7 @@
           <span>Todo el día</span>
         </label>
       </div>
-      <button type="button" class="my-status-confirm" id="my-status-confirm">Guardar</button>
-    </div>
-    <div class="my-status-summary" aria-live="polite">
-      <div class="my-status-summary-top">
-        <div class="my-status-summary-title">Mi estado</div>
-        <div class="my-status-summary-actions">
-          <button type="button" class="my-status-edit" id="my-status-edit" aria-label="Abrir o cerrar edición de mi estado">Editar respuesta</button>
-        </div>
-      </div>
-      <div class="my-status-summary-value" id="my-status-summary-value">Félix · Estoy · 16:00–20:00 · No pagado</div>
-      <div class="my-status-payment">
+      <div class="my-status-payment" id="my-status-payment" hidden>
         <span class="my-status-label">Pago</span>
         <div class="my-status-paid" role="group" aria-label="Estado de pago">
           <button type="button" data-value="yes" aria-pressed="false">Pagado</button>
@@ -694,7 +672,7 @@
         </div>
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
-      <div class="guest-manager-bar">
+      <div class="guest-manager-bar" id="guest-manager-bar" hidden>
         <div class="guest-manager-intro">
           <strong>¿A tu invitado le dio paja registrarse?</strong>
           <span>Gestioná su asistencia y pago desde acá.</span>
@@ -712,8 +690,9 @@
         </div>
         <div class="guest-list" id="guest-list"></div>
       </section>
+      <button type="button" class="my-status-confirm" id="my-status-confirm">Guardar</button>
+      <p class="my-status-save-feedback" id="my-status-save-feedback" role="status" aria-live="polite" hidden></p>
     </div>
-    <p class="my-status-save-feedback" id="my-status-save-feedback" role="status" aria-live="polite" hidden></p>
   </section>
 
   <div class="ticket">
@@ -2875,29 +2854,23 @@ async function marcarPagoDeInvitado(responseId, paid){
   });
 }
 
-const INVITADO_DUPLICADO = 'duplicado';
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
 
-// Devuelve el motivo además del resultado: "ese nombre ya está" y "no hay conexión"
-// necesitan avisos distintos, y el duplicado recién se conoce contra las frescas.
+// Devuelve el motivo además del resultado: "sin anfitrión" y "no hay conexión" necesitan
+// avisos distintos. Los nombres repetidos están permitidos (PR C · B): un anfitrión puede
+// traer a dos invitados que se llaman igual, y cada uno vive por su propio responseId, que
+// es lo que usan pago y borrado. No se toca el nombre persistido.
 async function agregarInvitado(nombre){
   const propia = localAvailabilityResponses.find(item=>
     !item.isGuest && responseBelongsToCurrentDevice(item)
   );
   if(!propia) return {ok:false, motivo:INVITADO_SIN_ANFITRION};
   const anfitrionId = propia.responseId;
-  const normalizado = nombre.toLocaleLowerCase('es');
   let motivo = null;
   const ok = await guardarCambioEnResponses(responses=>{
     const anfitrion = responses.find(item=>item.responseId===anfitrionId);
     // Sin anfitrión no se cuelga el invitado: otro dispositivo borró mi respuesta.
     if(!anfitrion){ motivo = INVITADO_SIN_ANFITRION; return false; }
-    // Revalidación contra el servidor: el chequeo local no ve al invitado que otro
-    // teléfono agregó con el mismo nombre desde el último sondeo.
-    if(responses.some(item=>item.name.toLocaleLowerCase('es')===normalizado)){
-      motivo = INVITADO_DUPLICADO;
-      return false;
-    }
     responses.push({
       responseId:crypto.randomUUID(),
       ownerId:currentSessionUserId,
@@ -3079,7 +3052,6 @@ function renderRecurrentPlayerMenu(){
         try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }
         catch(e){ console.error('No se pudo olvidar al jugador local', e); }
         document.getElementById('my-player-name').value = '';
-        mockStatusCard.classList.remove('collapsed');
       }
       setRegisteredPlayerNameMode(false);
       render();
@@ -3256,6 +3228,16 @@ function renderGuestManager(){
   const list = document.getElementById('guest-list');
   const count = document.getElementById('guest-manager-count');
   if(!manager || !toggle || !list || !count) return;
+  // Gating de identidad (PR B): en estado anónimo, antes de identificar al jugador, el
+  // bloque de invitados no se muestra. agregarInvitado() exige un anfitrión persistido, así
+  // que sin response propia no hay dónde colgar un invitado —mismo criterio que el pago—.
+  const bar = document.getElementById('guest-manager-bar');
+  const identified = Boolean(responseDelJugadorActual());
+  if(bar) bar.hidden = !identified;
+  if(!identified){
+    manager.hidden = true;
+    toggle.setAttribute('aria-expanded','false');
+  }
   const guests = getCurrentPlayerGuests();
   const label = `${guests.length} ${guests.length===1?'invitado':'invitados'}`;
   toggle.textContent = manager.hidden ? 'Agregar invitado' : 'Cerrar invitados';
@@ -3440,7 +3422,6 @@ mainOrganizerButton.onclick = ()=> setMainView('organizer');
 
 /* ---------- MI ESTADO: GUARDADO LOCAL DE PRUEBA ---------- */
 let mockAvailability = 'in';
-const mockStatusCard = document.getElementById('my-status-card');
 const mockTimes = document.getElementById('my-status-times');
 const mockPayment = document.querySelector('.my-status-payment');
 const guestManager = document.getElementById('guest-manager');
@@ -3505,21 +3486,20 @@ function restoreCurrentLocalResponse(){
     syncMockToOptions();
     mockTo.value = response.to;
   }
-  updateMyStatusSummary(response);
+  syncPagoControls();
   renderGuestManager();
-  mockStatusCard.classList.add('collapsed');
 }
 
-function updateMyStatusSummary(response){
-  const availability = response.status === 'out'
-    ? 'No estoy'
-    : `${response.status === 'duda' ? 'En duda' : 'Estoy'} · ${response.from}–${response.to}`;
-  const payment = response.status === 'in' ? (response.paid ? 'Pagado' : 'No pagado') : '';
-  document.getElementById('my-status-summary-value').textContent =
-    `${response.name} · ${availability}${payment ? ` · ${payment}` : ''}`;
-  mockPayment.hidden = response.status !== 'in';
+// Pago vive dentro del formulario continuo, no en un resumen aparte: se muestra sólo
+// cuando el estado elegido es "Estoy" y ya existe una respuesta guardada in del jugador,
+// porque marcarMiPago es un writer focalizado que necesita una response persistida sobre
+// la cual escribir. Mostrarlo antes del primer Guardar daría un tap mudo.
+function syncPagoControls(){
+  const saved = responseDelJugadorActual();
+  const paid = saved ? saved.paid === true : false;
+  mockPayment.hidden = !(mockAvailability === 'in' && saved && saved.status === 'in');
   document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === (response.paid ? 'yes' : 'no');
+    const selected = option.dataset.value === (paid ? 'yes' : 'no');
     option.classList.toggle('active', selected);
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
@@ -3552,7 +3532,6 @@ function resetMyStatusCard(){
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
   renderGuestManager();
-  mockStatusCard.classList.remove('collapsed');
 }
 
 let saveFeedbackTimer = null;
@@ -3595,6 +3574,7 @@ document.querySelectorAll('.my-status-choice button').forEach(btn=>{
       option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'flex';
+    syncPagoControls();
   };
 });
 
@@ -3685,15 +3665,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   setRegisteredPlayerNameMode(false);
   render();
   renderLocalOrganizer();
-  updateMyStatusSummary(response);
+  syncPagoControls();
   renderGuestManager();
-  mockStatusCard.classList.add('collapsed');
-};
-
-document.getElementById('my-status-edit').onclick = ()=>{
-  const willOpen = mockStatusCard.classList.contains('collapsed');
-  mockStatusCard.classList.toggle('collapsed');
-  if(willOpen) setRegisteredPlayerNameMode(false);
 };
 
 document.getElementById('change-player-btn').onclick = ()=>{
@@ -3723,10 +3696,8 @@ document.getElementById('guest-add-btn').onclick = async ()=>{
   );
   if(!owner){ showToast('Primero confirmá tu estado.'); return; }
   if(!guestName){ input.focus(); showToast('Escribí el nombre del invitado.'); return; }
-  // Respuesta instantánea para el caso común. La revalidación que manda es la de
-  // agregarInvitado(), contra las responses del servidor.
-  const duplicate = localAvailabilityResponses.some(item=>item.name.toLocaleLowerCase('es')===guestName.toLocaleLowerCase('es'));
-  if(duplicate){ input.focus(); showToast('Ese nombre ya está registrado en esta fecha.'); return; }
+  // Nombres repetidos permitidos (PR C · B): dos invitados pueden llamarse igual. No se
+  // valida unicidad de nombre; cada invitado se distingue por su responseId.
   const etiquetaPrevia = button.textContent;
   button.disabled = true;
   button.textContent = 'Agregando…';
@@ -3737,8 +3708,7 @@ document.getElementById('guest-add-btn').onclick = async ()=>{
     // El input no se limpia: se reintenta sin volver a tipear, igual que los campos de
     // editar partido cuando el guardado se rechaza.
     input.focus();
-    if(motivo===INVITADO_DUPLICADO) showToast('Ese nombre ya está registrado en esta fecha.');
-    else if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
+    if(motivo===INVITADO_SIN_ANFITRION) showToast('No encontramos tu respuesta. Actualizá y volvé a confirmar tu estado.');
     else showToast(`No se pudo agregar a ${guestName}. Revisá la conexión e intentá otra vez.`);
     return;
   }
@@ -3775,11 +3745,9 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
     }
     render();
     renderLocalOrganizer();
-    // Desde la lista fresca: la de antes del guardado ya no es la que está en state.
-    const actualizada = localAvailabilityResponses.find(item=>
-      !item.isGuest && responseBelongsToCurrentDevice(item)
-    );
-    if(actualizada) updateMyStatusSummary(actualizada);
+    // Repinta el pago desde la lista fresca: la de antes del guardado ya no es la
+    // que está en state.
+    syncPagoControls();
   };
 });
 
