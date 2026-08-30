@@ -944,8 +944,10 @@ test("Mi estado: el control de cambiar jugador es un ⇄ accesible que mantiene 
 
 test("Mi estado copy: no se toca Tarjetas ni computeCards", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  // computeCards tiene exactamente un caller: el writer de PR #17
+  // (evaluarTarjetasSiCorresponde), fuera de todo lo de Mi estado.
   const usos = [...demo.matchAll(/computeCards\s*\(/g)];
-  assert.equal(usos.length, 1, "computeCards sigue sin caller (sólo su definición)");
+  assert.equal(usos.length, 2, "definición + writer de PR #17");
   assert.match(demo, /function normalizeCards\(/);
   assert.doesNotMatch(demo, /id="tarjetas|class="tarjetas|>Tarjetas<|renderTarjetas|renderCards/i);
 });
@@ -1120,8 +1122,8 @@ test("Nombre en la casaca libre: guardar preserva la identidad base y no toca Ta
   assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
   assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
   assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
-  // Sin tocar Tarjetas.
-  assert.equal([...demo.matchAll(/computeCards\s*\(/g)].length, 1, "computeCards sigue sin caller");
+  // El handler de guardar Mi estado no toca Tarjetas (el writer de PR #17 vive aparte).
+  assert.doesNotMatch(handler, /computeCards|evaluarTarjetas|\bcards\b/);
   assert.doesNotMatch(demo, /id="tarjetas|class="tarjetas|>Tarjetas<|renderTarjetas|renderCards/i);
 });
 

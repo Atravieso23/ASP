@@ -1127,6 +1127,62 @@ function computeCards(params){
   };
 }
 
+// PR #17 — evaluación automática latcheada. computeCards es puro; ESTA es la única
+// función que lo llama con efectos. Se dispara cuando alguien abre o refresca la app
+// después del horario de inicio: si el partido todavía no fue evaluado, corre el
+// cálculo contra el estado FRESCO del servidor y persiste sólo `cards`. Sin cron, sin
+// auth, sin UI, sin tocar pagos ni responses.
+//
+// Anti-duplicado en dos capas:
+//   1. pre-chequeo barato contra state.cards local -> no se lee el servidor cada 4s
+//      para un partido futuro, con hora rota, o ya evaluado;
+//   2. re-chequeo de fresh.cards.evaluated[matchKey] DENTRO de aplicar(fresh) -> si
+//      otro dispositivo evaluó entre la lectura y la escritura, aborta sin escribir.
+// Last-write-wins es tolerable acá: computeCards es determinista y byPlayer sale del
+// acumulado base (no de un +=), así que dos evaluaciones simultáneas producen el mismo
+// byPlayer; a lo sumo difiere el timestamp de una entrada de `log`, que es auditoría.
+async function evaluarTarjetasSiCorresponde(){
+  if(!state || !state.matchInfo) return;
+  const { date, time } = state.matchInfo;
+  if(!date || !time) return;
+  const matchKey = date + '|' + time;
+  // Ya latcheado en la copia local: nada que hacer y no se gasta una lectura.
+  if(state.cards && state.cards.evaluated && state.cards.evaluated[matchKey]) return;
+  // Deadline local, sólo como guard para no leer el servidor antes de tiempo: la
+  // autoridad sigue siendo computeCards, que lo recalcula y revalida. Mismo parseo
+  // que computeCards: "9:30" con una cifra se paddea, cualquier otra cosa se descarta
+  // sin crashear.
+  const hhmm = /^\d:\d\d$/.test(time) ? ('0' + time) : time;
+  const deadline = new Date(date + 'T' + hhmm + ':00-03:00');
+  if(isNaN(deadline.getTime())) return;
+  if(Date.now() < deadline.getTime()) return;
+  try{
+    await persistFocalizado(fresh=>{
+      const mi = fresh.matchInfo || {};
+      if(!mi.date || !mi.time) return false;
+      const previas = normalizeCards(fresh.cards);
+      // Re-chequeo contra el estado fresco: acá se corta la carrera entre dispositivos.
+      if(previas.evaluated[mi.date + '|' + mi.time]) return false;
+      const res = computeCards({
+        responses: fresh.responses,
+        habitualPlayers: fresh.habitualPlayers,
+        matchInfo: fresh.matchInfo,
+        cardsPrevias: previas,
+        now: Date.now()
+      });
+      // skipped (antes del deadline, hora inválida, sin habituales, ya evaluado) o sin
+      // latch nuevo: no se escribe nada.
+      if(res.skipped || !res.evaluated) return false;
+      // Preferencia de producto: se marca evaluated aunque no haya sancionados, para no
+      // recalcular esa fecha en cada refresh. cardsNext ya trae evaluated[matchKey].
+      fresh.cards = res.cardsNext;
+      return true;
+    });
+  }catch(e){
+    console.error('No se pudo evaluar tarjetas', e);
+  }
+}
+
 // Distingue "no pude leer el servidor" de "el servidor todavía no tiene estado".
 // Colapsar los dos en un único null hacía que el arranque tratara una lectura
 // caída como un partido nuevo: adoptaba defaultState() como copia editable y la
@@ -1306,6 +1362,10 @@ async function refreshFromServer(){
   render();
   renderLocalOrganizer();
   renderGuestManager();
+  // Alguien que ya tenía la app abierta cuando pasó el horario, o cuyo primer intento
+  // perdió la carrera contra otro dispositivo, evalúa en el próximo sondeo. El latch
+  // (evaluated[matchKey]) corta el loop: una vez seteado, no vuelve a escribir.
+  evaluarTarjetasSiCorresponde();
 }
 
 function fieldTypeLabel(t){
@@ -2702,6 +2762,10 @@ finalizeConfirmBtn.onclick = async ()=>{
       // finalizar para borrar el alias que otro dispositivo acababa de guardar.
       frequentAliases: fresh.frequentAliases,
       habitualPlayers: fresh.habitualPlayers || [],
+      // `cards` es del grupo y finalizar no lo toca: sale de la lectura fresca. Con
+      // `...state` viajaba la copia local y un teléfono con state viejo pisaba las
+      // tarjetas (byPlayer, birras, el latch evaluated) que otro acababa de escribir.
+      cards: fresh.cards,
       // Array nuevo en vez de push: un push in-place no se revierte solo, y con el
       // guardado rechazado dejaba una fecha archivada sólo en este teléfono. Peor:
       // al reintentar se archivaba una segunda entrada vacía que se quedaba con el
@@ -4062,6 +4126,9 @@ document.querySelectorAll('.my-status-paid button').forEach(button=>{
   // Fija el modo de la card (Registro vs Jugador convocado) también en estado anónimo,
   // donde restoreCurrentLocalResponse() retorna sin tocar la card.
   renderIdentityHeader();
+  // Si alguien abre la app después del horario de inicio y el partido no fue evaluado,
+  // corre y persiste las tarjetas una sola vez (latch en state.cards.evaluated).
+  evaluarTarjetasSiCorresponde();
   setInterval(refreshFromServer, 4000);
 })();
 </script>

@@ -315,31 +315,38 @@ test("la lectura del servidor normaliza state.cards a la forma canónica", () =>
   assert.match(extractFunction(demo, "defaultState"), /cards: \{ byPlayer:\{\}, evaluated:\{\}, log:\[\] \}/);
 });
 
-/* ---------- guards de no-regresión: PR #12 es read-only ---------- */
+/* ---------- guards de no-regresión: la escritura vive sólo en el writer de PR #17 ---------- */
 
-test("PR #12 no escribe cards fuera del normalizador de lectura", () => {
-  // Todas las asignaciones a `X.cards =` en demo.html tienen que estar dentro de
-  // leerEstadoDelServidor (la forma canónica). NADA de state.cards = / fresh.cards = /
-  // nextState.cards = en writers. (defaultState usa `cards:` de objeto, no matchea.)
+test("las asignaciones a .cards viven sólo en la lectura del servidor y en el writer", () => {
+  // Toda asignación `X.cards =` tiene que estar dentro de leerEstadoDelServidor (forma
+  // canónica de la lectura) o de evaluarTarjetasSiCorresponde (el único writer). Nada
+  // de state.cards = / nextState.cards = sueltos. (`cards:` de objeto no matchea.)
   const leer = extractFunction(demo, "leerEstadoDelServidor");
+  const writer = extractFunction(demo, "evaluarTarjetasSiCorresponde");
   const asignaciones = [...demo.matchAll(/[A-Za-z_$][\w$.]*\.cards\s*=\s*[^=]/g)].map((m) =>
     demo.slice(m.index, m.index + 55).replace(/\s+/g, " ").trim(),
   );
   assert.ok(asignaciones.length >= 1);
   for (const a of asignaciones) {
-    assert.ok(leer.includes(a.split(" = ")[0] + " = "), `asignación a .cards fuera del normalizador: "${a}"`);
+    const lhs = a.split(" = ")[0] + " = ";
+    assert.ok(leer.includes(lhs) || writer.includes(lhs), `asignación a .cards inesperada: "${a}"`);
   }
-  assert.doesNotMatch(demo, /(state|fresh|nextState|nextEstado|archived|s)\.cards\s*=/);
+  // El writer escribe cards exactamente una vez, y sobre el estado fresco.
+  assert.equal((writer.match(/fresh\.cards\s*=/g) || []).length, 1);
+  assert.doesNotMatch(demo, /(nextState|nextEstado|archived)\.cards\s*=/);
 });
 
-test("PR #12 no llama computeCards con efectos (no hay caller todavía)", () => {
-  // Sólo aparece en su definición.
+test("computeCards sólo se llama desde el writer de PR #17 (además de su definición)", () => {
   const usos = [...demo.matchAll(/computeCards\s*\(/g)];
-  assert.equal(usos.length, 1, "computeCards sólo debe aparecer en su propia definición");
+  assert.equal(usos.length, 2, "definición + único caller (evaluarTarjetasSiCorresponde)");
   assert.match(demo.slice(usos[0].index - 20, usos[0].index + 20), /function computeCards\(/);
+  assert.ok(
+    extractFunction(demo, "evaluarTarjetasSiCorresponde").includes("computeCards("),
+    "el segundo uso está dentro de evaluarTarjetasSiCorresponde",
+  );
 });
 
-test("PR #12 no agrega UI 'Tarjetas'", () => {
+test("no agrega UI 'Tarjetas'", () => {
   assert.doesNotMatch(demo, /id="tarjetas|class="tarjetas|>Tarjetas<|renderTarjetas|renderCards/i);
   assert.doesNotMatch(demo, /Las amarillas son por no figurar pago|Debe birra para la banda/);
 });
