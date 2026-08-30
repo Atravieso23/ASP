@@ -445,6 +445,7 @@
   .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff;}
   .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02;}
   .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
+  .my-status-availability[hidden]{display:none;}
   .my-status-times{display:flex; flex-wrap:wrap; align-items:center; gap:7px 8px; margin-top:0;}
   .my-status-time-pair{display:flex; align-items:center; min-width:0;}
   .my-status-time-pair label{
@@ -673,6 +674,7 @@
         <button type="button" data-value="duda" aria-pressed="false">En duda</button>
         <button type="button" data-value="out" aria-pressed="false">Soy baja</button>
       </div>
+      <div class="my-status-availability" id="my-status-availability">
       <span class="my-status-label">Disponibilidad</span>
       <div class="my-status-times" id="my-status-times">
         <div class="my-status-time-pair">
@@ -717,6 +719,7 @@
           <span class="sr-only">Todo fulvo</span>
           <span aria-hidden="true">⚽❤️</span>
         </label>
+      </div>
       </div>
       <div class="my-status-payment" id="my-status-payment" hidden>
         <span class="my-status-label">Pago</span>
@@ -3872,6 +3875,10 @@ mainOrganizerButton.onclick = ()=> setMainView('organizer');
 /* ---------- MI ESTADO: GUARDADO LOCAL DE PRUEBA ---------- */
 let mockAvailability = 'in';
 const mockTimes = document.getElementById('my-status-times');
+// El bloque de disponibilidad (label + selects + chip) se oculta entero cuando el
+// jugador marca "Soy baja": sin este wrapper quedaba el label "Disponibilidad"
+// huérfano sobre una fila vacía. from/to y el checkbox no se tocan.
+const mockAvailabilityBlock = document.getElementById('my-status-availability');
 const mockPayment = document.querySelector('.my-status-payment');
 const guestManager = document.getElementById('guest-manager');
 const guestManagerToggle = document.getElementById('guest-manager-toggle');
@@ -3923,7 +3930,7 @@ function restoreCurrentLocalResponse(){
     option.classList.toggle('active', selected);
     option.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
-  mockTimes.style.display = response.status === 'out' ? 'none' : 'flex';
+  mockAvailabilityBlock.hidden = response.status === 'out';
   if(response.from && response.to){
     const isFullDay = response.from === mockHourOptions[0] && response.to === mockHourOptions[mockHourOptions.length-1];
     mockFullDay.checked = isFullDay;
@@ -3973,7 +3980,7 @@ function resetMyStatusCard(){
   mockFrom.value = '16:00';
   syncMockToOptions();
   mockTo.value = '20:00';
-  mockTimes.style.display = 'flex';
+  mockAvailabilityBlock.hidden = false;
   mockPayment.hidden = true;
   guestManager.hidden = true;
   guestManagerToggle.setAttribute('aria-expanded','false');
@@ -4027,7 +4034,7 @@ document.querySelectorAll('.my-status-choice button').forEach(btn=>{
       option.classList.toggle('active', selected);
       option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
-    mockTimes.style.display = mockAvailability === 'out' ? 'none' : 'flex';
+    mockAvailabilityBlock.hidden = mockAvailability === 'out';
     syncPagoControls();
   };
 });
