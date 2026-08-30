@@ -1014,7 +1014,108 @@ function defaultState(){
     formations: {},
     responses: [],
     frequentAliases: [],
-    habitualPlayers: []
+    habitualPlayers: [],
+    cards: { byPlayer:{}, evaluated:{}, log:[] }
+  };
+}
+
+// Tarjetas: forma canónica de state.cards. Sparse — byPlayer sólo lleva a quien alguna
+// vez fue sancionado. `evaluated` es el latch anti-duplicado (una entrada por partido
+// evaluado). `log` es append-only sólo para auditoría/UI, no fuente de verdad.
+// PR #12: se define y computeCards la usa; la lectura del servidor normaliza inline con
+// el mismo criterio (sin dependencia de esta función, como el resto de las keys).
+function normalizeCards(previas){
+  const c = (previas && typeof previas === 'object') ? previas : {};
+  return {
+    byPlayer: (c.byPlayer && typeof c.byPlayer === 'object') ? c.byPlayer : {},
+    evaluated: (c.evaluated && typeof c.evaluated === 'object') ? c.evaluated : {},
+    log: Array.isArray(c.log) ? c.log : []
+  };
+}
+
+// Cálculo PURO de tarjetas por pago fuera de término. Mismos inputs -> mismo output,
+// sin efectos. `now` se inyecta para poder testear tiempo sin mockear Date.
+//
+// Regla: al horario de inicio del partido, cada jugador habitual vigente confirmado como
+// "Estoy" que NO figura pago recibe 1 amarilla (máx 1 por partido). 2 amarillas = 1 roja
+// + 1 birra, y las amarillas vuelven a 0. Las birras se acumulan. Invitados, "En duda",
+// "Soy baja" y no-habituales no cuentan.
+//
+// PR #12 la define pero NADIE la llama con efectos: es la base read-only. La escritura
+// automática y la UI son PRs posteriores.
+function computeCards(params){
+  const { responses, habitualPlayers, matchInfo, cardsPrevias, now } = params || {};
+  const cards = normalizeCards(cardsPrevias);
+  const noOp = (reason)=>({ cardsNext:cards, playersSancionados:[], evaluated:false, skipped:true, reason });
+
+  // 1. Deadline = inicio del partido, pinneado a Argentina (-03:00, sin DST desde 2009):
+  //    instante fijo sin importar la timezone del dispositivo. matchInfo.time es input
+  //    libre hoy, así que se paddea "9:30" y se rechaza cualquier otra cosa sin crashear.
+  if(!matchInfo || !matchInfo.date || !matchInfo.time) return noOp('sin-fecha-u-hora');
+  const time = /^\d:\d\d$/.test(matchInfo.time) ? ('0' + matchInfo.time) : matchInfo.time;
+  const deadline = new Date(matchInfo.date + 'T' + time + ':00-03:00');
+  if(isNaN(deadline.getTime())) return noOp('fecha-u-hora-invalida');
+
+  // 2. now aceptado como Date (o Date de otro realm), epoch ms, o string parseable.
+  const nowMs = (now && typeof now.getTime === 'function') ? now.getTime()
+    : (typeof now === 'number') ? now
+    : (typeof now === 'string' && now) ? Date.parse(now)
+    : NaN;
+  if(isNaN(nowMs)) return noOp('now-invalido');
+  if(nowMs < deadline.getTime()) return noOp('antes-del-deadline');
+
+  // 3. Latch: un partido se evalúa una sola vez.
+  const matchKey = matchInfo.date + '|' + matchInfo.time;
+  if(cards.evaluated[matchKey]) return noOp('ya-evaluado');
+
+  // 4. Identidades base vigentes (normalizado trim+minúsculas -> casing canónico).
+  const norm = (s)=>String(s==null?'':s).trim().toLocaleLowerCase('es');
+  const habMap = new Map();
+  for(const h of (habitualPlayers||[])){
+    if(typeof h === 'string' && h.trim()) habMap.set(norm(h), h);
+  }
+  if(habMap.size === 0) return noOp('sin-habitualplayers');
+
+  // 5. Infractores: no-invitado + "Estoy" + impago, cuya identidad resuelve a un habitual
+  //    vigente. Identidad = habitualName si está en la lista; si no, name si matchea; si
+  //    no, no cuenta. Dedup por identidad (máx 1 amarilla por jugador por partido).
+  const sancionados = [];
+  const vistos = new Set();
+  for(const r of (responses||[])){
+    if(!r || r.isGuest === true) continue;
+    if(r.status !== 'in') continue;
+    if(r.paid === true) continue;
+    let id = null;
+    if(typeof r.habitualName === 'string' && habMap.has(norm(r.habitualName))) id = habMap.get(norm(r.habitualName));
+    else if(typeof r.name === 'string' && habMap.has(norm(r.name))) id = habMap.get(norm(r.name));
+    if(!id || vistos.has(id)) continue;
+    vistos.add(id);
+    sancionados.push(id);
+  }
+
+  // 6. Aplicar. byPlayer se clona (pureza): cardsPrevias no se muta.
+  const byPlayer = JSON.parse(JSON.stringify(cards.byPlayer));
+  const nowIso = new Date(nowMs).toISOString();
+  const log = cards.log.slice();
+  const detalle = [];
+  for(const id of sancionados){
+    const rec = byPlayer[id] || { yellows:0, reds:0, beers:0 };
+    let card;
+    if(rec.yellows === 0){ rec.yellows = 1; card = 'yellow'; }
+    else { rec.yellows = 0; rec.reds += 1; rec.beers += 1; card = 'red'; }
+    byPlayer[id] = rec;
+    log.push({ matchKey, player:id, card, reason:'sin-pago-al-inicio', at:nowIso });
+    detalle.push({ player:id, card });
+  }
+  // El log es sólo auditoría/UI: se capa a las últimas 200 entradas.
+  const logCapped = log.length > 200 ? log.slice(log.length - 200) : log;
+
+  return {
+    cardsNext: { byPlayer, evaluated: Object.assign({}, cards.evaluated, { [matchKey]: true }), log: logCapped },
+    playersSancionados: detalle,
+    evaluated: true,
+    skipped: false,
+    reason: null
   };
 }
 
@@ -1060,6 +1161,11 @@ async function leerEstadoDelServidor(){
     if(!parsed.responses) parsed.responses = [];
     if(!parsed.frequentAliases) parsed.frequentAliases = [];
     if(!Array.isArray(parsed.habitualPlayers)) parsed.habitualPlayers = [];
+    // Tarjetas (PR #12): forma canónica de la key, sin dependencia de normalizeCards.
+    if(!parsed.cards || typeof parsed.cards !== 'object') parsed.cards = { byPlayer:{}, evaluated:{}, log:[] };
+    if(!parsed.cards.byPlayer || typeof parsed.cards.byPlayer !== 'object') parsed.cards.byPlayer = {};
+    if(!parsed.cards.evaluated || typeof parsed.cards.evaluated !== 'object') parsed.cards.evaluated = {};
+    if(!Array.isArray(parsed.cards.log)) parsed.cards.log = [];
     return { estado:parsed, motivo:'ok' };
   }catch(e){
     console.error('Error leyendo de Supabase', e);
