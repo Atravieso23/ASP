@@ -277,7 +277,7 @@ test("supports recurrent players with identity-focused first-time copy", async (
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
   assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
   assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
-  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre de jugador';/);
+  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre en la casaca';/);
   assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
   assert.match(demo, /confirm\.textContent = 'Guardar cambios';/);
   assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
@@ -649,7 +649,8 @@ function runIdentityHeader(demo, { identified, changing = false }) {
     "renderIdentityHeader",
   );
   const title = { hidden: false, textContent: "" };
-  const elements = { "my-status-identity": title };
+  const row = { hidden: false };
+  const elements = { "my-status-identity": title, "my-status-identity-row": row };
   const context = vm.createContext({
     document: { getElementById(id) { return elements[id] || null; } },
     responseDelJugadorActual() { return identified ? { name: "Pablito", habitualName: "Pablo de Achaval" } : undefined; },
@@ -658,7 +659,7 @@ function runIdentityHeader(demo, { identified, changing = false }) {
   });
   new vm.Script(`${src}\nglobalThis.renderIdentityHeader = renderIdentityHeader;`).runInContext(context);
   context.renderIdentityHeader();
-  return { title };
+  return { title, row };
 }
 
 test("Mi estado: el editor de nombre visible separado ya no existe", async () => {
@@ -673,17 +674,18 @@ test("Mi estado: el editor de nombre visible separado ya no existe", async () =>
 
 test("Mi estado: el título de identidad muestra habitualName ?? name, no el nombre visible editado", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /<p class="my-status-identity" id="my-status-identity" hidden><\/p>/);
+  assert.match(demo, /<p class="my-status-identity" id="my-status-identity"><\/p>/);
 
   const anon = runIdentityHeader(demo, { identified: false });
-  assert.equal(anon.title.hidden, true, "sin response propia no hay título de identidad");
+  assert.equal(anon.row.hidden, true, "sin response propia no hay fila de identidad");
+  assert.equal(anon.title.textContent, "", "sin response propia el título queda vacío");
 
   const ident = runIdentityHeader(demo, { identified: true });
-  assert.equal(ident.title.hidden, false);
+  assert.equal(ident.row.hidden, false);
   assert.equal(ident.title.textContent, "Pablo de Achaval", "muestra la identidad base, no 'Pablito'");
 
   const cambiando = runIdentityHeader(demo, { identified: true, changing: true });
-  assert.equal(cambiando.title.hidden, true, "en modo 'Cambiar jugador' el título se oculta");
+  assert.equal(cambiando.row.hidden, true, "en modo 'Cambiar jugador' la fila se oculta");
 });
 
 test("Mi estado: el título de identidad se refresca desde syncPagoControls (misma condición que el pago)", async () => {
@@ -769,11 +771,11 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   // Cambiar de estado repinta la visibilidad del pago en vivo.
   assert.match(demo, /mockTimes\.style\.display = mockAvailability === 'out' \? 'none' : 'flex';\s*\r?\n\s*syncPagoControls\(\);/);
 
-  // Identidad "Pablo + Cambiar" intacta; el campo de nombre queda editable identificado.
-  assert.match(demo, /id="change-player-btn"[^>]*>¿Te equivocaste de nombre\? Cambiar jugador/);
+  // Identidad "Pablo + ⇄" intacta; el campo de nombre queda editable identificado.
+  assert.match(demo, /<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = false;/);
-  assert.match(demo, /label\.textContent = 'Nombre de jugador';/);
+  assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
   assert.match(demo, /Cambio de jugador activado/);
 });
 
@@ -810,9 +812,11 @@ test("aplica el copy futbolero de Mi estado", async () => {
   assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
   assert.match(demo, /data-value="out" aria-pressed="false">Soy baja</);
 
-  // Disponibilidad: "Libre" reemplaza "Todo el día".
-  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day">\s*<input type="checkbox" id="my-status-full-day">\s*<span>Libre<\/span>/);
+  // Disponibilidad: "Todo fulvo ⚽❤️" reemplaza "Libre" (que antes reemplazó "Todo el día").
+  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day">\s*<input type="checkbox" id="my-status-full-day">\s*<span>Todo fulvo ⚽❤️<\/span>/);
   assert.doesNotMatch(demo, /Todo el día/);
+  const fulldayLabel = sliceBetween(demo, '<label class="my-status-fullday"', '</label>', 'la pill de disponibilidad libre');
+  assert.doesNotMatch(fulldayLabel, /Libre/, 'el control de disponibilidad libre ya no dice "Libre"');
 
   // Pago: Ya pagué / Debo (data-value yes/no sin tocar).
   assert.match(demo, /data-value="yes" aria-pressed="false">Ya pagué</);
@@ -830,6 +834,63 @@ test("Mi estado: los data-value de estado y pago no cambian con el copy futboler
   assert.deepEqual([...choice.matchAll(/data-value="([^"]+)"/g)].map((m) => m[1]), ["in", "duda", "out"]);
   const paid = sliceBetween(demo, '<div class="my-status-paid" role="group" aria-label="Estado de pago">', '</div>', 'los botones de pago');
   assert.deepEqual([...paid.matchAll(/data-value="([^"]+)"/g)].map((m) => m[1]), ["yes", "no"]);
+});
+
+// ---- Mi estado · copy futbolero (ceja "Jugador convocado esta fecha" + ⇄ + casaca) ----
+
+test("Mi estado: la ceja dice 'Jugador convocado esta fecha', no 'Mi estado'", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  assert.match(demo, /<h2 class="my-status-heading" id="my-status-title">Jugador convocado esta fecha<\/h2>/);
+  const header = sliceBetween(demo, '<h2 class="my-status-heading" id="my-status-title">', '</h2>', 'la ceja de Mi estado');
+  assert.doesNotMatch(header, /Mi estado/, 'la ceja ya no dice "Mi estado"');
+  // El nombre/identidad sigue siendo el heading principal, debajo de la ceja.
+  const card = sliceBetween(demo, 'id="my-status-card"', '<div class="ticket">', 'la card de Mi estado');
+  assert.ok(card.indexOf('id="my-status-title"') < card.indexOf('id="my-status-identity"'), 'la ceja va antes del nombre');
+});
+
+test("Mi estado: el label del campo de nombre dice 'Nombre en la casaca'", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  assert.match(demo, /<label for="my-player-name" id="my-player-name-label">Nombre en la casaca<\/label>/);
+  assert.doesNotMatch(demo, /Nombre de jugador/, 'no queda copy viejo "Nombre de jugador"');
+});
+
+test("Mi estado: 'Todo fulvo ⚽❤️' conserva la lógica del control de día completo", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  // Copy nuevo, con "fulvo" (v corta) — nunca "fulbo" ni "Libre" ni "Todo el día".
+  assert.match(demo, /<span>Todo fulvo ⚽❤️<\/span>/);
+  assert.doesNotMatch(demo, /fulbo/i);
+  // El checkbox y el handler no cambian: misma id y misma conexión a setFullDayAvailability.
+  assert.match(demo, /<input type="checkbox" id="my-status-full-day">/);
+  assert.match(demo, /document\.getElementById\('my-status-full-day'\)\.onclick = setFullDayAvailability;/);
+  assert.match(demo, /function setFullDayAvailability\(\)\{[\s\S]*?mockTimes\.classList\.toggle\('is-full-day', on\);/);
+});
+
+test("Mi estado: el control de cambiar jugador es un ⇄ accesible que mantiene el handler", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  // Ícono compacto al lado del heading del nombre, con accesibilidad.
+  assert.match(demo, /<div class="my-status-identity-row" id="my-status-identity-row" hidden>\s*<p class="my-status-identity" id="my-status-identity"><\/p>\s*<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
+  assert.doesNotMatch(demo, /¿Te equivocaste de nombre\? Cambiar jugador/, 'no queda el botón de texto viejo');
+  // La lógica de cambiar jugador no se toca: mismo id, mismo handler, mismo toggle de hidden.
+  assert.match(demo, /document\.getElementById\('change-player-btn'\)\.onclick = \(\)=>\{/);
+  assert.match(demo, /changeButton\.hidden = !ownResponse \|\| changingRegisteredPlayer;/);
+  const changeHandler = sliceBetween(
+    demo,
+    "document.getElementById('change-player-btn').onclick",
+    "guestManagerToggle.onclick",
+    'el handler de cambiar jugador',
+  );
+  assert.match(changeHandler, /setRegisteredPlayerNameMode\(true\);/);
+  assert.match(changeHandler, /renderRecurrentPlayerMenu\(\);/);
+  // Área táctil ampliada aunque el botón sea visualmente chico.
+  assert.match(demo, /\.change-player-btn::after\{content:"";position:absolute;inset:-6px;\}/);
+});
+
+test("Mi estado copy: no se toca Tarjetas ni computeCards", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const usos = [...demo.matchAll(/computeCards\s*\(/g)];
+  assert.equal(usos.length, 1, "computeCards sigue sin caller (sólo su definición)");
+  assert.match(demo, /function normalizeCards\(/);
+  assert.doesNotMatch(demo, /id="tarjetas|class="tarjetas|>Tarjetas<|renderTarjetas|renderCards/i);
 });
 
 test("da feedback inline de guardado y ofrece Reintentar al fallar", async () => {
