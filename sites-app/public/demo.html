@@ -3230,9 +3230,11 @@ function setRegisteredPlayerNameMode(allowChange=false){
   changeButton.hidden = !ownResponse || changingRegisteredPlayer;
   if(ownResponse && !changingRegisteredPlayer){
     label.textContent = 'Nombre en la casaca';
+    input.placeholder = 'Tu nombre';
     help.textContent = '';
     help.hidden = true;
     hidePlayerNameFeedback();
+    hideRecurrentPlayerMenu();
   }else if(ownResponse){
     label.textContent = 'Cambiar jugador';
     help.textContent = 'Elegí tu identidad de la lista, o tocá “Este soy yo” si no estás.';
@@ -3249,6 +3251,11 @@ function renderRecurrentPlayerMenu(){
   const input = document.getElementById('my-player-name');
   const menu = document.getElementById('recurrent-player-menu');
   if(registeringFirstTime){ hideRecurrentPlayerMenu(); return; }
+  // "Nombre en la casaca" es texto libre: con el jugador ya identificado y fuera del modo
+  // "Cambiar jugador" (⇄), el input NO busca identidades ni abre el menú de habituales.
+  // El selector sólo aparece en alta (registeringFirstTime) o al cambiar de identidad.
+  const propiaResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
+  if(propiaResponse && !changingRegisteredPlayer){ hideRecurrentPlayerMenu(); return; }
   const query = input.value.trim().toLocaleLowerCase('es');
   const filtered = recurrentPlayers
     .map((name,index)=>({name,index}))
