@@ -973,6 +973,110 @@ test("Cambiar jugador vacía el campo y abre el menú para una búsqueda limpia"
   assert.match(demo, /input\.readOnly = false;/);
 });
 
+// ---- "Nombre en la casaca" = texto libre, sin buscador de habituales ----
+
+function extractFnByName(demo, name) {
+  const start = demo.search(new RegExp(`function\\s+${name}\\s*\\(`));
+  assert.ok(start > -1, `no encontré la función ${name}`);
+  const open = demo.indexOf("{", start);
+  let depth = 0;
+  for (let i = open; i < demo.length; i++) {
+    if (demo[i] === "{") depth++;
+    else if (demo[i] === "}" && --depth === 0) return demo.slice(start, i + 1);
+  }
+  throw new Error(`no pude cerrar la función ${name}`);
+}
+
+function runRecurrentMenu(demo, { identified, changing = false, firstTime = false }) {
+  const src = ["responseBelongsToCurrentDevice", "escapeHtml", "hideRecurrentPlayerMenu", "renderRecurrentPlayerMenu"]
+    .map((n) => extractFnByName(demo, n))
+    .join("\n");
+  const attrs = {};
+  const input = { value: "", setAttribute: (k, v) => { attrs[k] = v; } };
+  const menu = { hidden: true, innerHTML: "", querySelectorAll: () => [] };
+  const els = { "my-player-name": input, "recurrent-player-menu": menu };
+  const DEVICE = "device-1";
+  const ownResponse = { isGuest: false, name: "Fran", habitualName: "Fran Forrester", ownerIds: [DEVICE], responseId: "r1" };
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => els[id] || null },
+    console: { error() {}, warn() {}, log() {} },
+  });
+  vm.runInContext(
+    `let currentSessionUserId = ${JSON.stringify(DEVICE)};
+     let registeringFirstTime = ${firstTime};
+     let changingRegisteredPlayer = ${changing};
+     let recurrentPlayers = ["Fran Forrester", "Pablo de Achaval"];
+     let localAvailabilityResponses = ${identified ? JSON.stringify([ownResponse]) : "[]"};
+     let pendingClaimResponseId = null;
+     ${src}
+     globalThis.__render = renderRecurrentPlayerMenu;`,
+    ctx,
+  );
+  ctx.__render();
+  return { menuHidden: menu.hidden, ariaExpanded: attrs["aria-expanded"], menuHTML: menu.innerHTML };
+}
+
+test("Nombre en la casaca: jugador identificado y sin cambiar → focus/input NO abre el menú de habituales", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const r = runRecurrentMenu(demo, { identified: true, changing: false });
+  assert.equal(r.menuHidden, true, "el menú de habituales no debe abrirse al editar el nombre visible");
+  assert.equal(r.ariaExpanded, "false");
+  assert.equal(r.menuHTML, "", "no se renderiza ninguna sugerencia");
+});
+
+test("Cambiar jugador (⇄): con changingRegisteredPlayer el menú de identidades SÍ aparece", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const r = runRecurrentMenu(demo, { identified: true, changing: true });
+  assert.equal(r.menuHidden, false, "en modo Cambiar jugador el selector de identidad se muestra");
+  assert.equal(r.ariaExpanded, "true");
+  assert.match(r.menuHTML, /recurrent-player-select/);
+});
+
+test("Anónimo / sin identificar: el selector de identidad sigue funcionando como antes", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const r = runRecurrentMenu(demo, { identified: false });
+  assert.equal(r.menuHidden, false, "sin response propia el input busca identidad");
+  assert.match(r.menuHTML, /Fran Forrester/);
+});
+
+test("Registro inicial (registeringFirstTime): el menú sigue oculto, como antes", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const r = runRecurrentMenu(demo, { identified: false, firstTime: true });
+  assert.equal(r.menuHidden, true);
+});
+
+test("Nombre en la casaca: el guard vive en renderRecurrentPlayerMenu y setRegisteredPlayerNameMode cierra el menú", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const menu = extractFnByName(demo, "renderRecurrentPlayerMenu");
+  // El guard: identificado (response propia) y NO cambiando identidad → se cierra y sale.
+  assert.match(menu, /const propiaResponse = localAvailabilityResponses\.find\(item=>!item\.isGuest && responseBelongsToCurrentDevice\(item\)\);/);
+  assert.match(menu, /if\(propiaResponse && !changingRegisteredPlayer\)\{ hideRecurrentPlayerMenu\(\); return; \}/);
+  // El modo "identificado" de setRegisteredPlayerNameMode limpia el menú y deja el input como texto libre.
+  const mode = extractFnByName(demo, "setRegisteredPlayerNameMode");
+  assert.match(mode, /if\(ownResponse && !changingRegisteredPlayer\)\{[\s\S]*?hideRecurrentPlayerMenu\(\);/);
+  assert.match(mode, /input\.placeholder = 'Tu nombre';/);
+  // ⇄ y registro inicial siguen abriendo el selector (no se tocan esas ramas).
+  assert.match(demo, /document\.getElementById\('change-player-btn'\)\.onclick = \(\)=>\{[\s\S]*?renderRecurrentPlayerMenu\(\);/);
+  assert.match(demo, /recurrentPlayerInput\.addEventListener\('focus',renderRecurrentPlayerMenu\)/);
+});
+
+test("Nombre en la casaca libre: guardar preserva la identidad base y no toca Tarjetas/computeCards", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const handler = sliceBetween(
+    demo,
+    "document.getElementById('my-status-confirm').onclick = async ()=>{",
+    "document.getElementById('change-player-btn').onclick",
+    "el handler de guardar Mi estado",
+  );
+  // El guardado del nombre visible no cambió: editandoMiEstado + habitualName preservado.
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
+  assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
+  // Sin tocar Tarjetas.
+  assert.equal([...demo.matchAll(/computeCards\s*\(/g)].length, 1, "computeCards sigue sin caller");
+  assert.doesNotMatch(demo, /id="tarjetas|class="tarjetas|>Tarjetas<|renderTarjetas|renderCards/i);
+});
+
 test("defaults to F8 and assigns every confirmed player to a balanced team", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
