@@ -88,15 +88,63 @@ test("5. no aparece 'Birras para la banda: X' (contador agregado)", () => {
   assert.doesNotMatch(demo, /Birras para la banda\s*:/i);
 });
 
-test("11. no hay botón 'Saldar birra' ni control de saldado", () => {
-  assert.doesNotMatch(demo, /saldar birra/i);
-  assert.doesNotMatch(demo, /id="lista-morosos-[^"]*"[^>]*>\s*<button/i);
-  // El módulo no contiene <button>.
+test("11. el <section> estático no trae ningún <button>: 'Saldar birra' lo inyecta el JS", () => {
   const bloque = demo.slice(
     demo.indexOf('<section class="lista-morosos"'),
     demo.indexOf("</section>", demo.indexOf('<section class="lista-morosos"')),
   );
   assert.doesNotMatch(bloque, /<button/i);
+});
+
+/* ---------- botón "Saldar birra" (PR #19) ---------- */
+
+test("11a. jugador con beers>0: renderListaMorosos agrega el botón 'Saldar birra'", () => {
+  const { lista } = render(CARDS({ "Fran Forrester": { yellows: 0, reds: 1, beers: 1 } }));
+  assert.match(lista.innerHTML, /<button type="button" class="lm-saldar" data-saldar-birra="Fran Forrester" aria-label="Saldar birra de Fran Forrester">Saldar birra<\/button>/);
+});
+
+test("11b. jugador con beers:0 (sólo amarilla): sin botón", () => {
+  const { lista } = render(CARDS({ "Fran Forrester": { yellows: 1, reds: 0, beers: 0 } }));
+  assert.doesNotMatch(lista.innerHTML, /lm-saldar|Saldar birra/);
+});
+
+test("11c. estado vacío: sin botón (la lista queda en blanco)", () => {
+  const { lista } = render(CARDS({}));
+  assert.equal(lista.innerHTML, "");
+});
+
+test("11d. el botón es type=button y su aria-label nombra al jugador", () => {
+  const { lista } = render(CARDS({ "Ale": { yellows: 1, reds: 2, beers: 2 } }));
+  const btn = lista.innerHTML.match(/<button[^>]*class="lm-saldar"[^>]*>/)[0];
+  assert.match(btn, /type="button"/);
+  assert.match(btn, /aria-label="Saldar birra de Ale"/);
+});
+
+test("11e. sólo los que deben birra tienen botón; el de sólo amarilla no", () => {
+  const { lista } = render(CARDS({
+    "Zoe Zapata": { yellows: 0, reds: 0, beers: 1 },
+    "Ana Aguirre": { yellows: 1, reds: 0, beers: 0 },
+  }));
+  const botones = [...lista.innerHTML.matchAll(/data-saldar-birra="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(botones, ["Zoe Zapata"]);
+});
+
+test("11f. el nombre en data-* y aria-label va escapado", () => {
+  const { lista } = render(CARDS({ 'Fran "Pipa" <b>': { yellows: 0, reds: 0, beers: 1 } }));
+  assert.match(lista.innerHTML, /data-saldar-birra="Fran &quot;Pipa&quot; &lt;b&gt;"/);
+  assert.doesNotMatch(lista.innerHTML, /data-saldar-birra="Fran "Pipa"/);
+});
+
+test("16. tras saldar la última birra y sin amarillas, el jugador deja de listarse", () => {
+  const { lista, vacio } = render(CARDS({ "Fran Forrester": { yellows: 0, reds: 1, beers: 0 } }));
+  assert.equal(vacio.hidden, false);
+  assert.equal(lista.hidden, true);
+});
+
+test("17. tras saldar la birra pero con una amarilla pendiente, queda 🟨 sin botón", () => {
+  const { lista } = render(CARDS({ "Fran Forrester": { yellows: 1, reds: 1, beers: 0 } }));
+  assert.match(lista.innerHTML, /Fran Forrester<\/span><span class="lm-marks">🟨<\/span><\/li>/);
+  assert.doesNotMatch(lista.innerHTML, /lm-saldar/);
 });
 
 /* ---------- render con datos ---------- */
@@ -175,7 +223,7 @@ test("reds nunca se muestra: sin 🟥 ni 'roja' en el render", () => {
 
 /* ---------- read-only / sin efectos ---------- */
 
-test("12+13. no hay writer nuevo, no toca computeCards / evaluarTarjetasSiCorresponde / persistFocalizado", () => {
+test("12+13. las funciones de render siguen puras; el único writer nuevo es saldarBirra", () => {
   for (const fn of ["morososDeCards", "marcasDeMoroso", "renderListaMorosos"]) {
     const src = extractFunction(demo, fn);
     // Sin nada que persista: sin el writer focalizado, sin saveState, sin el cálculo.
@@ -191,6 +239,14 @@ test("12+13. no hay writer nuevo, no toca computeCards / evaluarTarjetasSiCorres
   assert.match(extractFunction(demo, "refreshFromServer"), /evaluarTarjetasSiCorresponde\(\);/);
   // El writer no adquiere dependencia de la UI nueva.
   assert.doesNotMatch(extractFunction(demo, "evaluarTarjetasSiCorresponde"), /lista-morosos|renderListaMorosos|morososDeCards/);
+  // saldarBirra es el único writer nuevo: baja beers vía persistFocalizado y NO llama a
+  // computeCards ni al writer automático.
+  const saldar = extractFunction(demo, "saldarBirra");
+  assert.match(saldar, /persistFocalizado/);
+  assert.match(saldar, /rec\.beers = Math\.max\(0, beers - 1\)/);
+  assert.doesNotMatch(saldar, /computeCards|evaluarTarjetasSiCorresponde|\.yellows\s*=(?!=)|\.reds\s*=(?!=)|\.responses\s*=(?!=)|\.paid\s*=(?!=)/);
+  // Ningún otro persistFocalizado nuevo: el saldado no toca a computeCards ni al auto-eval.
+  assert.doesNotMatch(extractFunction(demo, "computeCards"), /saldarBirra/);
 });
 
 test("13b. render() llama a renderListaMorosos después de renderFaltaConfirmar", () => {
@@ -214,6 +270,16 @@ test("14. CSS: el módulo es compacto y el nombre puede envolver (sin scroll hor
   assert.match(demo, /\.lista-morosos-list\{[^}]*list-style:none[^}]*\}/);
   // El módulo tiene el mismo margen inferior compacto que "Falta confirmar".
   assert.match(demo, /\.lista-morosos\{[^}]*margin:0 0 16px[^}]*\}/);
+});
+
+test("23. CSS: el botón 'Saldar birra' no fuerza ancho (320/375px sin scroll horizontal)", () => {
+  // El botón no encoge el texto pero el item envuelve (flex-wrap): a 320px el botón baja
+  // de línea en vez de desbordar. Y el nombre largo sigue partiéndose.
+  assert.match(demo, /\.lista-morosos-item \.lm-saldar\{[^}]*white-space:nowrap[^}]*\}/);
+  assert.match(demo, /\.lista-morosos-item \.lm-saldar\{[^}]*flex:0 0 auto[^}]*\}/);
+  assert.match(demo, /\.lista-morosos-item\{[^}]*flex-wrap:wrap[^}]*\}/);
+  // Estado deshabilitado mientras persiste.
+  assert.match(demo, /\.lista-morosos-item \.lm-saldar:disabled\{[^}]*\}/);
 });
 
 test("ubicación: el módulo va DEBAJO del bloque de equipos (jerarquía: jugador -> partido -> equipos -> morosos)", () => {

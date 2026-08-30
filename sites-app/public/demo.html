@@ -517,8 +517,9 @@
   .falta-confirmar-copy{justify-self:start; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-bottom); color:var(--celeste-deep); padding:8px 12px; font:700 11px 'Inter',sans-serif; cursor:pointer;}
   .falta-confirmar-copy[hidden]{display:none;}
 
-  /* LISTA DE MOROSOS — estado read-only de tarjetas/birras del grupo (PR #18). Se muestra
-     siempre; las reglas quedan visibles haya o no sanciones. Sin escrituras, sin botones. */
+  /* LISTA DE MOROSOS — estado de tarjetas/birras del grupo (PR #18). Se muestra siempre;
+     las reglas quedan visibles haya o no sanciones. La lista es read-only salvo el botón
+     "Saldar birra" (PR #19), única acción manual: baja en 1 las birras pendientes. */
   .lista-morosos{
     display:grid; gap:8px; margin:0 0 16px; padding:12px 14px;
     background:rgba(228,99,75,.06); border:1px solid var(--card-border); border-radius:12px;
@@ -534,6 +535,13 @@
   }
   .lista-morosos-item .lm-name{flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
   .lista-morosos-item .lm-marks{flex:0 0 auto; white-space:nowrap; color:var(--muted); font-weight:700;}
+  .lista-morosos-item .lm-saldar{
+    flex:0 0 auto; margin-left:auto; cursor:pointer; white-space:nowrap;
+    border:1px solid var(--card-border); border-radius:8px; background:var(--white);
+    color:var(--navy); padding:6px 10px; font:700 10px 'Inter',sans-serif;
+    letter-spacing:.03em; text-transform:uppercase;
+  }
+  .lista-morosos-item .lm-saldar:disabled{opacity:.5; cursor:progress;}
   .lista-morosos-rules{margin:0; font-size:11px; line-height:1.5; color:var(--muted);}
 
   /* VISTAS PRINCIPALES */
@@ -2343,6 +2351,29 @@ function setTab(tab){
 document.getElementById('tab-btn-partido').onclick = ()=> setTab('partido');
 document.getElementById('tab-btn-historial').onclick = ()=> setTab('historial');
 
+/* ---------- LISTA DE MOROSOS — saldar birra (PR #19) ---------- */
+// Delegación sobre el <ul> estático: renderListaMorosos reescribe su innerHTML en cada
+// render, así que un listener por botón se duplicaría o se perdería. El <ul> no se recrea.
+// Confirmación obligatoria antes de cualquier escritura; el botón se deshabilita mientras
+// persiste (evita el segundo click), y saldarBirra() igual revalida contra el estado
+// fresco, así que un click viejo o repetido nunca baja las birras de más.
+document.getElementById('lista-morosos-list').addEventListener('click', async (ev)=>{
+  const boton = ev.target.closest('[data-saldar-birra]');
+  if(!boton) return;
+  const nombre = boton.dataset.saldarBirra || '';
+  if(!nombre) return;
+  if(!window.confirm(`¿Confirmás que ${nombre} saldó una birra?`)) return;
+  boton.disabled = true;
+  const ok = await saldarBirra(nombre);
+  boton.disabled = false;
+  if(!ok){
+    showToast('No se pudo saldar la birra. Revisá la conexión e intentá otra vez.');
+    return;
+  }
+  renderListaMorosos();
+  showToast('Birra saldada.');
+});
+
 /* ---------- FORMACIONES DEL ORGANIZADOR ---------- */
 // Los dos selectores descartaban el resultado del guardado. Como formations y las
 // posiciones ganaban localmente en refreshFromServer, una formación rechazada quedaba
@@ -3280,11 +3311,12 @@ function renderFaltaConfirmar(){
   copyBtn.hidden = false;
 }
 
-// LISTA DE MOROSOS (PR #18) — vista read-only del estado de tarjetas/birras del grupo.
-// Lee SÓLO de state.cards.byPlayer. No escribe, no llama a computeCards ni al writer
-// (evaluarTarjetasSiCorresponde). El módulo se muestra siempre: las reglas quedan
-// visibles haya o no sanciones. `reds` no se muestra por ahora; `beers` = birras
-// pendientes. Todavía no hay acción de saldado ni confirm: es puramente informativo.
+// LISTA DE MOROSOS (PR #18) — vista del estado de tarjetas/birras del grupo. morososDeCards
+// y marcasDeMoroso leen SÓLO de state.cards.byPlayer y son puras: no escriben, no llaman a
+// computeCards ni al writer automático (evaluarTarjetasSiCorresponde). El módulo se muestra
+// siempre: las reglas quedan visibles haya o no sanciones. `reds` no se muestra por ahora;
+// `beers` = birras pendientes. renderListaMorosos agrega el botón "Saldar birra" (PR #19)
+// para cada jugador con beers>0; el saldado en sí lo hace saldarBirra(), abajo.
 function morososDeCards(cards){
   const byPlayer = (cards && cards.byPlayer && typeof cards.byPlayer === 'object') ? cards.byPlayer : {};
   const filas = [];
@@ -3323,12 +3355,50 @@ function renderListaMorosos(){
   }
   vacio.hidden = true;
   lista.hidden = false;
-  lista.innerHTML = filas.map(fila=>
-    '<li class="lista-morosos-item">' +
-      '<span class="lm-name">' + escapeHtml(fila.nombre) + '</span>' +
+  lista.innerHTML = filas.map(fila=>{
+    const nombre = escapeHtml(fila.nombre);
+    // Sólo quien debe birra puede saldarla. El nombre va en data-* (el browser lo decodea
+    // de vuelta al original) y en el aria-label. type="button" para no submitear nada.
+    const boton = fila.beers > 0
+      ? '<button type="button" class="lm-saldar" data-saldar-birra="' + nombre +
+        '" aria-label="Saldar birra de ' + nombre + '">Saldar birra</button>'
+      : '';
+    return '<li class="lista-morosos-item">' +
+      '<span class="lm-name">' + nombre + '</span>' +
       '<span class="lm-marks">' + escapeHtml(marcasDeMoroso(fila)) + '</span>' +
-    '</li>'
-  ).join('');
+      boton +
+    '</li>';
+  }).join('');
+}
+
+// PR #19 — "Saldar birra": la ÚNICA escritura manual sobre state.cards. Baja en 1 las
+// birras pendientes de un jugador. Cualquiera puede tocarla (buena fe); el handler pide
+// window.confirm antes de llegar acá. No toca yellows, reds, evaluated ni log, ni ninguna
+// otra key del blob: muta beers in situ sobre el estado FRESCO del servidor y
+// persistFocalizado escribe todo lo demás intacto. No llama a computeCards ni al writer
+// automático (evaluarTarjetasSiCorresponde): es una escritura focalizada independiente.
+//
+// Anti-doble-decremento: beers>0 se revalida DENTRO de aplicar(fresh), contra la lectura
+// fresca. Dos toques seguidos -> el segundo ve beers ya en 0 y aborta sin escribir.
+// Math.max(0, ...) es cinturón y tirantes: nunca baja de 0.
+async function saldarBirra(playerName){
+  const nombre = String(playerName == null ? '' : playerName);
+  if(!nombre) return false;
+  try{
+    return await persistFocalizado(fresh=>{
+      const byPlayer = (fresh && fresh.cards && fresh.cards.byPlayer && typeof fresh.cards.byPlayer === 'object')
+        ? fresh.cards.byPlayer : null;
+      const rec = byPlayer ? byPlayer[nombre] : null;
+      if(!rec || typeof rec !== 'object') return false;
+      const beers = Number(rec.beers) || 0;
+      if(beers <= 0) return false;
+      rec.beers = Math.max(0, beers - 1);
+      return true;
+    });
+  }catch(e){
+    console.error('No se pudo saldar la birra', e);
+    return false;
+  }
 }
 function loadRecurrentPlayers(){
   recurrentPlayers = deriveSelectorNames();
