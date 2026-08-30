@@ -807,8 +807,9 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   assert.match(demo, /mockPayment\.hidden = !\(mockAvailability === 'in' && saved && saved\.status === 'in'\)/);
   // El pago sigue siendo reversible desde los dos botones, vía el writer focalizado.
   assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
-  // Cambiar de estado repinta la visibilidad del pago en vivo.
-  assert.match(demo, /mockTimes\.style\.display = mockAvailability === 'out' \? 'none' : 'flex';\s*\r?\n\s*syncPagoControls\(\);/);
+  // Cambiar de estado repinta la visibilidad del pago en vivo, y oculta el bloque de
+  // disponibilidad entero (label incluido) cuando el jugador marca "Soy baja".
+  assert.match(demo, /mockAvailabilityBlock\.hidden = mockAvailability === 'out';\s*\r?\n\s*syncPagoControls\(\);/);
 
   // Identidad "Pablo + ⇄" intacta; el campo de nombre queda editable identificado.
   assert.match(demo, /<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
