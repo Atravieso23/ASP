@@ -277,7 +277,10 @@ test("supports recurrent players with identity-focused first-time copy", async (
   assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
   assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
   assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
-  assert.match(demo, /label\.textContent = active \? 'Tu nombre' : 'Nombre en la casaca';/);
+  // El label del input ya no se fija acá: lo decide renderIdentityHeader según el modo.
+  const setFirst = sliceBetween(demo, "function setFirstTimeRegistration(active,preserveValue=false){", "\nfunction clearLocalOrganizerState", "setFirstTimeRegistration");
+  assert.doesNotMatch(setFirst, /label\.textContent/);
+  assert.match(setFirst, /renderIdentityHeader\(\);/);
   assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
   assert.match(demo, /confirm\.textContent = 'Guardar cambios';/);
   assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
@@ -648,9 +651,16 @@ function runIdentityHeader(demo, { identified, changing = false }) {
     "\nconst INVITADO_SIN_ANFITRION",
     "renderIdentityHeader",
   );
-  const title = { hidden: false, textContent: "" };
-  const row = { hidden: false };
-  const elements = { "my-status-identity": title, "my-status-identity-row": row };
+  const eyebrow = { textContent: "" };
+  const title = { textContent: "" };
+  const row = { hidden: true };
+  const label = { textContent: "" };
+  const elements = {
+    "my-status-title": eyebrow,
+    "my-status-identity": title,
+    "my-status-identity-row": row,
+    "my-player-name-label": label,
+  };
   const context = vm.createContext({
     document: { getElementById(id) { return elements[id] || null; } },
     responseDelJugadorActual() { return identified ? { name: "Pablito", habitualName: "Pablo de Achaval" } : undefined; },
@@ -659,7 +669,7 @@ function runIdentityHeader(demo, { identified, changing = false }) {
   });
   new vm.Script(`${src}\nglobalThis.renderIdentityHeader = renderIdentityHeader;`).runInContext(context);
   context.renderIdentityHeader();
-  return { title, row };
+  return { eyebrow, title, row, label };
 }
 
 test("Mi estado: el editor de nombre visible separado ya no existe", async () => {
@@ -672,20 +682,49 @@ test("Mi estado: el editor de nombre visible separado ya no existe", async () =>
   assert.doesNotMatch(demo, /input\.readOnly = Boolean\(/);
 });
 
-test("Mi estado: el título de identidad muestra habitualName ?? name, no el nombre visible editado", async () => {
+test("Mi estado: la card tiene dos modos — Registro vs Jugador convocado", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /<p class="my-status-identity" id="my-status-identity"><\/p>/);
+  // La fila del heading ya no arranca oculta: siempre hay heading (Elegí tu jugador / nombre).
+  assert.match(demo, /<div class="my-status-identity-row" id="my-status-identity-row">\s*<p class="my-status-identity" id="my-status-identity">Elegí tu jugador<\/p>/);
+  assert.match(demo, /<h2 class="my-status-heading" id="my-status-title">Registro<\/h2>/);
 
+  // MODO A — registro / anónimo
   const anon = runIdentityHeader(demo, { identified: false });
-  assert.equal(anon.row.hidden, true, "sin response propia no hay fila de identidad");
-  assert.equal(anon.title.textContent, "", "sin response propia el título queda vacío");
+  assert.equal(anon.eyebrow.textContent, "Registro");
+  assert.equal(anon.title.textContent, "Elegí tu jugador");
+  assert.equal(anon.label.textContent, "Tu nombre");
+  assert.equal(anon.row.hidden, false, "la fila con el heading siempre se ve");
 
+  // MODO B — identificado
   const ident = runIdentityHeader(demo, { identified: true });
+  assert.equal(ident.eyebrow.textContent, "Jugador convocado esta fecha");
+  assert.equal(ident.title.textContent, "Pablo de Achaval", "identidad base, no el nombre visible 'Pablito'");
+  assert.equal(ident.label.textContent, "Nombre en la casaca");
   assert.equal(ident.row.hidden, false);
-  assert.equal(ident.title.textContent, "Pablo de Achaval", "muestra la identidad base, no 'Pablito'");
 
+  // ⇄ (changingRegisteredPlayer) — vuelve al modo registro
   const cambiando = runIdentityHeader(demo, { identified: true, changing: true });
-  assert.equal(cambiando.row.hidden, true, "en modo 'Cambiar jugador' la fila se oculta");
+  assert.equal(cambiando.eyebrow.textContent, "Registro");
+  assert.equal(cambiando.title.textContent, "Elegí tu jugador");
+  assert.equal(cambiando.label.textContent, "Cambiar jugador");
+});
+
+test("Mi estado modos: renderIdentityHeader corre también en estado anónimo al iniciar", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  // restoreCurrentLocalResponse() retorna temprano sin jugador propio; el init debe
+  // llamar renderIdentityHeader() igual para que la card quede en modo "Registro".
+  assert.match(demo, /restoreCurrentLocalResponse\(\);\s*(?:\/\/[^\n]*\n\s*)*renderIdentityHeader\(\);/);
+});
+
+test("Mi estado modos: MODO A no muestra ⇄ y el CTA sigue 'Guardar cambios' en ambos modos", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  // El ⇄ sólo aparece con response propia y sin estar cambiando (MODO B). Sin cambio de lógica.
+  assert.match(demo, /changeButton\.hidden = !ownResponse \|\| changingRegisteredPlayer;/);
+  // El CTA no diferencia fases: "Guardar cambios" siempre. No se reintroduce "Registrarme".
+  assert.match(demo, /id="my-status-confirm">Guardar cambios</);
+  assert.doesNotMatch(demo, /Registrarme/);
+  const confirmSets = [...demo.matchAll(/confirm(?:Button)?\.textContent = '([^']+)'/g)].map((m) => m[1]);
+  assert.ok(confirmSets.every((t) => ["Guardar cambios", "Guardando…", "Reintentar"].includes(t)), `CTA inesperado: ${confirmSets}`);
 });
 
 test("Mi estado: el título de identidad se refresca desde syncPagoControls (misma condición que el pago)", async () => {
@@ -840,20 +879,28 @@ test("Mi estado: los data-value de estado y pago no cambian con el copy futboler
 
 // ---- Mi estado · copy futbolero (ceja "Jugador convocado esta fecha" + ⇄ + casaca) ----
 
-test("Mi estado: la ceja dice 'Jugador convocado esta fecha', no 'Mi estado'", async () => {
+test("Mi estado: la ceja arranca en 'Registro' y renderIdentityHeader alterna las dos cejas", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /<h2 class="my-status-heading" id="my-status-title">Jugador convocado esta fecha<\/h2>/);
-  const header = sliceBetween(demo, '<h2 class="my-status-heading" id="my-status-title">', '</h2>', 'la ceja de Mi estado');
-  assert.doesNotMatch(header, /Mi estado/, 'la ceja ya no dice "Mi estado"');
-  // El nombre/identidad sigue siendo el heading principal, debajo de la ceja.
+  // Estático = modo registro (fase de entrada). renderIdentityHeader lo cambia a "Jugador
+  // convocado esta fecha" cuando hay response propia.
+  assert.match(demo, /<h2 class="my-status-heading" id="my-status-title">Registro<\/h2>/);
+  const fn = sliceBetween(demo, "function renderIdentityHeader(){", "\nconst INVITADO_SIN_ANFITRION", "renderIdentityHeader");
+  assert.match(fn, /eyebrow\.textContent = 'Jugador convocado esta fecha';/);
+  assert.match(fn, /eyebrow\.textContent = 'Registro';/);
+  assert.doesNotMatch(demo, />Mi estado</, 'la ceja nunca dice "Mi estado"');
+  // La ceja va antes del heading de identidad en el DOM.
   const card = sliceBetween(demo, 'id="my-status-card"', '<div class="ticket">', 'la card de Mi estado');
   assert.ok(card.indexOf('id="my-status-title"') < card.indexOf('id="my-status-identity"'), 'la ceja va antes del nombre');
 });
 
-test("Mi estado: el label del campo de nombre dice 'Nombre en la casaca'", async () => {
+test("Mi estado: el label del input alterna 'Tu nombre' (registro) / 'Nombre en la casaca' (identificado)", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /<label for="my-player-name" id="my-player-name-label">Nombre en la casaca<\/label>/);
+  // Estático = modo registro.
+  assert.match(demo, /<label for="my-player-name" id="my-player-name-label">Tu nombre<\/label>/);
   assert.doesNotMatch(demo, /Nombre de jugador/, 'no queda copy viejo "Nombre de jugador"');
+  const fn = sliceBetween(demo, "function renderIdentityHeader(){", "\nconst INVITADO_SIN_ANFITRION", "renderIdentityHeader");
+  assert.match(fn, /label\.textContent = 'Nombre en la casaca';/);
+  assert.match(fn, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
 });
 
 test("Mi estado: el chip de día libre muestra sólo emojis pero sigue accesible como 'Todo fulvo'", async () => {
@@ -876,8 +923,9 @@ test("Mi estado: el chip de día libre muestra sólo emojis pero sigue accesible
 
 test("Mi estado: el control de cambiar jugador es un ⇄ accesible que mantiene el handler", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  // Ícono compacto al lado del heading del nombre, con accesibilidad.
-  assert.match(demo, /<div class="my-status-identity-row" id="my-status-identity-row" hidden>\s*<p class="my-status-identity" id="my-status-identity"><\/p>\s*<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
+  // Ícono compacto al lado del heading del nombre, con accesibilidad. La fila ya no arranca
+  // oculta (siempre hay heading); el ⇄ arranca hidden y lo muestra setRegisteredPlayerNameMode.
+  assert.match(demo, /<div class="my-status-identity-row" id="my-status-identity-row">\s*<p class="my-status-identity" id="my-status-identity">Elegí tu jugador<\/p>\s*<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
   assert.doesNotMatch(demo, /¿Te equivocaste de nombre\? Cambiar jugador/, 'no queda el botón de texto viejo');
   // La lógica de cambiar jugador no se toca: mismo id, mismo handler, mismo toggle de hidden.
   assert.match(demo, /document\.getElementById\('change-player-btn'\)\.onclick = \(\)=>\{/);
