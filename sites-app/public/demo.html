@@ -389,19 +389,22 @@
     padding:14px; margin-bottom:16px; box-shadow:0 14px 30px -24px rgba(14,42,61,0.45);
   }
   .my-status-heading{
-    display:flex; align-items:center; gap:7px; margin:0 0 4px;
+    display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin:0 0 4px;
     font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:.12em;
     text-transform:uppercase; color:var(--muted);
   }
   .my-status-heading::before{
-    content:""; width:7px; height:7px; border-radius:50%; background:var(--celeste);
+    content:""; flex:none; width:7px; height:7px; border-radius:50%; background:var(--celeste);
     box-shadow:0 0 0 3px rgba(79,166,222,.14);
   }
+  .my-status-identity-row{
+    display:flex; align-items:center; gap:8px; margin:0 0 12px;
+  }
+  .my-status-identity-row[hidden]{display:none;}
   .my-status-identity{
-    margin:0 0 12px; font:700 21px 'Oswald',sans-serif; letter-spacing:.02em;
+    margin:0; min-width:0; font:700 21px 'Oswald',sans-serif; letter-spacing:.02em;
     color:var(--navy); word-break:break-word;
   }
-  .my-status-identity[hidden]{display:none;}
   .my-status-field{margin-bottom:4px;}
   .my-status-field label, .my-status-label{
     display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em;
@@ -423,7 +426,9 @@
   .player-name-feedback.info{background:rgba(25,126,168,.09);border:1px solid rgba(25,126,168,.25);color:var(--navy);}
   .player-name-feedback.error{background:rgba(193,67,42,.08);border:1px solid rgba(193,67,42,.3);color:#8f2f20;}
   .player-name-feedback strong{display:block;margin-bottom:2px;}
-  .change-player-btn{display:block;margin:7px 2px 0;padding:0;border:0;background:transparent;color:var(--celeste-deep);font:700 10.5px 'Inter',sans-serif;text-decoration:underline;cursor:pointer;text-align:left;}
+  .change-player-btn{position:relative;flex:none;display:inline-grid;place-items:center;width:36px;height:36px;min-width:36px;min-height:36px;margin:0;padding:0;border:1px solid var(--card-border);border-radius:9px;background:var(--bg-bottom);color:var(--celeste-deep);font:700 17px 'Inter',sans-serif;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .change-player-btn::after{content:"";position:absolute;inset:-6px;}
+  .change-player-btn:hover{background:var(--white);border-color:var(--celeste-deep);}
   .change-player-btn[hidden]{display:none;}
   .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:300px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
   .recurrent-player-menu[hidden]{display:none;}
@@ -619,11 +624,14 @@
   <div id="tab-partido">
 
   <section class="my-status-card" id="my-status-card" aria-labelledby="my-status-title">
-    <h2 class="my-status-heading" id="my-status-title">Mi estado</h2>
+    <h2 class="my-status-heading" id="my-status-title">Jugador convocado esta fecha</h2>
     <div class="my-status-form">
-      <p class="my-status-identity" id="my-status-identity" hidden></p>
+      <div class="my-status-identity-row" id="my-status-identity-row" hidden>
+        <p class="my-status-identity" id="my-status-identity"></p>
+        <button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄</button>
+      </div>
       <div class="my-status-field recurrent-player-field">
-        <label for="my-player-name" id="my-player-name-label">Nombre de jugador</label>
+        <label for="my-player-name" id="my-player-name-label">Nombre en la casaca</label>
         <div class="player-picker-row">
           <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
           <button type="button" class="player-picker-mode" id="first-time-player-btn">Este soy yo</button>
@@ -631,7 +639,6 @@
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
         <p class="player-picker-help" id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados.</p>
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
-        <button type="button" class="change-player-btn" id="change-player-btn" hidden>¿Te equivocaste de nombre? Cambiar jugador</button>
       </div>
       <span class="my-status-label">Estado</span>
       <div class="my-status-choice" role="group" aria-label="Estado">
@@ -680,7 +687,7 @@
         </div>
         <label class="my-status-fullday" for="my-status-full-day">
           <input type="checkbox" id="my-status-full-day">
-          <span>Libre</span>
+          <span>Todo fulvo ⚽❤️</span>
         </label>
       </div>
       <div class="my-status-payment" id="my-status-payment" hidden>
@@ -3011,14 +3018,15 @@ async function marcarPagoDeInvitado(responseId, paid){
 function renderIdentityHeader(){
   const title = document.getElementById('my-status-identity');
   if(!title) return;
+  const row = document.getElementById('my-status-identity-row');
   const propia = responseDelJugadorActual();
   if(!propia || changingRegisteredPlayer){
-    title.hidden = true;
+    if(row) row.hidden = true;
     title.textContent = '';
     return;
   }
   title.textContent = propia.habitualName || propia.name;
-  title.hidden = false;
+  if(row) row.hidden = false;
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
@@ -3220,7 +3228,7 @@ function setRegisteredPlayerNameMode(allowChange=false){
   modeButton.hidden = Boolean(ownResponse) && !changingRegisteredPlayer;
   changeButton.hidden = !ownResponse || changingRegisteredPlayer;
   if(ownResponse && !changingRegisteredPlayer){
-    label.textContent = 'Nombre de jugador';
+    label.textContent = 'Nombre en la casaca';
     help.textContent = '';
     help.hidden = true;
     hidePlayerNameFeedback();
@@ -3230,7 +3238,7 @@ function setRegisteredPlayerNameMode(allowChange=false){
     help.hidden = false;
     showPlayerNameFeedback('info','Cambio de jugador activado.',' Elegí otra identidad de la lista.');
   }else{
-    label.textContent = 'Nombre de jugador';
+    label.textContent = 'Nombre en la casaca';
     help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
     help.hidden = false;
   }
@@ -3280,7 +3288,7 @@ function setFirstTimeRegistration(active,preserveValue=false){
   if(!preserveValue) input.value = '';
   button.classList.toggle('active', active);
   button.textContent = active ? 'Cancelar' : 'Este soy yo';
-  label.textContent = active ? 'Tu nombre' : 'Nombre de jugador';
+  label.textContent = active ? 'Tu nombre' : 'Nombre en la casaca';
   input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
   help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
   help.hidden = false;
