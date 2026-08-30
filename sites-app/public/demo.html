@@ -517,6 +517,25 @@
   .falta-confirmar-copy{justify-self:start; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-bottom); color:var(--celeste-deep); padding:8px 12px; font:700 11px 'Inter',sans-serif; cursor:pointer;}
   .falta-confirmar-copy[hidden]{display:none;}
 
+  /* LISTA DE MOROSOS — estado read-only de tarjetas/birras del grupo (PR #18). Se muestra
+     siempre; las reglas quedan visibles haya o no sanciones. Sin escrituras, sin botones. */
+  .lista-morosos{
+    display:grid; gap:8px; margin:0 0 16px; padding:12px 14px;
+    background:rgba(228,99,75,.06); border:1px solid var(--card-border); border-radius:12px;
+  }
+  .lista-morosos-title{margin:0; font:700 12px 'Oswald',sans-serif; letter-spacing:.07em; text-transform:uppercase; color:var(--navy);}
+  .lista-morosos-empty{margin:0; font-size:12px; line-height:1.4; color:var(--ok);}
+  .lista-morosos-empty[hidden]{display:none;}
+  .lista-morosos-list{list-style:none; margin:0; padding:0; display:grid; gap:4px;}
+  .lista-morosos-list[hidden]{display:none;}
+  .lista-morosos-item{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px;
+    font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);
+  }
+  .lista-morosos-item .lm-name{flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
+  .lista-morosos-item .lm-marks{flex:0 0 auto; white-space:nowrap; color:var(--muted); font-weight:700;}
+  .lista-morosos-rules{margin:0; font-size:11px; line-height:1.5; color:var(--muted);}
+
   /* VISTAS PRINCIPALES */
   .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:13px;}
   .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
@@ -783,6 +802,16 @@
       <p class="hint">Los equipos se asignan desde la vista Organizador.</p>
     </div>
   </div>
+
+  <section class="lista-morosos" id="lista-morosos-block" aria-labelledby="lista-morosos-title">
+    <h2 class="lista-morosos-title" id="lista-morosos-title">Lista de morosos</h2>
+    <p class="lista-morosos-empty" id="lista-morosos-empty">Sin tarjetas por ahora 👍</p>
+    <ul class="lista-morosos-list" id="lista-morosos-list" hidden></ul>
+    <p class="lista-morosos-rules">
+      Si no figurás pago antes del inicio del partido, sumás 🟨.<br>
+      Cada 2 amarillas, debés una birra para la banda 🍺.
+    </p>
+  </section>
 
   </div>
 
@@ -1915,6 +1944,7 @@ function render(){
 
   renderHistory();
   renderFaltaConfirmar();
+  renderListaMorosos();
 }
 
 function setSb(id, val, emptyLabel){
@@ -3248,6 +3278,57 @@ function renderFaltaConfirmar(){
   namesEl.textContent = faltan.join(', ');
   namesEl.hidden = false;
   copyBtn.hidden = false;
+}
+
+// LISTA DE MOROSOS (PR #18) — vista read-only del estado de tarjetas/birras del grupo.
+// Lee SÓLO de state.cards.byPlayer. No escribe, no llama a computeCards ni al writer
+// (evaluarTarjetasSiCorresponde). El módulo se muestra siempre: las reglas quedan
+// visibles haya o no sanciones. `reds` no se muestra por ahora; `beers` = birras
+// pendientes. Todavía no hay acción de saldado ni confirm: es puramente informativo.
+function morososDeCards(cards){
+  const byPlayer = (cards && cards.byPlayer && typeof cards.byPlayer === 'object') ? cards.byPlayer : {};
+  const filas = [];
+  for(const nombre of Object.keys(byPlayer)){
+    const rec = byPlayer[nombre] || {};
+    const yellows = Number(rec.yellows) || 0;
+    const beers = Number(rec.beers) || 0;
+    if(yellows <= 0 && beers <= 0) continue;
+    filas.push({ nombre, yellows, beers });
+  }
+  // Orden: primero quienes deben birra (beers>0), después quienes sólo tienen amarilla;
+  // alfabético dentro de cada grupo. Es lo más simple y determinista.
+  filas.sort((a, b)=>{
+    const grupoA = a.beers > 0 ? 0 : 1;
+    const grupoB = b.beers > 0 ? 0 : 1;
+    return grupoA - grupoB || a.nombre.localeCompare(b.nombre, 'es');
+  });
+  return filas;
+}
+function marcasDeMoroso(fila){
+  const partes = [];
+  if(fila.beers > 0) partes.push(fila.beers === 1 ? '🍺 debe 1 birra' : `🍺 debe ${fila.beers} birras`);
+  if(fila.yellows > 0) partes.push('🟨');
+  return partes.join(' · ');
+}
+function renderListaMorosos(){
+  const lista = document.getElementById('lista-morosos-list');
+  const vacio = document.getElementById('lista-morosos-empty');
+  if(!lista || !vacio) return;
+  const filas = morososDeCards(state && state.cards);
+  if(filas.length === 0){
+    vacio.hidden = false;
+    lista.hidden = true;
+    lista.innerHTML = '';
+    return;
+  }
+  vacio.hidden = true;
+  lista.hidden = false;
+  lista.innerHTML = filas.map(fila=>
+    '<li class="lista-morosos-item">' +
+      '<span class="lm-name">' + escapeHtml(fila.nombre) + '</span>' +
+      '<span class="lm-marks">' + escapeHtml(marcasDeMoroso(fila)) + '</span>' +
+    '</li>'
+  ).join('');
 }
 function loadRecurrentPlayers(){
   recurrentPlayers = deriveSelectorNames();
