@@ -207,6 +207,7 @@ function makeWorld({ row, local, failRead = false, failWrite = false } = {}) {
     function render(){ renders++; }
     function renderLocalOrganizer(){}
     function renderGuestManager(){}
+    function evaluarTarjetasSiCorresponde(){}
     function saveLocalFormationState(){}
     function showToast(mensaje){ toasts.push(mensaje); }
     ${NEEDED.map((n) => extractFunction(demo, n)).join("\n")}
