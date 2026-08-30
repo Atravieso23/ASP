@@ -812,11 +812,13 @@ test("aplica el copy futbolero de Mi estado", async () => {
   assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
   assert.match(demo, /data-value="out" aria-pressed="false">Soy baja</);
 
-  // Disponibilidad: "Todo fulvo ⚽❤️" reemplaza "Libre" (que antes reemplazó "Todo el día").
-  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day">\s*<input type="checkbox" id="my-status-full-day">\s*<span>Todo fulvo ⚽❤️<\/span>/);
+  // Disponibilidad: el chip de día libre muestra sólo "⚽❤️" (más compacto en mobile),
+  // con "Todo fulvo" accesible por texto sr-only + title. Nunca "Libre" ni "Todo el día".
+  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day" title="Todo fulvo">\s*<input type="checkbox" id="my-status-full-day">\s*<span class="sr-only">Todo fulvo<\/span>\s*<span aria-hidden="true">⚽❤️<\/span>/);
   assert.doesNotMatch(demo, /Todo el día/);
   const fulldayLabel = sliceBetween(demo, '<label class="my-status-fullday"', '</label>', 'la pill de disponibilidad libre');
   assert.doesNotMatch(fulldayLabel, /Libre/, 'el control de disponibilidad libre ya no dice "Libre"');
+  assert.doesNotMatch(fulldayLabel, /<span>Todo fulvo ⚽❤️<\/span>/, 'el texto visible "Todo fulvo ⚽❤️" ya no está en el chip');
 
   // Pago: Ya pagué / Debo (data-value yes/no sin tocar).
   assert.match(demo, /data-value="yes" aria-pressed="false">Ya pagué</);
@@ -854,10 +856,17 @@ test("Mi estado: el label del campo de nombre dice 'Nombre en la casaca'", async
   assert.doesNotMatch(demo, /Nombre de jugador/, 'no queda copy viejo "Nombre de jugador"');
 });
 
-test("Mi estado: 'Todo fulvo ⚽❤️' conserva la lógica del control de día completo", async () => {
+test("Mi estado: el chip de día libre muestra sólo emojis pero sigue accesible como 'Todo fulvo'", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  // Copy nuevo, con "fulvo" (v corta) — nunca "fulbo" ni "Libre" ni "Todo el día".
-  assert.match(demo, /<span>Todo fulvo ⚽❤️<\/span>/);
+  const fulldayLabel = sliceBetween(demo, '<label class="my-status-fullday"', '</label>', 'la pill de disponibilidad libre');
+  // Visible en UI: sólo "⚽❤️" (con aria-hidden para no anunciar los emojis).
+  assert.match(fulldayLabel, /<span aria-hidden="true">⚽❤️<\/span>/);
+  // El texto visible "Todo fulvo ⚽❤️" ya no aparece.
+  assert.doesNotMatch(fulldayLabel, /<span>Todo fulvo ⚽❤️<\/span>/);
+  assert.doesNotMatch(fulldayLabel, />Todo fulvo ⚽❤️</);
+  // "Todo fulvo" sigue comunicado: texto sr-only dentro del label + title. Con "fulvo" (v corta).
+  assert.match(fulldayLabel, /<span class="sr-only">Todo fulvo<\/span>/);
+  assert.match(fulldayLabel, /title="Todo fulvo"/);
   assert.doesNotMatch(demo, /fulbo/i);
   // El checkbox y el handler no cambian: misma id y misma conexión a setFullDayAvailability.
   assert.match(demo, /<input type="checkbox" id="my-status-full-day">/);
