@@ -216,14 +216,35 @@ test("14. CSS: el módulo es compacto y el nombre puede envolver (sin scroll hor
   assert.match(demo, /\.lista-morosos\{[^}]*margin:0 0 16px[^}]*\}/);
 });
 
-test("ubicación: el módulo va después de 'Falta confirmar' y antes del ticket, en la vista de usuario", () => {
-  const posFalta = demo.indexOf('id="falta-confirmar-block"');
+test("ubicación: el módulo va DEBAJO del bloque de equipos (jerarquía: jugador -> partido -> equipos -> morosos)", () => {
+  const posTeams = demo.indexOf('<div class="section teams-section">');
+  const posTeamsEnd = demo.indexOf('Los equipos se asignan desde la vista Organizador');
   const posMoros = demo.indexOf('id="lista-morosos-block"');
   const posTicket = demo.indexOf('<div class="ticket">');
+  const posFalta = demo.indexOf('id="falta-confirmar-block"');
+  const posTabHist = demo.indexOf('<div id="tab-historial"');
   const posUserView = demo.indexOf('<div id="main-view-user">');
   const posOrgView = demo.indexOf('<div class="organizer-view"');
-  assert.ok(posFalta < posMoros && posMoros < posTicket, "orden falta-confirmar -> lista-morosos -> ticket");
-  assert.ok(posUserView < posMoros && posMoros < posOrgView, "el módulo vive en la vista de usuario, no en la del organizador");
+
+  assert.ok(posTeams > -1 && posMoros > -1, "existen ambas secciones");
+  // Después de todo el bloque de equipos (Equipo Negro vs Equipo Blanco).
+  assert.ok(posMoros > posTeamsEnd, "el módulo va después de la sección de equipos");
+  // Y ya NO entre 'Falta confirmar' y el ticket.
+  assert.ok(posMoros > posTicket, "el módulo ya no está pegado a 'Falta confirmar' / el ticket");
+  assert.ok(posFalta < posTicket && posTicket < posTeams, "orden previo intacto: Falta confirmar -> ticket -> equipos");
+  // Sigue dentro de la vista de usuario, en la pestaña Partido (antes del Historial).
+  assert.ok(posUserView < posMoros && posMoros < posTabHist && posMoros < posOrgView, "vive en la vista de usuario / pestaña Partido");
+});
+
+test("'Falta confirmar' quedó pegado al ticket otra vez (sin el módulo en el medio)", () => {
+  assert.match(demo, /id="falta-confirmar-copy"[^>]*>Copiar para WhatsApp<\/button>\s*<\/section>\s*<div class="ticket">/);
+});
+
+test("orden visual completo: equipos -> Lista de morosos -> cierre de la pestaña Partido", () => {
+  assert.match(
+    demo,
+    /<div class="section teams-section">[\s\S]*?<\/div>\s*<section class="lista-morosos" id="lista-morosos-block"[\s\S]*?<\/section>\s*<\/div>\s*<div id="tab-historial"/,
+  );
 });
 
 test("no toca Mi estado, pagos, invitados, selector ni el organizador", () => {
