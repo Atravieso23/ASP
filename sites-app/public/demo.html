@@ -3501,12 +3501,18 @@ function renderRecurrentPlayerMenu(){
       input.value = selectedName;
       hideRecurrentPlayerMenu();
       const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
+      // El match de identidad mira name Y habitualName: "Nombre en la casaca" muta name,
+      // y sin esto un segundo dispositivo no reconoce la response existente y crea otra.
+      const selKey = selectedName.toLocaleLowerCase('es');
       const selectedResponse = localAvailabilityResponses.find(item=>
-        !item.isGuest && item.name.toLocaleLowerCase('es')===selectedName.toLocaleLowerCase('es')
+        !item.isGuest && (
+          item.name.toLocaleLowerCase('es')===selKey ||
+          (item.habitualName && item.habitualName.trim().toLocaleLowerCase('es')===selKey)
+        )
       );
       if(!ownResponse && selectedResponse){
         pendingClaimResponseId = selectedResponse.responseId;
-        document.getElementById('claim-player-text').textContent = `¿Sos ${selectedResponse.name}?`;
+        document.getElementById('claim-player-text').textContent = `¿Sos ${selectedResponse.habitualName || selectedResponse.name}?`;
         document.getElementById('claim-player-overlay').classList.add('open');
       }
     };
@@ -3622,10 +3628,18 @@ async function savePlayerRegistration(response){
     if(!nextState) return {ok:false};
     const remoteResponses = nextState.responses;
     const normalizedName = response.name.toLocaleLowerCase('es');
+    // Backstop de identidad: la clave estable es habitualName. Una response no invitada
+    // con el mismo habitualName es el mismo jugador aunque su "Nombre en la casaca"
+    // (name) sea distinto; no se crea una segunda response. Cubre la carrera contra la
+    // copia local de hasta 4s que el chequeo del handler no ve.
+    const habitualNorm = response.habitualName ? response.habitualName.trim().toLocaleLowerCase('es') : '';
     const duplicate = remoteResponses.find(item=>
       item.responseId!==response.responseId &&
       !responseBelongsToCurrentDevice(item) &&
-      item.name.toLocaleLowerCase('es')===normalizedName
+      (
+        item.name.toLocaleLowerCase('es')===normalizedName ||
+        (habitualNorm && !item.isGuest && String(item.habitualName||'').trim().toLocaleLowerCase('es')===habitualNorm)
+      )
     );
     if(duplicate){
       // Se adopta lo leído aunque no se escriba nada: el homónimo que bloquea el alta
@@ -4110,6 +4124,24 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   // respeta tal cual lo que escribiste (es tu nombre visible).
   if(recurrentMatch && !editandoMiEstado) playerName = recurrentMatch;
   nameInput.removeAttribute('aria-invalid');
+  // Identidad ya registrada en OTRO dispositivo: no se crea una segunda response. La
+  // clave estable es habitualName (name puede diferir por "Nombre en la casaca"). Se
+  // enruta al overlay de claim, que suma este dispositivo a la response existente.
+  if(!existingResponse){
+    const idKey = playerName.toLocaleLowerCase('es');
+    const yaRegistrada = localAvailabilityResponses.find(item=>
+      item && !item.isGuest && !responseBelongsToCurrentDevice(item) && (
+        item.name.toLocaleLowerCase('es')===idKey ||
+        (item.habitualName && item.habitualName.trim().toLocaleLowerCase('es')===idKey)
+      )
+    );
+    if(yaRegistrada){
+      pendingClaimResponseId = yaRegistrada.responseId;
+      document.getElementById('claim-player-text').textContent = `¿Sos ${yaRegistrada.habitualName || yaRegistrada.name}?`;
+      document.getElementById('claim-player-overlay').classList.add('open');
+      return;
+    }
+  }
   if(mockAvailability !== 'out' && to <= from){
     document.getElementById('my-status-to').focus();
     showSaveFeedback('error','El horario “Hasta” debe ser posterior a “Desde”.');

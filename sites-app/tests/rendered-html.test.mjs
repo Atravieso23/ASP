@@ -326,7 +326,8 @@ test("lets a trusted player reuse an existing response on another device", async
   assert.match(claimModal, /<h2>Confirmá quién sos<\/h2>/);
   assert.match(claimModal, /Desde este dispositivo vas a poder editar su asistencia, horario y pago durante esta fecha\./);
   assert.match(claimModal, /Sí, usar este jugador/);
-  assert.match(demo, /¿Sos \$\{selectedResponse\.name\}\?/);
+  // El prompt muestra la identidad base (habitualName), no el "Nombre en la casaca".
+  assert.match(demo, /¿Sos \$\{selectedResponse\.habitualName \|\| selectedResponse\.name\}\?/);
   assert.match(demo, /function responseBelongsToCurrentDevice\(response\)/);
   assert.match(demo, /response\.ownerIds\|\|\[\]/);
   assert.match(claimHandler, /addCurrentDeviceToResponse\(target\)/);
