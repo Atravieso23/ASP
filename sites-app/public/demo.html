@@ -464,6 +464,11 @@
     font:700 12px 'Inter',sans-serif; cursor:pointer; white-space:nowrap; user-select:none;
   }
   .my-status-fullday input{width:16px; height:16px; margin:0; accent-color:var(--celeste-deep); cursor:pointer;}
+  /* En pantallas angostas el chip no entra en la fila de los selects: baja como fila
+     propia y arranca a la izquierda (sin el margin-left:auto que dejaba una banda vacía). */
+  @media(max-width:360px){
+    .my-status-fullday{margin-left:0;}
+  }
   .my-status-times.is-full-day .my-status-fullday{background:var(--celeste-deep); color:#fff;}
   .my-status-times.is-full-day .my-status-time-pair{opacity:.5;}
   .my-status-confirm{
@@ -716,8 +721,8 @@
         </div>
         <label class="my-status-fullday" for="my-status-full-day" title="Todo fulvo">
           <input type="checkbox" id="my-status-full-day">
-          <span class="sr-only">Todo fulvo</span>
           <span aria-hidden="true">⚽❤️</span>
+          <span class="my-status-fullday-text">Libre</span>
         </label>
       </div>
       </div>

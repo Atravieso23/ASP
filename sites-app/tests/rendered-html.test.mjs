@@ -852,13 +852,12 @@ test("aplica el copy futbolero de Mi estado", async () => {
   assert.match(demo, /data-value="duda" aria-pressed="false">En duda</);
   assert.match(demo, /data-value="out" aria-pressed="false">Soy baja</);
 
-  // Disponibilidad: el chip de día libre muestra sólo "⚽❤️" (más compacto en mobile),
-  // con "Todo fulvo" accesible por texto sr-only + title. Nunca "Libre" ni "Todo el día".
-  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day" title="Todo fulvo">\s*<input type="checkbox" id="my-status-full-day">\s*<span class="sr-only">Todo fulvo<\/span>\s*<span aria-hidden="true">⚽❤️<\/span>/);
+  // Disponibilidad: el chip de día libre muestra "Libre" visible junto a "⚽❤️" (PR #21).
+  // "Todo fulvo" queda en title. Nunca "Todo el día".
+  assert.match(demo, /<label class="my-status-fullday" for="my-status-full-day" title="Todo fulvo">\s*<input type="checkbox" id="my-status-full-day">\s*<span aria-hidden="true">⚽❤️<\/span>\s*<span class="my-status-fullday-text">Libre<\/span>/);
   assert.doesNotMatch(demo, /Todo el día/);
   const fulldayLabel = sliceBetween(demo, '<label class="my-status-fullday"', '</label>', 'la pill de disponibilidad libre');
-  assert.doesNotMatch(fulldayLabel, /Libre/, 'el control de disponibilidad libre ya no dice "Libre"');
-  assert.doesNotMatch(fulldayLabel, /<span>Todo fulvo ⚽❤️<\/span>/, 'el texto visible "Todo fulvo ⚽❤️" ya no está en el chip');
+  assert.match(fulldayLabel, /<span class="my-status-fullday-text">Libre<\/span>/, 'el chip muestra "Libre" visible');
 
   // Pago: Ya pagué / Debo (data-value yes/no sin tocar).
   assert.match(demo, /data-value="yes" aria-pressed="false">Ya pagué</);
@@ -904,22 +903,24 @@ test("Mi estado: el label del input alterna 'Tu nombre' (registro) / 'Nombre en 
   assert.match(fn, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
 });
 
-test("Mi estado: el chip de día libre muestra sólo emojis pero sigue accesible como 'Todo fulvo'", async () => {
+test("Mi estado: el chip de día libre muestra 'Libre' visible + ⚽❤️, con 'Todo fulvo' en title (PR #21)", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const fulldayLabel = sliceBetween(demo, '<label class="my-status-fullday"', '</label>', 'la pill de disponibilidad libre');
-  // Visible en UI: sólo "⚽❤️" (con aria-hidden para no anunciar los emojis).
+  // Texto visible en la UI: "Libre" (ya no queda oculto en sr-only, era el hallazgo de la auditoría).
+  assert.match(fulldayLabel, /<span class="my-status-fullday-text">Libre<\/span>/);
+  // Los emojis siguen presentes y con aria-hidden (no se anuncian).
   assert.match(fulldayLabel, /<span aria-hidden="true">⚽❤️<\/span>/);
-  // El texto visible "Todo fulvo ⚽❤️" ya no aparece.
-  assert.doesNotMatch(fulldayLabel, /<span>Todo fulvo ⚽❤️<\/span>/);
-  assert.doesNotMatch(fulldayLabel, />Todo fulvo ⚽❤️</);
-  // "Todo fulvo" sigue comunicado: texto sr-only dentro del label + title. Con "fulvo" (v corta).
-  assert.match(fulldayLabel, /<span class="sr-only">Todo fulvo<\/span>/);
+  // "Todo fulvo" (jerga interna) queda como tooltip en title; el sr-only redundante se retiró.
   assert.match(fulldayLabel, /title="Todo fulvo"/);
+  assert.doesNotMatch(fulldayLabel, /class="sr-only"/, 'sr-only "Todo fulvo" quedó redundante al hacer "Libre" visible');
   assert.doesNotMatch(demo, /fulbo/i);
+  assert.doesNotMatch(demo, /Todo el día/);
   // El checkbox y el handler no cambian: misma id y misma conexión a setFullDayAvailability.
   assert.match(demo, /<input type="checkbox" id="my-status-full-day">/);
   assert.match(demo, /document\.getElementById\('my-status-full-day'\)\.onclick = setFullDayAvailability;/);
   assert.match(demo, /function setFullDayAvailability\(\)\{[\s\S]*?mockTimes\.classList\.toggle\('is-full-day', on\);/);
+  // En pantallas angostas el chip baja a fila propia sin la banda vacía (margin-left:auto -> 0).
+  assert.match(demo, /@media\(max-width:360px\)\{\s*\.my-status-fullday\{margin-left:0;\}\s*\}/);
 });
 
 test("Mi estado: el control de cambiar jugador es un ⇄ accesible que mantiene el handler", async () => {
