@@ -105,10 +105,7 @@ La interfaz puede ser compacta cuando el estado es normal y más explícita cuan
 
 Los chips pueden ser compactos en reposo y expresivos cuando representan un estado activo.
 
-Caso testigo:
-
-- reposo: `Todo el día`;
-- activo: `Siempre para la pelota ⚽❤️`.
+El chip de día completo es hoy una excepción a este patrón: usa un copy único (`Siempre para la pelota ⚽❤️`), sin variante en reposo. Ver "Decisiones ya alineadas" y "Deudas abiertas → Chip full-day".
 
 **Regla:** el texto largo aparece cuando aporta confirmación, emoción o seguridad, no como relleno permanente.
 
@@ -153,7 +150,7 @@ ASP no necesita animaciones decorativas. Una microinteracción debe cumplir al m
 Ejemplos válidos:
 
 - al marcar `Soy baja`, Disponibilidad se repliega;
-- al activar `Todo el día`, los selectores se ocultan visualmente;
+- al activar el chip de día completo (`Siempre para la pelota ⚽❤️`), los selectores se ocultan visualmente;
 - al guardar, aparece un estado claro de guardado;
 - si hay cambios sin guardar, aparece una señal sobria;
 - al marcar un pago, el estado cambia de forma evidente;
@@ -189,7 +186,7 @@ La disponibilidad segmentada, por ejemplo, sólo debería avanzar si la disponib
 1. Las acciones críticas llevan texto visible.
 2. Los símbolos pueden acompañar, no reemplazar.
 3. Los emojis son acento, no interfaz principal.
-4. Los chips pueden ser compactos en reposo y expresivos cuando están activos.
+4. Los chips pueden ser compactos en reposo y expresivos cuando están activos (el chip de día completo es hoy una excepción documentada: copy único — ver Deudas abiertas).
 5. Si una sección no aplica al estado actual, se oculta o se resume.
 6. Los estados de guardado y error son explícitos y sobrios.
 7. El microcopy futbolero vive mejor en estados secundarios, estados vacíos y confirmaciones.
@@ -203,7 +200,7 @@ La disponibilidad segmentada, por ejemplo, sólo debería avanzar si la disponib
 
 - `Soy baja` oculta Disponibilidad: si el jugador no juega, los horarios no aplican.
 - `Cambiar jugador` reemplaza a `⇄`: cambiar identidad es crítico y no debe ser críptico.
-- `Siempre para la pelota ⚽❤️` aporta identidad como estado expresivo; queda abierta la posibilidad de usar `Todo el día` en reposo y la versión expresiva al activarse.
+- `Siempre para la pelota ⚽❤️` es el copy único vigente del chip de día completo desde PR #22: un solo estado expresivo, sin variante en reposo. El chip colapsa los selectores de horario al activarse. El patrón "compacto en reposo / expresivo al activarse" para este chip queda como alternativa futura no aprobada (ver Deudas abiertas).
 
 ## Deudas abiertas
 
@@ -227,7 +224,12 @@ No avanzar sin evidencia de que la disponibilidad simple dejó de alcanzar.
 
 ### Chip full-day
 
-Evaluar el patrón compacto en reposo (`Todo el día`) y expresivo al activarse (`Siempre para la pelota ⚽❤️`).
+- **Estado vigente:** copy único `Siempre para la pelota ⚽❤️` (PR #22). Un solo estado expresivo, sin texto en reposo. Blindado por tests (`colapsar-selects-full-day.test.mjs`, `rendered-html.test.mjs`), que además prohíben la cadena `Todo el día`.
+- **Alternativa futura, no aprobada:** reposo `Todo el día` / activo `Siempre para la pelota ⚽❤️`.
+- Cambiar al patrón reposo/activo requeriría un PR de UI explícito que:
+  1. declare que revierte conscientemente la decisión de copy único de PR #22;
+  2. actualice los tests que hoy fijan el markup del chip y prohíben `Todo el día`;
+  3. responda las 5 preguntas del criterio de diseño, en particular la 2 (claridad de la acción) y la 5 (evidencia de uso real).
 
 ## Criterio para próximos PRs
 
