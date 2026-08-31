@@ -457,20 +457,19 @@
     color:var(--navy); border-radius:9px; padding:9px 10px; font:14px 'Inter',sans-serif; min-height:40px;
   }
   .my-status-time-pair select:disabled{cursor:not-allowed;}
+  /* El chip fluye a la izquierda, pegado a los selects (o en su propia fila si no
+     entra). Sin margin-left:auto: con el copy largo dejaba una banda vacía al envolver. */
   .my-status-fullday{
-    display:inline-flex; align-items:center; gap:7px; margin-left:auto; min-height:40px;
+    display:inline-flex; align-items:center; gap:7px; min-height:40px;
     padding:6px 12px; border:1px solid var(--celeste-deep); border-radius:999px;
     background:rgba(25,126,168,.08); color:var(--celeste-deep);
     font:700 12px 'Inter',sans-serif; cursor:pointer; white-space:nowrap; user-select:none;
   }
   .my-status-fullday input{width:16px; height:16px; margin:0; accent-color:var(--celeste-deep); cursor:pointer;}
-  /* En pantallas angostas el chip no entra en la fila de los selects: baja como fila
-     propia y arranca a la izquierda (sin el margin-left:auto que dejaba una banda vacía). */
-  @media(max-width:360px){
-    .my-status-fullday{margin-left:0;}
-  }
   .my-status-times.is-full-day .my-status-fullday{background:var(--celeste-deep); color:#fff;}
-  .my-status-times.is-full-day .my-status-time-pair{opacity:.5;}
+  /* Con el chip activo los selects no aportan nada (from/to quedan 09:00–22:00): se
+     ocultan y queda sólo el chip. Los nodos siguen en el DOM. */
+  .my-status-times.is-full-day .my-status-time-pair{display:none;}
   .my-status-confirm{
     width:100%; border:0; border-radius:9px; padding:12px; margin-top:13px;
     background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
@@ -721,8 +720,8 @@
         </div>
         <label class="my-status-fullday" for="my-status-full-day" title="Todo fulvo">
           <input type="checkbox" id="my-status-full-day">
+          <span class="my-status-fullday-text">Siempre para la pelota</span>
           <span aria-hidden="true">⚽❤️</span>
-          <span class="my-status-fullday-text">Libre</span>
         </label>
       </div>
       </div>
