@@ -30,7 +30,7 @@ test("HTML: label 'Disponibilidad' + selects + chip viven dentro de #my-status-a
   // El wrapper cierra justo antes del bloque de pago: label + times adentro, nada más.
   assert.match(
     demo,
-    /<span class="my-status-fullday-text">Libre<\/span>\s*<\/label>\s*<\/div>\s*<\/div>\s*<div class="my-status-payment" id="my-status-payment" hidden>/,
+    /<span aria-hidden="true">⚽❤️<\/span>\s*<\/label>\s*<\/div>\s*<\/div>\s*<div class="my-status-payment" id="my-status-payment" hidden>/,
   );
   // Los ids y el checkbox de siempre siguen adentro del wrapper.
   const wrapper = sliceBetween(
@@ -42,7 +42,7 @@ test("HTML: label 'Disponibilidad' + selects + chip viven dentro de #my-status-a
   assert.match(wrapper, /id="my-status-from"/);
   assert.match(wrapper, /id="my-status-to"/);
   assert.match(wrapper, /<input type="checkbox" id="my-status-full-day">/);
-  assert.match(wrapper, /<span class="my-status-fullday-text">Libre<\/span>/);
+  assert.match(wrapper, /<span class="my-status-fullday-text">Siempre para la pelota<\/span>/);
   assert.match(wrapper, /title="Todo fulvo"/);
 });
 
