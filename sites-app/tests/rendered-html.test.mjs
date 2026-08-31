@@ -811,8 +811,8 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   // disponibilidad entero (label incluido) cuando el jugador marca "Soy baja".
   assert.match(demo, /mockAvailabilityBlock\.hidden = mockAvailability === 'out';\s*\r?\n\s*syncPagoControls\(\);/);
 
-  // Identidad "Pablo + ⇄" intacta; el campo de nombre queda editable identificado.
-  assert.match(demo, /<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
+  // Identidad "Pablo + Cambiar jugador" intacta; el campo de nombre queda editable identificado.
+  assert.match(demo, /<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>Cambiar jugador<\/button>/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = false;/);
   assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
@@ -927,12 +927,14 @@ test("Mi estado: chip 'Siempre para la pelota ⚽❤️' + colapsa los selects c
   assert.match(demo, /function setFullDayAvailability\(\)\{[\s\S]*?mockTimes\.classList\.toggle\('is-full-day', on\);/);
 });
 
-test("Mi estado: el control de cambiar jugador es un ⇄ accesible que mantiene el handler", async () => {
+test("Mi estado: el control de cambiar jugador dice 'Cambiar jugador' (texto, no ⇄) y mantiene el handler (PR #23)", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  // Ícono compacto al lado del heading del nombre, con accesibilidad. La fila ya no arranca
-  // oculta (siempre hay heading); el ⇄ arranca hidden y lo muestra setRegisteredPlayerNameMode.
-  assert.match(demo, /<div class="my-status-identity-row" id="my-status-identity-row">\s*<p class="my-status-identity" id="my-status-identity">Elegí tu jugador<\/p>\s*<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>⇄<\/button>/);
-  assert.doesNotMatch(demo, /¿Te equivocaste de nombre\? Cambiar jugador/, 'no queda el botón de texto viejo');
+  // Botón de texto compacto al lado del heading del nombre. La fila ya no arranca oculta
+  // (siempre hay heading); el botón arranca hidden y lo muestra setRegisteredPlayerNameMode.
+  assert.match(demo, /<div class="my-status-identity-row" id="my-status-identity-row">\s*<p class="my-status-identity" id="my-status-identity">Elegí tu jugador<\/p>\s*<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>Cambiar jugador<\/button>/);
+  // Ya no queda el símbolo críptico "⇄" como contenido del control.
+  assert.doesNotMatch(demo, /class="change-player-btn"[^>]*>⇄</);
+  assert.doesNotMatch(demo, /¿Te equivocaste de nombre\? Cambiar jugador/, 'no queda el botón de texto viejo con esa frase');
   // La lógica de cambiar jugador no se toca: mismo id, mismo handler, mismo toggle de hidden.
   assert.match(demo, /document\.getElementById\('change-player-btn'\)\.onclick = \(\)=>\{/);
   assert.match(demo, /changeButton\.hidden = !ownResponse \|\| changingRegisteredPlayer;/);
@@ -944,8 +946,13 @@ test("Mi estado: el control de cambiar jugador es un ⇄ accesible que mantiene 
   );
   assert.match(changeHandler, /setRegisteredPlayerNameMode\(true\);/);
   assert.match(changeHandler, /renderRecurrentPlayerMenu\(\);/);
-  // Área táctil ampliada aunque el botón sea visualmente chico.
-  assert.match(demo, /\.change-player-btn::after\{content:"";position:absolute;inset:-6px;\}/);
+  // Botón de texto compacto con área táctil cómoda: min-height 40px, sin forzar ancho.
+  const rule = sliceBetween(demo, ".change-player-btn{", "}", "la regla del botón de cambiar jugador");
+  assert.match(rule, /min-height:40px/);
+  assert.match(rule, /white-space:nowrap/);
+  assert.match(rule, /font:700 11px 'Inter'/);
+  assert.doesNotMatch(rule, /width:\s*36px/);
+  assert.doesNotMatch(demo, /\.change-player-btn::after/, 'el hack de área táctil del ícono ya no hace falta');
 });
 
 test("Mi estado copy: no se toca Tarjetas ni computeCards", async () => {
