@@ -477,6 +477,7 @@
   .my-status-save-feedback[hidden]{display:none;}
   .my-status-save-feedback.ok{color:var(--ok);}
   .my-status-save-feedback.error{color:var(--danger);}
+  .my-status-save-feedback.pending{color:var(--duda);}
   .my-status-payment{border-top:1px dashed var(--card-border); margin-top:13px; padding-top:12px;}
   .my-status-payment[hidden]{display:none;}
   .my-status-payment .my-status-label{display:block;margin-bottom:6px;}
@@ -4002,7 +4003,8 @@ function showSaveFeedback(kind, message){
   el.textContent = message;
   el.hidden = false;
   if(saveFeedbackTimer) clearTimeout(saveFeedbackTimer);
-  // El éxito se autodesvanece; el error queda hasta que un guardado posterior lo reemplace.
+  // El éxito se autodesvanece; 'error' y 'pending' ("Cambios sin guardar") quedan hasta
+  // que otra cosa los reemplace. Sólo 'ok' arma el timer.
   if(kind === 'ok') saveFeedbackTimer = setTimeout(()=>{ el.hidden = true; el.textContent = ''; }, 4000);
 }
 
@@ -4024,6 +4026,35 @@ function tieneCambiosSinGuardar(){
   const objetivo = escrito || saved.habitualName || saved.name;
   return objetivo.toLocaleLowerCase('es') !== saved.name.toLocaleLowerCase('es');
 }
+
+// Señal sobria de edición pendiente. Reutiliza el canal de #my-status-save-feedback:
+//  - no pisa un 'error' real (validación o guardado fallido);
+//  - un 'ok' ya mostrado se mantiene hasta que el usuario vuelva a editar de verdad;
+//  - 'pending' aparece sólo si tieneCambiosSinGuardar(); si ya no hay cambios y lo
+//    visible era el propio aviso 'pending', se limpia.
+function refreshDirtyIndicator(){
+  const el = document.getElementById('my-status-save-feedback');
+  if(el.classList.contains('error')) return;
+  if(tieneCambiosSinGuardar()){
+    showSaveFeedback('pending','Cambios sin guardar');
+  }else if(el.classList.contains('pending')){
+    if(saveFeedbackTimer) clearTimeout(saveFeedbackTimer);
+    el.hidden = true;
+    el.textContent = '';
+    el.className = 'my-status-save-feedback';
+  }
+}
+
+// Un solo listener delegado sobre la card cubre selects, input de nombre y los botones
+// de estado sin tocar sus handlers. El click en "Guardar cambios" se excluye: su handler
+// ya maneja el feedback y no queremos un parpadeo 'pending' antes del 'ok'.
+const myStatusCard = document.getElementById('my-status-card');
+myStatusCard.addEventListener('change', refreshDirtyIndicator);
+myStatusCard.addEventListener('input', refreshDirtyIndicator);
+myStatusCard.addEventListener('click', event=>{
+  if(event.target.closest('#my-status-confirm')) return;
+  refreshDirtyIndicator();
+});
 
 mockFrom.addEventListener('change', syncMockToOptions);
 document.getElementById('my-status-full-day').onclick = setFullDayAvailability;
