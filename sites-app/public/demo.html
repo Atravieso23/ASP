@@ -3460,9 +3460,12 @@ function setRegisteredPlayerNameMode(allowChange=false){
   changeButton.hidden = !ownResponse || changingRegisteredPlayer;
   // La ceja/heading/label los fija renderIdentityHeader según el modo. Acá sólo la ayuda.
   if(ownResponse && !changingRegisteredPlayer){
-    input.placeholder = 'Tu nombre';
-    help.textContent = '';
-    help.hidden = true;
+    // "Nombre en la casaca" = nombre visible del grupo. El placeholder muestra la identidad
+    // base para que vaciar el campo (volver a ella) no sea una sorpresa, y el helper aclara
+    // que editar acá NO cambia el jugador elegido ni crea otra identidad.
+    input.placeholder = ownResponse.habitualName || ownResponse.name;
+    help.textContent = 'Así te ve el grupo en la lista. Editarlo no cambia tu jugador.';
+    help.hidden = false;
     hidePlayerNameFeedback();
     hideRecurrentPlayerMenu();
   }else if(ownResponse){

@@ -1220,10 +1220,62 @@ test("Nombre en la casaca: el guard vive en renderRecurrentPlayerMenu y setRegis
   // El modo "identificado" de setRegisteredPlayerNameMode limpia el menú y deja el input como texto libre.
   const mode = extractFnByName(demo, "setRegisteredPlayerNameMode");
   assert.match(mode, /if\(ownResponse && !changingRegisteredPlayer\)\{[\s\S]*?hideRecurrentPlayerMenu\(\);/);
-  assert.match(mode, /input\.placeholder = 'Tu nombre';/);
+  // El placeholder del modo identificado es la identidad base (vaciar el campo vuelve a ella).
+  assert.match(mode, /input\.placeholder = ownResponse\.habitualName \|\| ownResponse\.name;/);
   // ⇄ y registro inicial siguen abriendo el selector (no se tocan esas ramas).
   assert.match(demo, /document\.getElementById\('change-player-btn'\)\.onclick = \(\)=>\{[\s\S]*?renderRecurrentPlayerMenu\(\);/);
   assert.match(demo, /recurrentPlayerInput\.addEventListener\('focus',renderRecurrentPlayerMenu\)/);
+});
+
+// PR #30 — copy de "Nombre en la casaca": en modo identificado el campo necesita explicar
+// que es el nombre visible del grupo y que editarlo NO cambia el jugador ni crea identidad.
+test("PR #30 · casaca: en modo identificado el helper es persistente y con el copy exacto", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const mode = extractFnByName(demo, "setRegisteredPlayerNameMode");
+  const identBranch = sliceBetween(
+    mode,
+    "if(ownResponse && !changingRegisteredPlayer){",
+    "}else if(ownResponse){",
+    "rama identificada de setRegisteredPlayerNameMode",
+  );
+  assert.match(identBranch, /help\.textContent = 'Así te ve el grupo en la lista\. Editarlo no cambia tu jugador\.';/);
+  assert.match(identBranch, /help\.hidden = false;/);
+  assert.doesNotMatch(identBranch, /help\.hidden = true;/);
+});
+
+test("PR #30 · casaca: el placeholder del modo identificado es la identidad base", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const mode = extractFnByName(demo, "setRegisteredPlayerNameMode");
+  const identBranch = sliceBetween(
+    mode,
+    "if(ownResponse && !changingRegisteredPlayer){",
+    "}else if(ownResponse){",
+    "rama identificada de setRegisteredPlayerNameMode",
+  );
+  assert.match(identBranch, /input\.placeholder = ownResponse\.habitualName \|\| ownResponse\.name;/);
+  assert.doesNotMatch(identBranch, /input\.placeholder = 'Tu nombre';/);
+});
+
+test("PR #30 · casaca: el helper de registro / cambio de jugador no se contamina con el copy de casaca", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const mode = extractFnByName(demo, "setRegisteredPlayerNameMode");
+  const cambioYRegistro = sliceBetween(
+    mode,
+    "}else if(ownResponse){",
+    "renderIdentityHeader();",
+    "ramas de cambio de jugador y registro de setRegisteredPlayerNameMode",
+  );
+  assert.doesNotMatch(cambioYRegistro, /Así te ve el grupo/);
+  assert.match(cambioYRegistro, /help\.textContent = 'Elegí tu identidad de la lista, o tocá “Este soy yo” si no estás\.';/);
+  assert.match(cambioYRegistro, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
+  // El texto inicial del helper en el markup sigue siendo el de registro.
+  assert.match(demo, /id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados\./);
+});
+
+test("PR #30 · casaca: el label del campo sigue siendo 'Nombre en la casaca'", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
+  assert.match(demo, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
 });
 
 test("Nombre en la casaca libre: guardar preserva la identidad base y no toca Tarjetas/computeCards", async () => {
