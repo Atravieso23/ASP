@@ -986,6 +986,108 @@ test("da feedback inline de guardado y ofrece Reintentar al fallar", async () =>
   assert.doesNotMatch(confirmHandler, /Respuesta guardada y sincronizada/);
 });
 
+test("señal sobria de 'Cambios sin guardar': copy, CSS y cableado delegado", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  // Copy exacto, sin emoji ni chiste.
+  assert.match(demo, /showSaveFeedback\('pending','Cambios sin guardar'\)/);
+  // Estilo sobrio: color existente, sin fondo ni icono.
+  assert.match(demo, /\.my-status-save-feedback\.pending\{color:var\(--duda\);\}/);
+
+  // 'pending' no se auto-desvanece: sólo 'ok' arma el timer.
+  const showFeedback = sliceBetween(
+    demo,
+    "function showSaveFeedback(kind, message){",
+    "function responseDelJugadorActual",
+    "showSaveFeedback",
+  );
+  assert.match(showFeedback, /if\(kind === 'ok'\) saveFeedbackTimer = setTimeout\(/);
+  assert.doesNotMatch(showFeedback, /kind === 'pending'[\s\S]*setTimeout/);
+
+  // Cableado: un único listener delegado en la card llama al refresh; el CTA queda excluido.
+  const wiring = sliceBetween(
+    demo,
+    "const myStatusCard = document.getElementById('my-status-card');",
+    "mockFrom.addEventListener('change', syncMockToOptions);",
+    "el cableado del indicador de cambios sin guardar",
+  );
+  assert.match(wiring, /myStatusCard\.addEventListener\('change', refreshDirtyIndicator\)/);
+  assert.match(wiring, /myStatusCard\.addEventListener\('input', refreshDirtyIndicator\)/);
+  assert.match(wiring, /if\(event\.target\.closest\('#my-status-confirm'\)\) return;/);
+
+  // No se toca el CTA ni se agregan diálogos nuevos.
+  assert.doesNotMatch(demo, /beforeunload/);
+  const confirmHandler = sliceBetween(
+    demo,
+    "document.getElementById('my-status-confirm').onclick = async ()=>{",
+    "document.getElementById('change-player-btn').onclick",
+    "el handler de guardar Mi estado",
+  );
+  assert.doesNotMatch(confirmHandler, /refreshDirtyIndicator/);
+});
+
+test("refreshDirtyIndicator: protege 'error', mantiene 'ok' y no arma timer para 'pending'", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const el = {
+    _cls: "my-status-save-feedback",
+    hidden: true,
+    textContent: "",
+    get className() { return this._cls; },
+    set className(value) { this._cls = value; },
+    classList: { contains: (name) => el._cls.split(/\s+/).includes(name) },
+  };
+  const world = { dirty: false, timersArmed: 0 };
+  const context = vm.createContext({
+    document: { getElementById: (id) => (id === "my-status-save-feedback" ? el : null) },
+    setTimeout: () => { world.timersArmed += 1; return world.timersArmed; },
+    clearTimeout: () => {},
+    tieneCambiosSinGuardar: () => world.dirty,
+  });
+  vm.runInContext(
+    `let saveFeedbackTimer = null;
+     ${sliceBetween(demo, "function showSaveFeedback(kind, message){", "\n// La respuesta del jugador", "showSaveFeedback")}
+     ${sliceBetween(demo, "function refreshDirtyIndicator(){", "\n// Un solo listener delegado", "refreshDirtyIndicator")}`,
+    context,
+  );
+  const refresh = () => vm.runInContext("refreshDirtyIndicator()", context);
+
+  // Sin cambios: nada visible.
+  refresh();
+  assert.equal(el.hidden, true);
+
+  // Con cambios: 'pending' con el copy exacto y SIN timer.
+  world.dirty = true;
+  refresh();
+  assert.equal(el.hidden, false);
+  assert.equal(el.textContent, "Cambios sin guardar");
+  assert.ok(el.classList.contains("pending"));
+  assert.equal(world.timersArmed, 0);
+
+  // Se revierte el cambio y lo visible era 'pending': se limpia.
+  world.dirty = false;
+  refresh();
+  assert.equal(el.hidden, true);
+  assert.equal(el.textContent, "");
+
+  // Un 'error' real no lo pisa 'pending'.
+  vm.runInContext(
+    `showSaveFeedback('error', 'No pudimos guardar. Revisá tu conexión e intentá de nuevo.')`,
+    context,
+  );
+  world.dirty = true;
+  refresh();
+  assert.ok(el.classList.contains("error"));
+  assert.equal(el.textContent, "No pudimos guardar. Revisá tu conexión e intentá de nuevo.");
+
+  // 'ok' arma su timer (no se rompe) y se mantiene mientras no haya nuevos cambios.
+  vm.runInContext(`showSaveFeedback('ok', '✓ Cambios guardados')`, context);
+  assert.equal(world.timersArmed, 1);
+  world.dirty = false;
+  refresh();
+  assert.ok(el.classList.contains("ok"));
+});
+
 test("mueve el foco al primer campo con error al guardar", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const confirmHandler = sliceBetween(
