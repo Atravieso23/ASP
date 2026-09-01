@@ -269,7 +269,7 @@ test("Registro = buscador cerrado: el selector existe y el alta libre no", async
 
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
-  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\./);
+  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\. \(Seguro estuviste 👻\)</);
   // La lista base se administra por seed/patch: el menú del selector ya no borra identidades.
   assert.doesNotMatch(demo, /data-delete-recurrent-index/);
   // El alta libre por "Este soy yo" / registeringFirstTime se eliminó por completo.
@@ -1256,10 +1256,12 @@ test("PR #30 · casaca: el helper de registro / cambio de jugador no se contamin
     "ramas de cambio de jugador y registro de setRegisteredPlayerNameMode",
   );
   assert.doesNotMatch(cambioYRegistro, /Así te ve el grupo/);
-  // Cambio de jugador y Registro comparten el copy de lista cerrada aprobado en PR #31.
-  assert.match(cambioYRegistro, /help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\.';/);
-  // El texto inicial del helper en el markup es el de Registro.
-  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\./);
+  // Ambas ramas usan el copy de lista cerrada; la de Registro (else) suma el remate 👻,
+  // la de "Cambiar jugador" (else if) queda con el copy base.
+  assert.match(cambioYRegistro, /\}else if\(ownResponse\)\{\s*help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\.';/);
+  assert.match(cambioYRegistro, /\}else\{\s*help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\. \(Seguro estuviste 👻\)';/);
+  // El texto inicial del helper en el markup es el de Registro (con remate).
+  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\. \(Seguro estuviste 👻\)</);
 });
 
 test("PR #30 · casaca: el label del campo sigue siendo 'Nombre en la casaca'", async () => {

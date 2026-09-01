@@ -31,7 +31,8 @@ function confirmHandler() {
   return demo.slice(start, end);
 }
 
-const HELPER_COPY = "Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.";
+const HELPER_BASE = "Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.";
+const HELPER_REGISTRO = `${HELPER_BASE} (Seguro estuviste 👻)`;
 const EMPTY_COPY = "No encontramos ese nombre. Pedile a un organizador que te sume al grupo.";
 const GATE_COPY = "No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.";
 
@@ -85,12 +86,18 @@ test("3. una response no invitada nueva sólo se crea con habitualExacto y setea
 
 /* ---------- 4. helper de Registro ---------- */
 
-test("4. el helper de Registro usa el copy aprobado (markup + JS)", () => {
-  assert.match(demo, new RegExp(`id="player-picker-help">${HELPER_COPY.replace(/[.?]/g, "\\$&")}`));
+const esc = (s) => s.replace(/[.?*+^$()[\]{}|\\]/g, "\\$&");
+
+test("4. el helper de Registro usa el copy aprobado con el remate 👻 (markup + JS)", () => {
+  // Markup inicial (estado Registro) + reset del picker llevan el remate.
+  assert.match(demo, new RegExp(`id="player-picker-help">${esc(HELPER_REGISTRO)}`));
+  const reset = extractFn("resetPlayerPicker");
+  assert.match(reset, new RegExp(`help\\.textContent = '${esc(HELPER_REGISTRO)}';`));
+  // En setRegisteredPlayerNameMode: la rama anónima (Registro) lleva el remate; la rama
+  // "Cambiar jugador" mantiene el copy base (sin remate).
   const mode = extractFn("setRegisteredPlayerNameMode");
-  // Rama sin identificar (Registro) y rama "Cambiar jugador".
-  const matches = mode.match(/help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\.';/g) || [];
-  assert.equal(matches.length, 2, "Registro y Cambiar jugador comparten el copy de lista cerrada");
+  assert.match(mode, new RegExp(`\\}else\\{\\s*help\\.textContent = '${esc(HELPER_REGISTRO)}';`));
+  assert.match(mode, new RegExp(`\\}else if\\(ownResponse\\)\\{\\s*help\\.textContent = '${esc(HELPER_BASE)}';`));
   assert.doesNotMatch(mode, /Usá siempre el mismo nombre/);
 });
 
