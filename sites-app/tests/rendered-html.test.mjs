@@ -600,7 +600,7 @@ test("Falta confirmar: con faltantes muestra el copy fantasma, el chip con la ca
     responses: [{ name: "Roca", isGuest: false }],
   });
   assert.equal(block.hidden, false);
-  assert.equal(sub.textContent, "Tiren una señal, fantasmas 👻");
+  assert.equal(sub.textContent, "Tiren una señal, por favor 🙏");
   assert.equal(countEl.textContent, "2");
   assert.equal(countEl.hidden, false);
   assert.equal(namesEl.textContent, "Pablo, Mingo");
@@ -615,7 +615,7 @@ test("Falta confirmar: si falta uno, el copy es el mismo y el chip dice '1'", as
     habitualPlayers: ["Pablo", "Mingo"],
     responses: [{ name: "Mingo", isGuest: false }],
   });
-  assert.equal(sub.textContent, "Tiren una señal, fantasmas 👻");
+  assert.equal(sub.textContent, "Tiren una señal, por favor 🙏");
   assert.equal(countEl.textContent, "1");
   assert.equal(countEl.hidden, false);
   assert.equal(namesEl.textContent, "Pablo");
@@ -641,7 +641,7 @@ test("Falta confirmar: los invitados no cuentan como respuesta", async () => {
     habitualPlayers: ["Pablo", "Mingo"],
     responses: [{ name: "Pablo", isGuest: true, invitedBy: "Roca" }],
   });
-  assert.equal(sub.textContent, "Tiren una señal, fantasmas 👻");
+  assert.equal(sub.textContent, "Tiren una señal, por favor 🙏");
   assert.equal(countEl.textContent, "2");
   assert.equal(namesEl.textContent, "Pablo, Mingo");
 });
