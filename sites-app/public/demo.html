@@ -511,7 +511,10 @@
   }
   .falta-confirmar[hidden]{display:none;}
   .falta-confirmar-head{display:grid; gap:2px;}
+  .falta-confirmar-title-row{display:flex; align-items:center; gap:8px;}
   .falta-confirmar-title{margin:0; font:700 12px 'Oswald',sans-serif; letter-spacing:.07em; text-transform:uppercase; color:var(--navy);}
+  .falta-confirmar-count{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:20px; padding:0 7px; border-radius:999px; background:var(--bg-bottom); color:var(--celeste-deep); font:700 11px 'JetBrains Mono',monospace;}
+  .falta-confirmar-count[hidden]{display:none;}
   .falta-confirmar-sub{margin:0; font-size:11px; line-height:1.4; color:var(--muted);}
   .falta-confirmar--ok .falta-confirmar-sub{color:var(--ok);}
   .falta-confirmar-names{margin:0; font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);}
@@ -748,7 +751,10 @@
 
   <section class="falta-confirmar" id="falta-confirmar-block" aria-labelledby="falta-confirmar-title" hidden>
     <div class="falta-confirmar-head">
-      <h2 class="falta-confirmar-title" id="falta-confirmar-title">Falta confirmar</h2>
+      <div class="falta-confirmar-title-row">
+        <h2 class="falta-confirmar-title" id="falta-confirmar-title">Faltan confirmar</h2>
+        <span class="falta-confirmar-count" id="falta-confirmar-count" aria-label="Cuántos faltan confirmar" hidden></span>
+      </div>
       <p class="falta-confirmar-sub" id="falta-confirmar-sub"></p>
     </div>
     <p class="falta-confirmar-names" id="falta-confirmar-names"></p>
@@ -3284,6 +3290,9 @@ function renderFaltaConfirmar(){
   const sub = document.getElementById('falta-confirmar-sub');
   const namesEl = document.getElementById('falta-confirmar-names');
   const copyBtn = document.getElementById('falta-confirmar-copy');
+  // El chip del contador es opcional: null-guard para no romper harness de tests que no
+  // lo declaran. La feature sigue siendo sólo lectura (no toca estado ni storage).
+  const countEl = document.getElementById('falta-confirmar-count');
   if(!block || !sub || !namesEl || !copyBtn) return;
   const habituales = Array.isArray(state.habitualPlayers) ? state.habitualPlayers : [];
   // Sin grupo habitual sembrado no hay con qué comparar: se oculta el bloque entero. Es
@@ -3293,16 +3302,17 @@ function renderFaltaConfirmar(){
   const faltan = faltanConfirmar();
   if(faltan.length === 0){
     block.classList.add('falta-confirmar--ok');
-    sub.textContent = 'Todos respondieron ✅';
+    sub.textContent = 'Están todos ✅';
     namesEl.textContent = '';
     namesEl.hidden = true;
     copyBtn.hidden = true;
+    if(countEl) countEl.hidden = true;
     return;
   }
   block.classList.remove('falta-confirmar--ok');
-  sub.textContent = faltan.length === 1
-    ? '1 del grupo todavía no respondió'
-    : `${faltan.length} del grupo todavía no respondieron`;
+  // Copy con personalidad: el "cuántos" vive en el chip, no en una oración.
+  sub.textContent = 'Tiren una señal, fantasmas 👻';
+  if(countEl){ countEl.textContent = String(faltan.length); countEl.hidden = false; }
   namesEl.textContent = faltan.join(', ');
   namesEl.hidden = false;
   copyBtn.hidden = false;
