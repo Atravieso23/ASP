@@ -678,24 +678,7 @@
         <div class="my-status-time-pair">
           <label class="sr-only" for="my-status-from">Desde</label>
           <select id="my-status-from" aria-label="Desde">
-            <option value="09:00">09:00</option>
-            <option value="10:00">10:00</option>
-            <option value="11:00">11:00</option>
-            <option value="12:00">12:00</option>
-            <option value="13:00">13:00</option>
-            <option value="14:00">14:00</option>
-            <option value="15:00">15:00</option>
-            <option value="16:00" selected>16:00</option>
-            <option value="17:00">17:00</option>
-            <option value="18:00">18:00</option>
-            <option value="19:00">19:00</option>
-            <option value="20:00">20:00</option>
-            <option value="21:00">21:00</option>
-          </select>
-        </div>
-        <div class="my-status-time-pair">
-          <label class="sr-only" for="my-status-to">Hasta</label>
-          <select id="my-status-to" aria-label="Hasta">
+            <option value="" selected disabled>Desde</option>
             <option value="09:00">09:00</option>
             <option value="10:00">10:00</option>
             <option value="11:00">11:00</option>
@@ -707,7 +690,26 @@
             <option value="17:00">17:00</option>
             <option value="18:00">18:00</option>
             <option value="19:00">19:00</option>
-            <option value="20:00" selected>20:00</option>
+            <option value="20:00">20:00</option>
+            <option value="21:00">21:00</option>
+          </select>
+        </div>
+        <div class="my-status-time-pair">
+          <label class="sr-only" for="my-status-to">Hasta</label>
+          <select id="my-status-to" aria-label="Hasta">
+            <option value="" selected disabled>Hasta</option>
+            <option value="09:00">09:00</option>
+            <option value="10:00">10:00</option>
+            <option value="11:00">11:00</option>
+            <option value="12:00">12:00</option>
+            <option value="13:00">13:00</option>
+            <option value="14:00">14:00</option>
+            <option value="15:00">15:00</option>
+            <option value="16:00">16:00</option>
+            <option value="17:00">17:00</option>
+            <option value="18:00">18:00</option>
+            <option value="19:00">19:00</option>
+            <option value="20:00">20:00</option>
             <option value="21:00">21:00</option>
             <option value="22:00">22:00</option>
           </select>
@@ -3879,9 +3881,13 @@ let mockPreviousTimes = null;
 
 function syncMockToOptions(){
   const previousTo = mockTo.value;
-  const validHours = mockHourOptions.filter(hour=>hour>mockFrom.value);
-  mockTo.innerHTML = validHours.map(hour=>`<option value="${hour}">${hour}</option>`).join('');
-  mockTo.value = validHours.includes(previousTo) ? previousTo : validHours[0];
+  // "Desde"/"Hasta" son placeholders: sin "Desde" elegido, "Hasta" queda sólo con el
+  // placeholder; con "Desde" se ofrecen únicamente las horas posteriores. Si el "Hasta"
+  // anterior ya no es válido, vuelve al placeholder (nunca a una hora arbitraria).
+  const validHours = mockFrom.value ? mockHourOptions.filter(hour=>hour>mockFrom.value) : [];
+  mockTo.innerHTML = '<option value="" disabled>Hasta</option>'
+    + validHours.map(hour=>`<option value="${hour}">${hour}</option>`).join('');
+  mockTo.value = validHours.includes(previousTo) ? previousTo : '';
 }
 
 function setFullDayAvailability(){
@@ -3966,9 +3972,8 @@ function resetMyStatusCard(){
   mockFrom.disabled = false;
   mockTo.disabled = false;
   mockTimes.classList.remove('is-full-day');
-  mockFrom.value = '16:00';
+  mockFrom.value = '';
   syncMockToOptions();
-  mockTo.value = '20:00';
   mockAvailabilityBlock.hidden = false;
   mockPayment.hidden = true;
   guestManager.hidden = true;
@@ -4062,8 +4067,10 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   const confirmButton = document.getElementById('my-status-confirm');
   const nameInput = document.getElementById('my-player-name');
   let playerName = nameInput.value.trim();
-  const from = document.getElementById('my-status-from').value || '16:00';
-  const to = document.getElementById('my-status-to').value || '20:00';
+  // Sin fallback: "Desde"/"Hasta" vacíos deben quedar vacíos para que la validación los
+  // corte. Una franja real sólo entra si el jugador la eligió (o activó full-day).
+  const from = document.getElementById('my-status-from').value;
+  const to = document.getElementById('my-status-to').value;
   const existingResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   // "Editar mi estado": ya identificado y sin estar eligiendo/cambiando de identidad. En
   // ese modo el input es el nombre visible y se puede escribir libre; vacío = volver a la
@@ -4114,6 +4121,11 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
       return;
     }
   }
+  if(mockAvailability !== 'out' && (!from || !to)){
+    document.getElementById(from ? 'my-status-to' : 'my-status-from').focus();
+    showSaveFeedback('error','Elegí desde y hasta qué hora podés jugar.');
+    return;
+  }
   if(mockAvailability !== 'out' && to <= from){
     document.getElementById('my-status-to').focus();
     showSaveFeedback('error','El horario “Hasta” debe ser posterior a “Desde”.');
@@ -4133,8 +4145,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     ownerIds:existingResponse?.ownerIds || [currentSessionUserId],
     name:playerName,
     status:mockAvailability,
-    from:mockAvailability==='out' ? (existingResponse ? existingResponse.from : from) : from,
-    to:mockAvailability==='out' ? (existingResponse ? existingResponse.to : to) : to,
+    from:mockAvailability==='out' ? (existingResponse ? existingResponse.from : (from || '16:00')) : from,
+    to:mockAvailability==='out' ? (existingResponse ? existingResponse.to : (to || '20:00')) : to,
     paid:mockAvailability==='in' ? (existingResponse?.paid === true)
       : mockAvailability==='out' ? (existingResponse ? existingResponse.paid : null)
       : null,

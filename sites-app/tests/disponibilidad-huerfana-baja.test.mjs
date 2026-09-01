@@ -123,9 +123,10 @@ test("5. ni el data model ni from/to/full-day cambian", () => {
   // El único uso de mockTimes que queda es la clase visual is-full-day.
   const usosMockTimes = [...demo.matchAll(/mockTimes\.[a-zA-Z]+/g)].map((m) => m[0]);
   assert.deepEqual(new Set(usosMockTimes), new Set(["mockTimes.classList"]));
-  // "Soy baja" sigue preservando la franja guardada (PR A), sin vaciarla.
-  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : from\) : from/);
-  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : to\) : to/);
+  // "Soy baja" sigue preservando la franja guardada (PR A); una baja nueva cae a un valor
+  // concreto (PR #33: los selects arrancan vacíos y "out" no debe persistir "").
+  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : \(from \|\| '16:00'\)\) : from/);
+  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : \(to \|\| '20:00'\)\) : to/);
   // El helper de día completo no se tocó.
   assert.match(demo, /function setFullDayAvailability\(\)\{[\s\S]*?mockTimes\.classList\.toggle\('is-full-day', on\);/);
 });
