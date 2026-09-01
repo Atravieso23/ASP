@@ -663,7 +663,7 @@
         <label for="my-player-name" id="my-player-name-label">Tu nombre</label>
         <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
-        <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo. (Seguro estuviste 👻)</p>
+        <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
       </div>
       <span class="my-status-label">Estado</span>
@@ -3453,7 +3453,7 @@ function setRegisteredPlayerNameMode(allowChange=false){
     help.hidden = false;
     showPlayerNameFeedback('info','Cambio de jugador activado.',' Elegí otra identidad de la lista.');
   }else{
-    help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo. (Seguro estuviste 👻)';
+    help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)';
     help.hidden = false;
   }
   renderIdentityHeader();
@@ -3511,7 +3511,7 @@ function resetPlayerPicker(preserveValue=false){
   const confirm = document.getElementById('my-status-confirm');
   if(!preserveValue) input.value = '';
   input.placeholder = 'Buscá tu nombre';
-  help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo. (Seguro estuviste 👻)';
+  help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)';
   help.hidden = false;
   confirm.textContent = 'Guardar cambios';
   hidePlayerNameFeedback();

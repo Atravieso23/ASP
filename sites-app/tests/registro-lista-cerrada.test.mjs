@@ -31,8 +31,9 @@ function confirmHandler() {
   return demo.slice(start, end);
 }
 
+// "Cambiar jugador" conserva "…al grupo."; Registro usa "…en el grupo." + remate 👻 (PR #34).
 const HELPER_BASE = "Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.";
-const HELPER_REGISTRO = `${HELPER_BASE} (Seguro estuviste 👻)`;
+const HELPER_REGISTRO = "Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)";
 const EMPTY_COPY = "No encontramos ese nombre. Pedile a un organizador que te sume al grupo.";
 const GATE_COPY = "No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.";
 
