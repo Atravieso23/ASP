@@ -81,8 +81,8 @@ test("4+5. el selector de identidad y 'Nombre en la casaca' siguen igual", () =>
   assert.match(demo, /if\(propiaResponse && !changingRegisteredPlayer\)\{ hideRecurrentPlayerMenu\(\); return; \}/);
   assert.match(demo, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
   assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
-  // El menú de habituales sólo se puebla en alta o al cambiar identidad — sin tocar.
-  assert.match(demo, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  // El menú de habituales sólo se puebla sin identificar o al cambiar identidad — sin tocar.
+  assert.match(demo, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer;/);
 });
 
 /* ---------- 6–9. no toca otras zonas ---------- */

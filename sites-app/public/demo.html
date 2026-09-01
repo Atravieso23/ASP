@@ -416,9 +416,6 @@
     color:var(--navy); border-radius:9px; padding:10px 12px; font:14px 'Inter',sans-serif;
   }
   .recurrent-player-field{position:relative;}
-  .player-picker-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;}
-  .player-picker-mode{border:1px solid var(--card-border);border-radius:9px;background:var(--bg-bottom);color:var(--celeste-deep);padding:0 10px;font:700 11px 'Inter',sans-serif;cursor:pointer;white-space:nowrap;}
-  .player-picker-mode.active{background:var(--celeste-deep);border-color:var(--celeste-deep);color:#fff;}
   .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
   .player-picker-help[hidden]{display:none;}
   .player-name-feedback{margin:9px 0 0;padding:10px 11px;border-radius:9px;font-size:11.5px;line-height:1.45;}
@@ -664,12 +661,9 @@
       </div>
       <div class="my-status-field recurrent-player-field">
         <label for="my-player-name" id="my-player-name-label">Tu nombre</label>
-        <div class="player-picker-row">
-          <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
-          <button type="button" class="player-picker-mode" id="first-time-player-btn">Este soy yo</button>
-        </div>
+        <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
-        <p class="player-picker-help" id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados.</p>
+        <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.</p>
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
       </div>
       <span class="my-status-label">Estado</span>
@@ -3014,7 +3008,6 @@ document.getElementById('maps-btn').onclick = ()=>{
 const LOCAL_AVAILABILITY_KEY = 'asp_availability_demo_v1';
 const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
 const LOCAL_DEMO_SEEDED_KEY = 'asp_demo_responses_seeded_v3';
-const LOCAL_RECURRENT_PLAYERS_KEY = 'asp_recurrent_players_demo_v1';
 const DEFAULT_DEMO_RESPONSES = [
   {name:'Clara', status:'in', from:'16:00', to:'20:00', paid:true, team:'negro'},
   {name:'Fede', status:'in', from:'17:00', to:'21:00', paid:false, team:'blanco'},
@@ -3038,7 +3031,6 @@ const DEFAULT_DEMO_RESPONSES = [
 let localAvailabilityResponses = [];
 let currentLocalResponseName = '';
 let recurrentPlayers = [];
-let registeringFirstTime = false;
 let changingRegisteredPlayer = false;
 let pendingClaimResponseId = '';
 
@@ -3235,10 +3227,6 @@ async function eliminarJugador(responseId){
   });
 }
 
-function saveRecurrentPlayers(){
-  try{ localStorage.setItem(LOCAL_RECURRENT_PLAYERS_KEY, JSON.stringify(recurrentPlayers)); }
-  catch(e){ console.error('No se pudo guardar la lista de jugadores recurrentes', e); }
-}
 function deriveSelectorNames(estado = state, responses = localAvailabilityResponses){
   const habituales = (estado && Array.isArray(estado.habitualPlayers)) ? estado.habitualPlayers : [];
   // El selector "¿Quién sos?" representa la identidad base del grupo, no el historial.
@@ -3410,14 +3398,6 @@ async function saldarBirra(playerName){
 function loadRecurrentPlayers(){
   recurrentPlayers = deriveSelectorNames();
 }
-function addRecurrentPlayer(name){
-  const existing = recurrentPlayers.find(item=>item.toLocaleLowerCase('es')===name.toLocaleLowerCase('es'));
-  if(existing) return existing;
-  recurrentPlayers.push(name);
-  recurrentPlayers.sort((a,b)=>a.localeCompare(b,'es'));
-  saveRecurrentPlayers();
-  return name;
-}
 function hideRecurrentPlayerMenu(){
   const menu = document.getElementById('recurrent-player-menu');
   menu.hidden = true;
@@ -3448,7 +3428,6 @@ function showDuplicateNameFeedback(name){
 }
 function setRegisteredPlayerNameMode(allowChange=false){
   const input = document.getElementById('my-player-name');
-  const modeButton = document.getElementById('first-time-player-btn');
   const changeButton = document.getElementById('change-player-btn');
   const help = document.getElementById('player-picker-help');
   const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
@@ -3456,7 +3435,6 @@ function setRegisteredPlayerNameMode(allowChange=false){
   // El input siempre es editable: identificado es el nombre visible; anónimo/cambiar es la
   // búsqueda de identidad. Ya no hay un editor de nombre visible aparte.
   input.readOnly = false;
-  modeButton.hidden = Boolean(ownResponse) && !changingRegisteredPlayer;
   changeButton.hidden = !ownResponse || changingRegisteredPlayer;
   // La ceja/heading/label los fija renderIdentityHeader según el modo. Acá sólo la ayuda.
   if(ownResponse && !changingRegisteredPlayer){
@@ -3469,11 +3447,11 @@ function setRegisteredPlayerNameMode(allowChange=false){
     hidePlayerNameFeedback();
     hideRecurrentPlayerMenu();
   }else if(ownResponse){
-    help.textContent = 'Elegí tu identidad de la lista, o tocá “Este soy yo” si no estás.';
+    help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.';
     help.hidden = false;
     showPlayerNameFeedback('info','Cambio de jugador activado.',' Elegí otra identidad de la lista.');
   }else{
-    help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
+    help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.';
     help.hidden = false;
   }
   renderIdentityHeader();
@@ -3481,10 +3459,9 @@ function setRegisteredPlayerNameMode(allowChange=false){
 function renderRecurrentPlayerMenu(){
   const input = document.getElementById('my-player-name');
   const menu = document.getElementById('recurrent-player-menu');
-  if(registeringFirstTime){ hideRecurrentPlayerMenu(); return; }
   // "Nombre en la casaca" es texto libre: con el jugador ya identificado y fuera del modo
-  // "Cambiar jugador" (⇄), el input NO busca identidades ni abre el menú de habituales.
-  // El selector sólo aparece en alta (registeringFirstTime) o al cambiar de identidad.
+  // "Cambiar jugador", el input NO busca identidades ni abre el menú de habituales.
+  // El selector sólo aparece sin identificar (Registro) o al cambiar de identidad.
   const propiaResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
   if(propiaResponse && !changingRegisteredPlayer){ hideRecurrentPlayerMenu(); return; }
   const query = input.value.trim().toLocaleLowerCase('es');
@@ -3495,7 +3472,7 @@ function renderRecurrentPlayerMenu(){
   menu.innerHTML = filtered.length ? filtered.map(item=>`
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
-    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Tocá “Este soy yo” para usar uno nuevo.</p>';
+    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Pedile a un organizador que te sume al grupo.</p>';
   menu.hidden = false;
   input.setAttribute('aria-expanded','true');
   menu.querySelectorAll('[data-recurrent-index]').forEach(button=>{
@@ -3523,28 +3500,22 @@ function renderRecurrentPlayerMenu(){
   // La lista base de identidades se administra por seed/patch, no desde la app: el menú
   // "¿Quién sos?" sólo sirve para elegir identidad, sin acción de borrado.
 }
-function setFirstTimeRegistration(active,preserveValue=false){
-  registeringFirstTime = active;
+// Registro = buscador cerrado sobre identidades existentes. Deja la card lista para
+// elegirse de la lista: sin identificar todavía, placeholder de búsqueda, helper que
+// orienta a pedir el alta al grupo. `preserveValue` conserva lo tipeado.
+function resetPlayerPicker(preserveValue=false){
   const input = document.getElementById('my-player-name');
-  const button = document.getElementById('first-time-player-btn');
   const help = document.getElementById('player-picker-help');
   const confirm = document.getElementById('my-status-confirm');
   if(!preserveValue) input.value = '';
-  button.classList.toggle('active', active);
-  button.textContent = active ? 'Cancelar' : 'Este soy yo';
-  input.placeholder = active ? 'Escribí tu nombre' : 'Buscá tu nombre';
-  help.textContent = 'Usá siempre el mismo nombre para evitar duplicados.';
+  input.placeholder = 'Buscá tu nombre';
+  help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.';
   help.hidden = false;
   confirm.textContent = 'Guardar cambios';
-  if(active){
-    const typedName = input.value.trim();
-    const duplicate = recurrentPlayers.some(name=>name.toLocaleLowerCase('es')===typedName.toLocaleLowerCase('es'));
-    if(typedName && duplicate) showDuplicateNameFeedback(typedName);
-    else showPlayerNameFeedback('info','Estás creando un jugador nuevo.',' Si hay otra persona con tu mismo nombre, agregá tu apellido.');
-  }else hidePlayerNameFeedback();
+  hidePlayerNameFeedback();
   hideRecurrentPlayerMenu();
   renderIdentityHeader();
-  if(active || !preserveValue) input.focus();
+  if(!preserveValue) input.focus();
 }
 
 function clearLocalOrganizerState(){
@@ -3850,12 +3821,9 @@ const recurrentPlayerInput = document.getElementById('my-player-name');
 recurrentPlayerInput.addEventListener('focus',renderRecurrentPlayerMenu);
 recurrentPlayerInput.addEventListener('input',()=>{
   recurrentPlayerInput.removeAttribute('aria-invalid');
-  if(registeringFirstTime){
-    showPlayerNameFeedback('info','Estás creando un jugador nuevo.',' Si hay otra persona con tu mismo nombre, agregá tu apellido.');
-  }else hidePlayerNameFeedback();
+  hidePlayerNameFeedback();
   renderRecurrentPlayerMenu();
 });
-document.getElementById('first-time-player-btn').onclick = ()=>setFirstTimeRegistration(!registeringFirstTime,true);
 document.addEventListener('pointerdown',event=>{
   if(!recurrentPlayerField.contains(event.target)) hideRecurrentPlayerMenu();
 });
@@ -3942,7 +3910,7 @@ function restoreCurrentLocalResponse(){
   );
   if(!response) return;
 
-  setFirstTimeRegistration(false,true);
+  resetPlayerPicker(true);
   document.getElementById('my-player-name').value = response.name;
   setRegisteredPlayerNameMode(false);
   mockAvailability = response.status;
@@ -3986,7 +3954,7 @@ function syncPagoControls(){
 
 function resetMyStatusCard(){
   currentLocalResponseName = '';
-  setFirstTimeRegistration(false);
+  resetPlayerPicker();
   mockAvailability = 'in';
   document.querySelectorAll('.my-status-choice button').forEach(option=>{
     const selected = option.dataset.value === 'in';
@@ -4100,7 +4068,7 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   // "Editar mi estado": ya identificado y sin estar eligiendo/cambiando de identidad. En
   // ese modo el input es el nombre visible y se puede escribir libre; vacío = volver a la
   // identidad base. Elegir identidad (alta o "Cambiar jugador") sigue exigiendo la lista.
-  const editandoMiEstado = Boolean(existingResponse) && !changingRegisteredPlayer && !registeringFirstTime;
+  const editandoMiEstado = Boolean(existingResponse) && !changingRegisteredPlayer;
   if(!playerName){
     if(editandoMiEstado){
       playerName = existingResponse.habitualName || existingResponse.name;
@@ -4113,12 +4081,13 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
     }
   }
   const recurrentMatch = recurrentPlayers.find(name=>name.toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
-  // Al cambiar de jugador se admite un nombre nuevo: corregirse es justamente
-  // el motivo de ese modo. Los controles de nombre duplicado siguen aplicando.
-  if(!registeringFirstTime && !changingRegisteredPlayer && !recurrentMatch && !editandoMiEstado){
+  // Registro = buscador cerrado: identificarse (o cambiar de identidad) sólo vale contra
+  // una entrada exacta del selector. Un nombre libre nunca crea un jugador desde acá.
+  // La única excepción es editar "Nombre en la casaca" ya identificado (texto libre).
+  if(!recurrentMatch && !editandoMiEstado){
     nameInput.setAttribute('aria-invalid','true');
-    showPlayerNameFeedback('error','No encontramos ese jugador.',' Elegí un nombre de la lista o tocá “Este soy yo”.');
-    showToast('No encontramos ese nombre. Elegilo de la lista o tocá “Este soy yo”.');
+    showPlayerNameFeedback('error','No encontramos ese nombre.',' Elegí uno de la lista o pedí que te agreguen al grupo.');
+    showToast('No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.');
     nameInput.focus();
     renderRecurrentPlayerMenu();
     return;
@@ -4178,6 +4147,17 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   const habitualExacto = (state.habitualPlayers || []).find(h=>String(h).toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
   const habitualName = editandoMiEstado ? existingResponse.habitualName : habitualExacto;
   if(habitualName) response.habitualName = habitualName;
+  // Guard duro de identidad cerrada: fuera de editar "Nombre en la casaca", una response no
+  // invitada sólo se guarda con una identidad habitual exacta. Sin habitualExacto no hay
+  // identidad estable que asignar; se bloquea y se orienta a pedir el alta al grupo.
+  if(!editandoMiEstado && !habitualExacto){
+    nameInput.setAttribute('aria-invalid','true');
+    showPlayerNameFeedback('error','No encontramos ese nombre.',' Elegí uno de la lista o pedí que te agreguen al grupo.');
+    showToast('No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.');
+    nameInput.focus();
+    renderRecurrentPlayerMenu();
+    return;
+  }
   confirmButton.disabled = true;
   confirmButton.textContent = 'Guardando…';
   const result = await savePlayerRegistration(response);
@@ -4201,12 +4181,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   showSaveFeedback('ok','✓ Cambios guardados');
   currentLocalResponseName = playerName;
   hidePlayerNameFeedback();
-  // Editar tu nombre visible NO lo agrega al selector "¿Quién sos?": esa lista es la
-  // identidad base del grupo. Sólo se registra al elegir/cambiar identidad.
-  if(!editandoMiEstado) addRecurrentPlayer(playerName);
-  if(registeringFirstTime){
-    setFirstTimeRegistration(false,true);
-  }
+  // El selector "¿Quién sos?" se deriva siempre de habitualPlayers + identidades existentes
+  // (deriveSelectorNames): no se le agregan nombres desde este flujo.
   nameInput.value = playerName;
   try{ localStorage.setItem(LOCAL_CURRENT_PLAYER_KEY, currentLocalResponseName); }
   catch(e){ console.error('No se pudo guardar la selección local del jugador', e); }
