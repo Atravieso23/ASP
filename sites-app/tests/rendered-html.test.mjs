@@ -144,8 +144,8 @@ test("offers En duda as a third availability state without counting it as confir
   assert.match(demo, /player\.paid = response\.status === 'in' && response\.paid === true/);
 
   // Duda conserva su franja horaria; y desde PR A "No estoy" tampoco la borra:
-  // preserva from/to/paid de la respuesta guardada en vez de vaciarlos.
-  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : from\) : from/);
+  // preserva from/to/paid de la respuesta guardada en vez de vaciarlos (baja nueva → concreto).
+  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : \(from \|\| '16:00'\)\) : from/);
 });
 
 test("clears local responses and keeps date actions in organizer", async () => {
@@ -823,10 +823,11 @@ test("No estoy preserva el horario y el pago de la respuesta guardada", async ()
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   // Prioriza siempre la existingResponse guardada; sólo cae al valor del formulario
-  // cuando todavía no hay respuesta previa (primera acción del jugador). Nada de
-  // fallback por truthiness que pueda reintroducir un select stale.
-  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : from\) : from/);
-  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : to\) : to/);
+  // cuando todavía no hay respuesta previa (primera acción del jugador). Una baja nueva
+  // cae a un valor concreto porque los selects arrancan vacíos (PR #33) y "out" no debe
+  // persistir "".
+  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : \(from \|\| '16:00'\)\) : from/);
+  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : \(to \|\| '20:00'\)\) : to/);
   assert.match(demo, /: mockAvailability==='out' \? \(existingResponse \? existingResponse\.paid : null\)/);
 
   // Ya no se vacían los campos al marcar No estoy.

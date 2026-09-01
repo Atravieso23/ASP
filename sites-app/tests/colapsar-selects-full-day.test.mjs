@@ -172,9 +172,10 @@ test("9. setFullDayAvailability no cambió (semántica 09:00–22:00 + restore +
 });
 
 test("10. data model: from/to/full-day sin cambios; el toggle sigue por style/clase, no por JS nuevo", () => {
-  // "Soy baja" preserva la franja guardada (PR A) — intacto.
-  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : from\) : from/);
-  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : to\) : to/);
+  // "Soy baja" preserva la franja guardada (PR A); una baja nueva cae a un valor concreto
+  // (PR #33: los selects arrancan vacíos, pero "out" no debe persistir "" — es inerte igual).
+  assert.match(demo, /from:mockAvailability==='out' \? \(existingResponse \? existingResponse\.from : \(from \|\| '16:00'\)\) : from/);
+  assert.match(demo, /to:mockAvailability==='out' \? \(existingResponse \? existingResponse\.to : \(to \|\| '20:00'\)\) : to/);
   // Los pares se ocultan sólo por CSS: ningún JS referencia `.my-status-time-pair`.
   assert.doesNotMatch(demo, /my-status-time-pair'\)/);
 });
