@@ -363,14 +363,16 @@ test("el menú del selector filtra por substring y muestra hasta 20 (entran las 
   assert.doesNotMatch(menu, /\.slice\(0,12\)/);
 });
 
-test("input libre para jugador nuevo sigue intacto ('Este soy yo' / registeringFirstTime)", () => {
-  const setFirst = extractFunction(demo, "setFirstTimeRegistration");
-  assert.match(setFirst, /registeringFirstTime = active/);
-  assert.match(demo, /id="first-time-player-btn"/);
-  assert.match(demo, /Este soy yo/);
-  // El gate de confirmación sigue admitiendo un nombre nuevo en modo alta.
+test("PR #31: el alta libre desde 'Mi estado' ya no existe (Registro = buscador cerrado)", () => {
+  // El afordance de crear un jugador nuevo tipeando texto libre se eliminó por completo.
+  assert.doesNotMatch(demo, /id="first-time-player-btn"/);
+  assert.doesNotMatch(demo, /Este soy yo/);
+  assert.doesNotMatch(demo, /function setFirstTimeRegistration/);
+  assert.doesNotMatch(demo, /registeringFirstTime/);
+  // El gate de confirmación bloquea siempre un nombre que no matchea el selector.
   const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
-  assert.match(handler, /!registeringFirstTime && !changingRegisteredPlayer && !recurrentMatch/);
+  assert.doesNotMatch(handler, /!registeringFirstTime/);
+  assert.match(handler, /if\(!recurrentMatch && !editandoMiEstado\)\{/);
 });
 
 test("deriveSelectorNames no toca faltanConfirmar (bloque independiente, sin cambios)", () => {
@@ -434,9 +436,11 @@ test("al confirmar como habitual 'Pablo', la response guarda habitualName:'Pablo
   assert.match(handler, /const habitualExacto = \(state\.habitualPlayers \|\| \[\]\)\.find\(/);
   assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
   assert.match(handler, /if\(habitualName\) response\.habitualName = habitualName;/);
-  // El dueño editando su propio estado no rebota por el gate de "no encontramos ese jugador".
-  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  // El dueño editando su propio estado no rebota por el gate de "no encontramos ese nombre".
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer;/);
   assert.match(handler, /!recurrentMatch && !editandoMiEstado\)\{/);
+  // Guard duro: sin habitualExacto (y fuera de editar la casaca) no se guarda.
+  assert.match(handler, /if\(!editandoMiEstado && !habitualExacto\)\{/);
 });
 
 test("al elegir identidad, name y habitualName quedan en la identidad base exacta", () => {
@@ -462,7 +466,6 @@ test("las listas del partido muestran el nombre visible (response.name), no habi
 test("la copy de identidad del jugador no sugiere 'apodo' como default", () => {
   // Identidad base = nombre real/corto. El desambiguador de homónimos es el apellido.
   assert.match(demo, /agregá tu apellido para diferenciarte/);
-  assert.match(demo, /agregá tu apellido\./);
   assert.match(demo, /Agregá tu apellido para distinguirte/);
   assert.doesNotMatch(demo, /agregá tu apellido o apodo/);
   assert.doesNotMatch(demo, /Agregá apellido o apodo para distinguirte/);
@@ -491,14 +494,14 @@ test("PR #11: no queda el editor de nombre visible separado", () => {
 test("editar tu nombre visible desde el CTA preserva la identidad base y no toca el selector", () => {
   const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
   // editandoMiEstado = ya identificado y sin estar eligiendo/cambiando identidad.
-  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer;/);
   // La identidad base NUNCA cambia editando tu estado (aunque el nombre visible coincida
   // con otra identidad de la lista).
   assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
   // Input vacío -> vuelve a la identidad base.
   assert.match(handler, /playerName = existingResponse\.habitualName \|\| existingResponse\.name;/);
-  // El nombre visible editado NO entra al selector "¿Quién sos?".
-  assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
+  // El selector "¿Quién sos?" se deriva de habitualPlayers: no se le agregan nombres desde acá.
+  assert.doesNotMatch(handler, /addRecurrentPlayer/);
 });
 
 test("el CTA resuelve la response propia por responseId y preserva paid/team/ownerIds", () => {

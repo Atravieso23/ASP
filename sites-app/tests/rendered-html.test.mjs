@@ -264,28 +264,25 @@ test("rebuilds formations for every field type change", async () => {
     'vuelve a materializar el default del tipo nuevo');
 });
 
-test("supports recurrent players with identity-focused first-time copy", async () => {
+test("Registro = buscador cerrado: el selector existe y el alta libre no", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
-  assert.match(demo, /LOCAL_RECURRENT_PLAYERS_KEY/);
-  assert.match(demo, /id="first-time-player-btn">Este soy yo/);
-  assert.match(demo, /id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados\./);
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
+  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\./);
   // La lista base se administra por seed/patch: el menú del selector ya no borra identidades.
   assert.doesNotMatch(demo, /data-delete-recurrent-index/);
-  assert.match(demo, /function setFirstTimeRegistration\(active,preserveValue=false\)/);
-  assert.match(demo, /setFirstTimeRegistration\(!registeringFirstTime,true\)/);
-  assert.match(demo, /button\.textContent = active \? 'Cancelar' : 'Este soy yo';/);
-  // El label del input ya no se fija acá: lo decide renderIdentityHeader según el modo.
-  const setFirst = sliceBetween(demo, "function setFirstTimeRegistration(active,preserveValue=false){", "\nfunction clearLocalOrganizerState", "setFirstTimeRegistration");
-  assert.doesNotMatch(setFirst, /label\.textContent/);
-  assert.match(setFirst, /renderIdentityHeader\(\);/);
-  assert.match(demo, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
+  // El alta libre por "Este soy yo" / registeringFirstTime se eliminó por completo.
+  assert.doesNotMatch(demo, /LOCAL_RECURRENT_PLAYERS_KEY/);
+  assert.doesNotMatch(demo, /first-time-player-btn/);
+  assert.doesNotMatch(demo, /Este soy yo/);
+  assert.doesNotMatch(demo, /function setFirstTimeRegistration/);
+  assert.doesNotMatch(demo, /registeringFirstTime/);
+  assert.doesNotMatch(demo, /function addRecurrentPlayer|addRecurrentPlayer\(/);
+  assert.doesNotMatch(demo, /function saveRecurrentPlayers/);
+  assert.doesNotMatch(demo, /Registrarme|>Primera vez<|Estás creando un jugador nuevo/);
+  assert.match(demo, /function resetPlayerPicker\(preserveValue=false\)/);
   assert.match(demo, /confirm\.textContent = 'Guardar cambios';/);
-  assert.doesNotMatch(demo, /Registrarme/, 'el flujo de identidad vuelve a mostrar el copy de registro');
-  assert.doesNotMatch(demo, />Primera vez<|tocá “Primera vez”/);
-  assert.match(demo, /addRecurrentPlayer\(playerName\)/);
 });
 
 test("waits for Supabase before confirming registration and rejects remote duplicates", async () => {
@@ -304,7 +301,7 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /'Nombre ya tomado\.'/);
   assert.match(demo, /agregá tu apellido para diferenciarte/);
   assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
-  assert.match(demo, /Usá siempre el mismo nombre para evitar duplicados\./);
+  assert.match(demo, /Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\./);
   assert.match(demo, /confirmButton\.textContent = 'Reintentar'/);
 });
 
@@ -743,8 +740,8 @@ test("Mi estado: guardar el nombre visible va por el CTA y preserva la identidad
   );
   // Ya identificado y sin cambiar de identidad = editar tu propio estado: el input es el
   // nombre visible y se puede escribir libre.
-  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
-  // El gate "no encontramos ese jugador" deja pasar al dueño editando.
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer;/);
+  // El gate "no encontramos ese nombre" deja pasar al dueño editando.
   assert.match(handler, /!recurrentMatch && !editandoMiEstado\)\{/);
   // La response nace con name = lo que escribiste y responseId/ownerIds/paid/team de la existente.
   assert.match(handler, /name:playerName,/);
@@ -755,7 +752,7 @@ test("Mi estado: guardar el nombre visible va por el CTA y preserva la identidad
   // Input vacío -> vuelve a la identidad base.
   assert.match(handler, /playerName = existingResponse\.habitualName \|\| existingResponse\.name;/);
   // Y no ensucia el selector "¿Quién sos?" con el nombre visible.
-  assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
+  assert.doesNotMatch(handler, /addRecurrentPlayer/);
   // Rechazo de colisión con otra response no invitada sigue aplicando.
   assert.match(handler, /const nameCollision = localAvailabilityResponses\.find\(item=>\s*item\.responseId!==existingResponse\?\.responseId/);
 });
@@ -1098,7 +1095,7 @@ test("mueve el foco al primer campo con error al guardar", async () => {
     'el handler de guardar Mi estado',
   );
   // Nombre no encontrado enfoca el input de nombre.
-  assert.match(confirmHandler, /No encontramos ese jugador[\s\S]*?nameInput\.focus\(\)/);
+  assert.match(confirmHandler, /No encontramos ese nombre[\s\S]*?nameInput\.focus\(\)/);
   // Horario inválido enfoca el select "Hasta".
   assert.match(confirmHandler, /if\(mockAvailability !== 'out' && to <= from\)\{[\s\S]*?getElementById\('my-status-to'\)\.focus\(\)/);
 });
@@ -1153,7 +1150,7 @@ function extractFnByName(demo, name) {
   throw new Error(`no pude cerrar la función ${name}`);
 }
 
-function runRecurrentMenu(demo, { identified, changing = false, firstTime = false }) {
+function runRecurrentMenu(demo, { identified, changing = false }) {
   const src = ["responseBelongsToCurrentDevice", "escapeHtml", "hideRecurrentPlayerMenu", "renderRecurrentPlayerMenu"]
     .map((n) => extractFnByName(demo, n))
     .join("\n");
@@ -1169,7 +1166,6 @@ function runRecurrentMenu(demo, { identified, changing = false, firstTime = fals
   });
   vm.runInContext(
     `let currentSessionUserId = ${JSON.stringify(DEVICE)};
-     let registeringFirstTime = ${firstTime};
      let changingRegisteredPlayer = ${changing};
      let recurrentPlayers = ["Fran Forrester", "Pablo de Achaval"];
      let localAvailabilityResponses = ${identified ? JSON.stringify([ownResponse]) : "[]"};
@@ -1203,12 +1199,6 @@ test("Anónimo / sin identificar: el selector de identidad sigue funcionando com
   const r = runRecurrentMenu(demo, { identified: false });
   assert.equal(r.menuHidden, false, "sin response propia el input busca identidad");
   assert.match(r.menuHTML, /Fran Forrester/);
-});
-
-test("Registro inicial (registeringFirstTime): el menú sigue oculto, como antes", async () => {
-  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const r = runRecurrentMenu(demo, { identified: false, firstTime: true });
-  assert.equal(r.menuHidden, true);
 });
 
 test("Nombre en la casaca: el guard vive en renderRecurrentPlayerMenu y setRegisteredPlayerNameMode cierra el menú", async () => {
@@ -1266,10 +1256,10 @@ test("PR #30 · casaca: el helper de registro / cambio de jugador no se contamin
     "ramas de cambio de jugador y registro de setRegisteredPlayerNameMode",
   );
   assert.doesNotMatch(cambioYRegistro, /Así te ve el grupo/);
-  assert.match(cambioYRegistro, /help\.textContent = 'Elegí tu identidad de la lista, o tocá “Este soy yo” si no estás\.';/);
-  assert.match(cambioYRegistro, /help\.textContent = 'Usá siempre el mismo nombre para evitar duplicados\.';/);
-  // El texto inicial del helper en el markup sigue siendo el de registro.
-  assert.match(demo, /id="player-picker-help">Usá siempre el mismo nombre para evitar duplicados\./);
+  // Cambio de jugador y Registro comparten el copy de lista cerrada aprobado en PR #31.
+  assert.match(cambioYRegistro, /help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\.';/);
+  // El texto inicial del helper en el markup es el de Registro.
+  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\./);
 });
 
 test("PR #30 · casaca: el label del campo sigue siendo 'Nombre en la casaca'", async () => {
@@ -1287,9 +1277,9 @@ test("Nombre en la casaca libre: guardar preserva la identidad base y no toca Ta
     "el handler de guardar Mi estado",
   );
   // El guardado del nombre visible no cambió: editandoMiEstado + habitualName preservado.
-  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer && !registeringFirstTime;/);
+  assert.match(handler, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer;/);
   assert.match(handler, /const habitualName = editandoMiEstado \? existingResponse\.habitualName : habitualExacto;/);
-  assert.match(handler, /if\(!editandoMiEstado\) addRecurrentPlayer\(playerName\);/);
+  assert.doesNotMatch(handler, /addRecurrentPlayer/);
   // El handler de guardar Mi estado no toca Tarjetas (el writer de PR #17 vive aparte).
   assert.doesNotMatch(handler, /computeCards|evaluarTarjetas|\bcards\b/);
   assert.doesNotMatch(demo, /id="tarjetas|class="tarjetas|>Tarjetas<|renderTarjetas|renderCards/i);
