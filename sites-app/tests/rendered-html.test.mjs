@@ -554,11 +554,13 @@ function runFaltaConfirmar(demo, { habitualPlayers, responses }){
   const sub = { textContent: '' };
   const namesEl = { textContent: '', hidden: false };
   const copyBtn = { hidden: false };
+  const countEl = { textContent: '', hidden: false };
   const elements = {
     'falta-confirmar-block': block,
     'falta-confirmar-sub': sub,
     'falta-confirmar-names': namesEl,
     'falta-confirmar-copy': copyBtn,
+    'falta-confirmar-count': countEl,
   };
   const context = vm.createContext({
     document: { getElementById(id){ return elements[id] || null; } },
@@ -570,7 +572,7 @@ function runFaltaConfirmar(demo, { habitualPlayers, responses }){
   new vm.Script(`${src}\nglobalThis.renderFaltaConfirmar = renderFaltaConfirmar;`)
     .runInContext(context);
   context.renderFaltaConfirmar();
-  return { block, sub, namesEl, copyBtn };
+  return { block, sub, namesEl, copyBtn, countEl };
 }
 
 test("Falta confirmar: el bloque va entre Mi estado y el ticket, con [hidden] respetado por CSS", async () => {
@@ -578,6 +580,10 @@ test("Falta confirmar: el bloque va entre Mi estado y el ticket, con [hidden] re
 
   assert.match(demo, /<section class="falta-confirmar" id="falta-confirmar-block"[^>]*hidden>/);
   assert.match(demo, /id="falta-confirmar-copy"[^>]*>Copiar para WhatsApp</);
+  // El título es "Faltan confirmar" y el chip del contador arranca oculto.
+  assert.match(demo, /<h2 class="falta-confirmar-title" id="falta-confirmar-title">Faltan confirmar<\/h2>/);
+  assert.match(demo, /<span class="falta-confirmar-count" id="falta-confirmar-count"[^>]*hidden><\/span>/);
+  assert.match(demo, /\.falta-confirmar-count\[hidden\]\s*\{\s*display\s*:\s*none\s*;?\s*\}/);
   // Ubicación: cierre de la card de Mi estado, luego el bloque, luego el ticket.
   assert.match(demo, /<\/section>\s*<section class="falta-confirmar"[\s\S]*?<\/section>\s*<div class="ticket">/);
   // Mismo aprendizaje que guest-manager-bar: el contenedor tiene display:grid, así que
@@ -587,50 +593,56 @@ test("Falta confirmar: el bloque va entre Mi estado y el ticket, con [hidden] re
   assert.match(demo, /renderHistory\(\);\s*renderFaltaConfirmar\(\);/);
 });
 
-test("Falta confirmar: con faltantes muestra subtítulo plural, nombres y botón", async () => {
+test("Falta confirmar: con faltantes muestra el copy fantasma, el chip con la cantidad, nombres y botón", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const { block, sub, namesEl, copyBtn } = runFaltaConfirmar(demo, {
+  const { block, sub, namesEl, copyBtn, countEl } = runFaltaConfirmar(demo, {
     habitualPlayers: ["Pablo", "Mingo", "Roca"],
     responses: [{ name: "Roca", isGuest: false }],
   });
   assert.equal(block.hidden, false);
-  assert.equal(sub.textContent, "2 del grupo todavía no respondieron");
+  assert.equal(sub.textContent, "Tiren una señal, fantasmas 👻");
+  assert.equal(countEl.textContent, "2");
+  assert.equal(countEl.hidden, false);
   assert.equal(namesEl.textContent, "Pablo, Mingo");
   assert.equal(namesEl.hidden, false);
   assert.equal(copyBtn.hidden, false);
   assert.equal(block.classList.contains("falta-confirmar--ok"), false);
 });
 
-test("Falta confirmar: si falta uno, subtítulo en singular", async () => {
+test("Falta confirmar: si falta uno, el copy es el mismo y el chip dice '1'", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const { sub, namesEl } = runFaltaConfirmar(demo, {
+  const { sub, namesEl, countEl } = runFaltaConfirmar(demo, {
     habitualPlayers: ["Pablo", "Mingo"],
     responses: [{ name: "Mingo", isGuest: false }],
   });
-  assert.equal(sub.textContent, "1 del grupo todavía no respondió");
+  assert.equal(sub.textContent, "Tiren una señal, fantasmas 👻");
+  assert.equal(countEl.textContent, "1");
+  assert.equal(countEl.hidden, false);
   assert.equal(namesEl.textContent, "Pablo");
 });
 
-test("Falta confirmar: estado vacío muestra 'Todos respondieron ✅' sin nombres ni botón", async () => {
+test("Falta confirmar: estado vacío muestra 'Están todos ✅' sin nombres, botón ni chip", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const { block, sub, namesEl, copyBtn } = runFaltaConfirmar(demo, {
+  const { block, sub, namesEl, copyBtn, countEl } = runFaltaConfirmar(demo, {
     habitualPlayers: ["Pablo", "Mingo"],
     responses: [{ name: "Pablo", isGuest: false }, { name: "Mingo", isGuest: false }],
   });
   assert.equal(block.hidden, false);
-  assert.equal(sub.textContent, "Todos respondieron ✅");
+  assert.equal(sub.textContent, "Están todos ✅");
   assert.equal(namesEl.hidden, true);
   assert.equal(copyBtn.hidden, true);
+  assert.equal(countEl.hidden, true);
   assert.equal(block.classList.contains("falta-confirmar--ok"), true);
 });
 
 test("Falta confirmar: los invitados no cuentan como respuesta", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  const { sub, namesEl } = runFaltaConfirmar(demo, {
+  const { sub, namesEl, countEl } = runFaltaConfirmar(demo, {
     habitualPlayers: ["Pablo", "Mingo"],
     responses: [{ name: "Pablo", isGuest: true, invitedBy: "Roca" }],
   });
-  assert.equal(sub.textContent, "2 del grupo todavía no respondieron");
+  assert.equal(sub.textContent, "Tiren una señal, fantasmas 👻");
+  assert.equal(countEl.textContent, "2");
   assert.equal(namesEl.textContent, "Pablo, Mingo");
 });
 
