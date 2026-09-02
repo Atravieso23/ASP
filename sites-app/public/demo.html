@@ -432,8 +432,8 @@
   .recurrent-player-option:hover{background:var(--bg-bottom);}
   .recurrent-player-select{min-width:0;border:0;background:transparent;color:var(--navy);padding:7px 8px;text-align:left;font:600 12px 'Inter',sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .recurrent-player-empty{margin:0;padding:9px;color:var(--muted);font-size:11px;text-align:center;}
-  .my-status-choice, .my-status-paid{display:flex; gap:7px;}
-  .my-status-choice button, .my-status-paid button{
+  .my-status-choice{display:flex; gap:7px;}
+  .my-status-choice button{
     flex:1; border:1px solid var(--card-border); border-radius:9px; background:var(--bg-bottom);
     color:var(--muted); padding:10px 8px; font:700 13px 'Inter',sans-serif; cursor:pointer;
     min-height:40px;
@@ -478,9 +478,12 @@
   .my-status-payment{border-top:1px dashed var(--card-border); margin-top:13px; padding-top:12px;}
   .my-status-payment[hidden]{display:none;}
   .my-status-payment .my-status-label{display:block;margin-bottom:6px;}
-  .my-status-paid button[data-value="yes"].active{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 0 0 2px rgba(31,143,78,.16);}
-  .my-status-paid button[data-value="no"].active{background:var(--danger);border-color:var(--danger);color:#fff;box-shadow:0 0 0 2px rgba(193,67,42,.14);}
-  .my-status-paid button.active::before{content:'✓ ';}
+  /* Pago = un tick opcional (PR #38): sin marcar = pendiente por defecto. "Debo" ya
+     vive en Lista de morosos / "Faltan pagar", no hace falta como botón acá. */
+  .my-status-paid-check{display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:6px 12px; border:1px solid var(--card-border); border-radius:999px; background:var(--bg-bottom); color:var(--navy); font:700 12px 'Inter',sans-serif; cursor:pointer; user-select:none;}
+  .my-status-paid-check input{width:16px; height:16px; margin:0; accent-color:var(--ok); cursor:pointer;}
+  .my-status-paid-check input:checked ~ span{color:var(--ok);}
+  .my-status-paid-help{margin:6px 2px 0; font-size:11px; line-height:1.4; color:var(--muted);}
   .guest-manager-bar{display:block;margin-top:13px;padding-top:12px;border-top:1px dashed var(--card-border);}
   .guest-manager-bar[hidden]{display:none;}
   .guest-manager-bar .my-status-label{margin-top:0;}
@@ -726,10 +729,11 @@
       </div>
       <div class="my-status-payment" id="my-status-payment" hidden>
         <span class="my-status-label">Pago</span>
-        <div class="my-status-paid" role="group" aria-label="Estado de pago">
-          <button type="button" data-value="yes" aria-pressed="false">Ya pagué</button>
-          <button type="button" class="active" data-value="no" aria-pressed="true">Debo</button>
-        </div>
+        <label class="my-status-paid-check" for="my-status-paid-check">
+          <input type="checkbox" id="my-status-paid-check">
+          <span>Ya pagué</span>
+        </label>
+        <p class="my-status-paid-help">Si no lo marcás, quedás pendiente.</p>
         <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
       <div class="guest-manager-bar" id="guest-manager-bar" hidden>
@@ -3881,6 +3885,7 @@ const mockTimes = document.getElementById('my-status-times');
 // huérfano sobre una fila vacía. from/to y el checkbox no se tocan.
 const mockAvailabilityBlock = document.getElementById('my-status-availability');
 const mockPayment = document.querySelector('.my-status-payment');
+const mockPaidCheck = document.getElementById('my-status-paid-check');
 const guestManager = document.getElementById('guest-manager');
 const guestManagerToggle = document.getElementById('guest-manager-toggle');
 const mockFrom = document.getElementById('my-status-from');
@@ -3959,11 +3964,7 @@ function syncPagoControls(){
   const saved = responseDelJugadorActual();
   const paid = saved ? saved.paid === true : false;
   mockPayment.hidden = !(mockAvailability === 'in' && saved && saved.status === 'in');
-  document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === (paid ? 'yes' : 'no');
-    option.classList.toggle('active', selected);
-    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
+  mockPaidCheck.checked = paid;
   // El título de identidad comparte la misma condición de identidad que el pago.
   renderIdentityHeader();
 }
@@ -3988,11 +3989,7 @@ function resetMyStatusCard(){
   mockPayment.hidden = true;
   guestManager.hidden = true;
   guestManagerToggle.setAttribute('aria-expanded','false');
-  document.querySelectorAll('.my-status-paid button').forEach(option=>{
-    const selected = option.dataset.value === 'no';
-    option.classList.toggle('active', selected);
-    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
+  mockPaidCheck.checked = false;
   renderGuestManager();
 }
 
@@ -4291,31 +4288,28 @@ document.getElementById('guest-name-input').addEventListener('keydown', event=>{
   }
 });
 
-document.querySelectorAll('.my-status-paid button').forEach(button=>{
-  button.onclick = async ()=>{
-    const response = localAvailabilityResponses.find(item=>
-      !item.isGuest && responseBelongsToCurrentDevice(item)
-    );
-    if(!response || response.status!=='in') return;
-    // El resumen y los botones no se mueven hasta que el servidor confirma. Antes se
-    // pintaba el pago al instante sin siquiera mirar el resultado del guardado: con la
-    // escritura rechazada, el sondeo lo revertía a los cuatro segundos y desde el
-    // teléfono parecía que la app se había deshecho sola.
-    const botones = [...document.querySelectorAll('.my-status-paid button')];
-    botones.forEach(item=>{ item.disabled = true; });
-    const ok = await marcarMiPago(button.dataset.value === 'yes');
-    botones.forEach(item=>{ item.disabled = false; });
-    if(!ok){
-      showToast('No se pudo guardar el pago. Revisá la conexión e intentá otra vez.');
-      return;
-    }
-    render();
-    renderLocalOrganizer();
-    // Repinta el pago desde la lista fresca: la de antes del guardado ya no es la
-    // que está en state.
-    syncPagoControls();
-  };
-});
+mockPaidCheck.onchange = async ()=>{
+  const response = localAvailabilityResponses.find(item=>
+    !item.isGuest && responseBelongsToCurrentDevice(item)
+  );
+  if(!response || response.status!=='in'){ syncPagoControls(); return; }
+  // El tick no se "confirma" hasta que el servidor responde. Si falla, se revierte al
+  // valor real: antes con los dos botones un rechazo lo dejaba pintado hasta el sondeo.
+  const nextPaid = mockPaidCheck.checked;
+  mockPaidCheck.disabled = true;
+  const ok = await marcarMiPago(nextPaid);
+  mockPaidCheck.disabled = false;
+  if(!ok){
+    mockPaidCheck.checked = !nextPaid;
+    showToast('No se pudo guardar el pago. Revisá la conexión e intentá otra vez.');
+    return;
+  }
+  render();
+  renderLocalOrganizer();
+  // Repinta el pago desde la lista fresca: la de antes del guardado ya no es la
+  // que está en state.
+  syncPagoControls();
+};
 
 (async function init(){
   if(!supabaseClient){

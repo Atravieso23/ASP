@@ -810,13 +810,14 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
 
   // Pago vive dentro del form, oculto por defecto y gobernado por syncPagoControls.
   assert.match(demo, /id="my-status-payment" hidden/);
-  assert.match(demo, /class="my-status-paid"/);
+  assert.match(demo, /class="my-status-paid-check"/);
   assert.match(demo, /function syncPagoControls\(\)/);
   // Sólo se muestra con "Estoy" seleccionado y una respuesta guardada in: marcarMiPago
   // es un writer focalizado que necesita una response persistida sobre la cual escribir.
   assert.match(demo, /mockPayment\.hidden = !\(mockAvailability === 'in' && saved && saved\.status === 'in'\)/);
-  // El pago sigue siendo reversible desde los dos botones, vía el writer focalizado.
-  assert.match(demo, /marcarMiPago\(button\.dataset\.value === 'yes'\)/);
+  // El pago se marca/desmarca con un único checkbox (PR #38), vía el writer focalizado.
+  assert.match(demo, /mockPaidCheck\.onchange = async \(\)=>\{/);
+  assert.match(demo, /const ok = await marcarMiPago\(nextPaid\)/);
   // Cambiar de estado repinta la visibilidad del pago en vivo, y oculta el bloque de
   // disponibilidad entero (label incluido) cuando el jugador marca "Soy baja".
   assert.match(demo, /mockAvailabilityBlock\.hidden = mockAvailability === 'out';\s*\r?\n\s*syncPagoControls\(\);/);
@@ -871,22 +872,25 @@ test("aplica el copy futbolero de Mi estado", async () => {
   assert.match(fulldayLabel, /<span class="my-status-fullday-text">Siempre para la pelota<\/span>/, 'el chip muestra "Siempre para la pelota" visible');
   assert.doesNotMatch(fulldayLabel, /Libre/, 'el chip ya no dice "Libre" (PR #22)');
 
-  // Pago: Ya pagué / Debo (data-value yes/no sin tocar).
-  assert.match(demo, /data-value="yes" aria-pressed="false">Ya pagué</);
-  assert.match(demo, /data-value="no" aria-pressed="true">Debo</);
-  assert.match(demo, /\.my-status-paid button\.active::before\{content:'✓ ';\}/);
+  // Pago: un único checkbox "Ya pagué" + helper del default (PR #38). "Debo" ya no es botón.
+  assert.match(demo, /<input type="checkbox" id="my-status-paid-check">\s*<span>Ya pagué<\/span>/);
+  assert.match(demo, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\.<\/p>/);
+  assert.doesNotMatch(demo, />Debo</);
 
   // CTA "Guardar cambios".
   assert.match(demo, /id="my-status-confirm">Guardar cambios</);
   assert.doesNotMatch(demo, /id="my-status-confirm">(Confirmar|Guardar)</);
 });
 
-test("Mi estado: los data-value de estado y pago no cambian con el copy futbolero", async () => {
+test("Mi estado: los data-value de Estado no cambian; Pago ya no usa data-value (PR #38)", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const choice = sliceBetween(demo, '<div class="my-status-choice" role="group" aria-label="Estado">', '</div>', 'los botones de estado');
   assert.deepEqual([...choice.matchAll(/data-value="([^"]+)"/g)].map((m) => m[1]), ["in", "duda", "out"]);
-  const paid = sliceBetween(demo, '<div class="my-status-paid" role="group" aria-label="Estado de pago">', '</div>', 'los botones de pago');
-  assert.deepEqual([...paid.matchAll(/data-value="([^"]+)"/g)].map((m) => m[1]), ["yes", "no"]);
+  // Pago = un único checkbox, sin data-value ni role="group".
+  const payment = sliceBetween(demo, '<div class="my-status-payment" id="my-status-payment" hidden>', '</div>', 'el bloque de pago');
+  assert.doesNotMatch(payment, /data-value=/);
+  assert.doesNotMatch(payment, /role="group"/);
+  assert.match(payment, /<input type="checkbox" id="my-status-paid-check">/);
 });
 
 // ---- Mi estado · copy futbolero (ceja "Jugador convocado esta fecha" + ⇄ + casaca) ----
@@ -1403,7 +1407,7 @@ test("removes the list renderers that had no elements left in the DOM", async ()
   // El modal de pago sólo lo abría attachListEvents; se va con él.
   assert.doesNotMatch(demo, /pay-confirm-overlay|pay-confirm-ok|pay-confirm-cancel/);
   // Los pagos siguen manejándose desde "Mi estado" y desde los invitados.
-  assert.match(demo, /class="my-status-paid"/);
+  assert.match(demo, /id="my-status-paid-check"/);
   assert.match(demo, /data-guest-paid="\$\{guest\.responseId\}"/);
 });
 
