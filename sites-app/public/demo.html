@@ -442,6 +442,11 @@
   .recurrent-player-field{position:relative;}
   .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
   .player-picker-help[hidden]{display:none;}
+  /* Preview vivo de "Nombre en la casaca": refleja lo que hay en el input (aún sin
+     guardar), para que se note que ese campo cambia cómo te ve el grupo. */
+  .casaca-preview{margin:7px 2px 0;font-size:11.5px;line-height:1.4;color:var(--navy);}
+  .casaca-preview[hidden]{display:none;}
+  .casaca-preview b{color:var(--celeste-deep);font-weight:700;}
   .player-name-feedback{margin:9px 0 0;padding:10px 11px;border-radius:9px;font-size:11.5px;line-height:1.45;}
   .player-name-feedback[hidden]{display:none;}
   .player-name-feedback.info{background:rgba(25,126,168,.09);border:1px solid rgba(25,126,168,.25);color:var(--navy);}
@@ -706,6 +711,7 @@
         <label for="my-player-name" id="my-player-name-label">Tu nombre</label>
         <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
         <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
+        <p class="casaca-preview" id="casaca-preview" hidden>En la lista te ven como <b id="casaca-preview-name"></b></p>
         <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
       </div>
@@ -3249,6 +3255,30 @@ function renderIdentityHeader(){
     if(label) label.textContent = changingRegisteredPlayer ? 'Cambiar jugador' : 'Tu nombre';
   }
   if(row) row.hidden = false;
+  renderCasacaPreview();
+}
+
+// Preview vivo de "Nombre en la casaca". Refleja el valor ACTUAL del input (aún sin
+// guardar) para que se note que ese campo cambia cómo te ve el grupo, no tu jugador.
+// Sólo lectura: no persiste nada, no toca `name`/`habitualName` ni el handler de
+// "Guardar cambios" (esa sigue siendo la única persistencia). Fuera del modo
+// identificado (Registro, "Cambiar jugador", sin response propia) queda oculto.
+// Vacío -> cae a habitualName; si tampoco hay, se oculta.
+function renderCasacaPreview(){
+  const wrap = document.getElementById('casaca-preview');
+  const nameEl = document.getElementById('casaca-preview-name');
+  const input = document.getElementById('my-player-name');
+  if(!wrap || !nameEl || !input) return;
+  const propia = responseDelJugadorActual();
+  const identificado = Boolean(propia) && !changingRegisteredPlayer;
+  const nombre = identificado ? (input.value.trim() || propia.habitualName || '') : '';
+  if(!nombre){
+    wrap.hidden = true;
+    nameEl.textContent = '';
+    return;
+  }
+  nameEl.textContent = nombre;
+  wrap.hidden = false;
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
@@ -4124,6 +4154,9 @@ function refreshDirtyIndicator(){
 const myStatusCard = document.getElementById('my-status-card');
 myStatusCard.addEventListener('change', refreshDirtyIndicator);
 myStatusCard.addEventListener('input', refreshDirtyIndicator);
+// El preview de casaca sigue al input en vivo (mismo canal, función aparte para no
+// tocar el cableado del indicador de cambios sin guardar).
+myStatusCard.addEventListener('input', renderCasacaPreview);
 myStatusCard.addEventListener('click', event=>{
   if(event.target.closest('#my-status-confirm')) return;
   refreshDirtyIndicator();
