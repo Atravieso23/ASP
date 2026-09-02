@@ -3263,7 +3263,8 @@ function renderIdentityHeader(){
 // Sólo lectura: no persiste nada, no toca `name`/`habitualName` ni el handler de
 // "Guardar cambios" (esa sigue siendo la única persistencia). Fuera del modo
 // identificado (Registro, "Cambiar jugador", sin response propia) queda oculto.
-// Vacío -> cae a habitualName; si tampoco hay, se oculta.
+// Sólo aparece cuando aporta diferencia: si el nombre visible coincide con la
+// identidad base (o el input vacío cae a ella) no hay nada que aclarar y se oculta.
 function renderCasacaPreview(){
   const wrap = document.getElementById('casaca-preview');
   const nameEl = document.getElementById('casaca-preview-name');
@@ -3271,8 +3272,10 @@ function renderCasacaPreview(){
   if(!wrap || !nameEl || !input) return;
   const propia = responseDelJugadorActual();
   const identificado = Boolean(propia) && !changingRegisteredPlayer;
-  const nombre = identificado ? (input.value.trim() || propia.habitualName || '') : '';
-  if(!nombre){
+  const habitual = identificado && propia.habitualName ? propia.habitualName.trim() : '';
+  const escrito = input.value.trim();
+  const nombre = identificado ? (escrito || habitual) : '';
+  if(!nombre || nombre === habitual){
     wrap.hidden = true;
     nameEl.textContent = '';
     return;
