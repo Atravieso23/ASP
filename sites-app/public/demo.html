@@ -3567,7 +3567,7 @@ function setRegisteredPlayerNameMode(allowChange=false){
     // base para que vaciar el campo (volver a ella) no sea una sorpresa, y el helper aclara
     // que editar acá NO cambia el jugador elegido ni crea otra identidad.
     input.placeholder = ownResponse.habitualName || ownResponse.name;
-    help.textContent = 'Así te ve el grupo en la lista. Editarlo no cambia tu jugador.';
+    help.textContent = 'Editarlo no cambia tu jugador.';
     help.hidden = false;
     hidePlayerNameFeedback();
     hideRecurrentPlayerMenu();

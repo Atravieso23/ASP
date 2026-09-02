@@ -198,7 +198,10 @@ test("16. tieneCambiosSinGuardar no cambió (editar el input marca 'Cambios sin 
 
 test("17. label 'Nombre en la casaca' y helper de casaca siguen verbatim", () => {
   assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
-  assert.match(demo, /help\.textContent = 'Así te ve el grupo en la lista\. Editarlo no cambia tu jugador\.';/);
+  // PR #49 — el helper identificado quedó en la mitad no redundante: "Así te ve el grupo
+  // en la lista" ya lo cubre el preview "En la lista te ven como {nombre}".
+  assert.match(demo, /help\.textContent = 'Editarlo no cambia tu jugador\.';/);
+  assert.doesNotMatch(demo, /Así te ve el grupo en la lista\. Editarlo no cambia tu jugador\./);
   assert.match(demo, /<label for="my-player-name" id="my-player-name-label">Tu nombre<\/label>/);
 });
 
