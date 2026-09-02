@@ -4114,9 +4114,12 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   if(recurrentMatch && !editandoMiEstado) playerName = recurrentMatch;
   nameInput.removeAttribute('aria-invalid');
   // Identidad ya registrada en OTRO dispositivo: no se crea una segunda response. La
-  // clave estable es habitualName (name puede diferir por "Nombre en la casaca"). Se
-  // enruta al overlay de claim, que suma este dispositivo a la response existente.
-  if(!existingResponse){
+  // clave estable es habitualName (name puede diferir por "Nombre en la casaca").
+  // Aplica al elegir identidad (registro o "Cambiar jugador"), no al editar tu propio
+  // estado. Sin response propia -> overlay de claim (suma este dispositivo a la existente).
+  // Con response propia ("Cambiar jugador") -> se bloquea: el claim NO libera la identidad
+  // previa, así que pisar/duplicar no es una opción; se orienta a resolverlo aparte.
+  if(!editandoMiEstado){
     const idKey = playerName.toLocaleLowerCase('es');
     const yaRegistrada = localAvailabilityResponses.find(item=>
       item && !item.isGuest && !responseBelongsToCurrentDevice(item) && (
@@ -4125,6 +4128,14 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
       )
     );
     if(yaRegistrada){
+      if(existingResponse){
+        nameInput.setAttribute('aria-invalid','true');
+        showPlayerNameFeedback('error','Esa identidad ya está en uso.',' Si sos vos, entrá desde el dispositivo donde la registraste o pedile a un organizador que te la libere.');
+        showToast(`“${playerName}” ya está en uso en otro dispositivo.`);
+        nameInput.focus();
+        renderRecurrentPlayerMenu();
+        return;
+      }
       pendingClaimResponseId = yaRegistrada.responseId;
       document.getElementById('claim-player-text').textContent = `¿Sos ${yaRegistrada.habitualName || yaRegistrada.name}?`;
       document.getElementById('claim-player-overlay').classList.add('open');

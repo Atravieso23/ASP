@@ -56,14 +56,20 @@ test("el claim del selector matchea por name O habitualName normalizado", () => 
 
 test("el handler de guardar enruta al claim si la identidad ya existe en otro dispositivo", () => {
   const handler = extractHandler(demo, "document.getElementById('my-status-confirm').onclick");
-  assert.match(handler, /if\(!existingResponse\)\{/);
+  // PR #37: el bloque cubre elegir identidad en general (registro o "Cambiar jugador"),
+  // no sólo el registro sin response propia -> `if(!editandoMiEstado)`.
+  assert.match(handler, /if\(!editandoMiEstado\)\{/);
   assert.match(handler, /!responseBelongsToCurrentDevice\(item\) && \(/);
   assert.match(handler, /item\.habitualName && item\.habitualName\.trim\(\)\.toLocaleLowerCase\('es'\)===idKey/);
   assert.match(handler, /pendingClaimResponseId = yaRegistrada\.responseId;/);
   assert.match(handler, /classList\.add\('open'\);\s*return;/);
-  // En ese camino no se construye la response ni se llama a savePlayerRegistration.
+  // Registro (sin response propia) -> claim. Ese camino no construye la response ni llama
+  // a savePlayerRegistration.
   const antesDelClaim = handler.slice(0, handler.indexOf("yaRegistrada"));
   assert.doesNotMatch(antesDelClaim, /savePlayerRegistration/);
+  // El claim sólo se abre cuando NO hay response propia; con response propia ("Cambiar
+  // jugador") el sub-branch bloquea sin abrirlo (ver cambiar-jugador-identidad-tomada).
+  assert.match(handler, /if\(yaRegistrada\)\{\s*if\(existingResponse\)\{/);
 });
 
 test("savePlayerRegistration: el backstop de duplicados también mira habitualName", () => {
