@@ -401,6 +401,11 @@
   }
   .proximo-partido-sub{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
   .proximo-partido-sub:empty{display:none;}
+  /* Convocatoria: "9 confirmados · 1 en duda · apuntamos a 14". Es feedback real
+     (lo que la gente entra a mirar); acá arriba, sin scroll. El ticket mantiene
+     .squad-status con el detalle. Sin fondo ni chip: no es un marcador. */
+  .proximo-partido-squad{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
+  .proximo-partido-squad:empty{display:none;}
 
   /* MI ESTADO (maqueta local, sin persistencia) */
   .my-status-card{
@@ -687,6 +692,7 @@
     <p class="proximo-partido-eyebrow">Próximo partido</p>
     <p class="proximo-partido-main" id="proximo-partido-main">—</p>
     <p class="proximo-partido-sub" id="proximo-partido-sub"></p>
+    <p class="proximo-partido-squad" id="proximo-partido-squad"></p>
   </section>
 
   <section class="my-status-card" id="my-status-card" aria-labelledby="my-status-title">
@@ -1969,6 +1975,23 @@ function render(){
   document.getElementById('capacity-note').title = mi.type
     ? `Apuntamos a ${fieldTypeLabel(mi.type)}: ${cap} jugadores, ${playersPerTeam(mi.type)} por equipo.`
     : 'Elegí el tipo de cancha en "Editar partido" para ver a cuántos apuntamos.';
+
+  // Convocatoria arriba, en el bloque "Próximo partido": el mismo dato que la
+  // .squad-status del ticket (que no se toca), reusando inList/dudaList/cap ya
+  // calculados —sin nuevas llamadas a getResponsePlayers—. Es feedback real: lo que
+  // la gente entra a mirar, ahora sin scroll. "en duda" sólo con dudosos, "apuntamos
+  // a" sólo con type; sin nadie la línea queda vacía y :empty la oculta.
+  const squadEl = document.getElementById('proximo-partido-squad');
+  if(squadEl){
+    if(inList.length === 0 && dudaList.length === 0){
+      squadEl.textContent = '';
+    }else{
+      const partes = [`${inList.length} ${inList.length === 1 ? 'confirmado' : 'confirmados'}`];
+      if(dudaList.length > 0) partes.push(`${dudaList.length} en duda`);
+      if(mi.type) partes.push(`apuntamos a ${cap}`);
+      squadEl.textContent = partes.join(' · ');
+    }
+  }
 
   const negroListEl = document.getElementById('team-negro-list');
   const blancoListEl = document.getElementById('team-blanco-list');
