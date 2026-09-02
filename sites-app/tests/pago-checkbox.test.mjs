@@ -36,8 +36,8 @@ test("1. el bloque de pago es un checkbox único 'Ya pagué' + helper, sin boton
   assert.match(payment, /<label class="my-status-paid-check" for="my-status-paid-check">/);
   assert.match(payment, /<input type="checkbox" id="my-status-paid-check">/);
   assert.match(payment, /<span>Ya pagué<\/span>/);
-  // helper del default
-  assert.match(payment, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\.<\/p>/);
+  // helper del default (PR #43: + puente pendiente -> 🟨 al arrancar el partido)
+  assert.match(payment, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\. Al arrancar el partido, pendiente = 🟨\.<\/p>/);
   // PR #40: la lista colectiva ya NO vive en el bloque personal de pago.
   assert.doesNotMatch(payment, /faltan-pagar/);
   // ya no hay botones bipolares

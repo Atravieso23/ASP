@@ -879,8 +879,9 @@ test("aplica el copy futbolero de Mi estado", async () => {
   assert.doesNotMatch(fulldayLabel, /Libre/, 'el chip ya no dice "Libre" (PR #22)');
 
   // Pago: un único checkbox "Ya pagué" + helper del default (PR #38). "Debo" ya no es botón.
+  // PR #43: el helper agrega el puente "pendiente -> 🟨 al arrancar el partido".
   assert.match(demo, /<input type="checkbox" id="my-status-paid-check">\s*<span>Ya pagué<\/span>/);
-  assert.match(demo, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\.<\/p>/);
+  assert.match(demo, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\. Al arrancar el partido, pendiente = 🟨\.<\/p>/);
   assert.doesNotMatch(demo, />Debo</);
 
   // CTA "Guardar cambios".
