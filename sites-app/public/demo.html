@@ -738,7 +738,6 @@
           <span>Ya pagué</span>
         </label>
         <p class="my-status-paid-help">Si no lo marcás, quedás pendiente.</p>
-        <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
       </div>
       <div class="guest-manager-bar" id="guest-manager-bar" hidden>
         <span class="my-status-label">Invitados</span>
@@ -809,6 +808,9 @@
       <span class="cash-metric">Recaudado <span class="cash-metric-value"><b id="total-collected">$0</b></span></span>
       <button class="edit-btn" id="edit-match-btn" aria-label="Editar datos del partido"><span aria-hidden="true">✏️</span><span class="edit-label">Editar partido</span></button>
     </div>
+    <!-- Info colectiva (PR #40): quiénes del "Estoy" todavía no marcaron pago. Vive con el
+         resumen de plata del ticket, no en el bloque personal de Pago de "Mi estado". -->
+    <p class="faltan-pagar" id="faltan-pagar" aria-live="polite"></p>
   </div>
 
   <div class="section teams-section">
