@@ -19,6 +19,8 @@ Hallazgo principal: la app anterior tenía lista de espera, estado "Duda" y desh
 
 **[runbook-sanciones-pago.md](runbook-sanciones-pago.md)** — Reglas vigentes del dominio de plata: pago personal, `Faltan pagar` (deuda viva de la fecha), `Lista de morosos` (sanciones acumuladas), tarjetas 🟨 y birras 🍺. Aclara que son tres conceptos distintos, cómo se calcula cada tarjeta en `computeCards` (habitual + `status:'in'` + impago al horario de inicio, latcheado por `matchKey`), que pagar tarde no borra una amarilla, que los invitados cuentan para `Faltan pagar` pero nunca reciben tarjetas, y los casos borde. Es documentación de lo que ya hace el código, no una propuesta de cambio.
 
+**[runbook-decision-horario-cancha.md](runbook-decision-horario-cancha.md)** — Cómo se decide hoy el horario/cancha (por WhatsApp; la app sólo guarda el resultado en `matchInfo`) y el contrato de una futura mini-vista de disponibilidad para Jugador. Documenta los datos que hay (`responses[].from/to/status`, el cálculo `topHours` que ya vive en `renderLocalOrganizer`), lo que no hay (`availability[]`, `fullDay` persistido, horarios candidatos, roles), la regla de inferencia por franja (`in` + `[from, to)`, franjas 09–21, `duda` aparte, invitados cuentan) y el copy honesto ("N pueden", no "horario ganador"). Complementa a PR #44: éste cubre el partido en decisión, PR #44 el partido definido.
+
 **[briefing-ux.md](briefing-ux.md)** — Documento autocontenido para pasarle a alguien externo que analice la experiencia de usuario. Incluye el contexto del grupo, el ciclo semanal real, las decisiones ya tomadas que no hay que reproponer, y un pedido explícito de que priorice en vez de tirar una lista larga. Los nombres reales están reemplazados por roles.
 
 ## Lo que NO está acá
