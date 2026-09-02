@@ -1252,7 +1252,10 @@ test("PR #30 · casaca: en modo identificado el helper es persistente y con el c
     "}else if(ownResponse){",
     "rama identificada de setRegisteredPlayerNameMode",
   );
-  assert.match(identBranch, /help\.textContent = 'Así te ve el grupo en la lista\. Editarlo no cambia tu jugador\.';/);
+  // PR #49 — el copy se acortó a la mitad no redundante; "Así te ve el grupo en la lista"
+  // lo cubre el preview "En la lista te ven como {nombre}". El helper sigue persistente.
+  assert.match(identBranch, /help\.textContent = 'Editarlo no cambia tu jugador\.';/);
+  assert.doesNotMatch(identBranch, /Así te ve el grupo en la lista/);
   assert.match(identBranch, /help\.hidden = false;/);
   assert.doesNotMatch(identBranch, /help\.hidden = true;/);
 });
