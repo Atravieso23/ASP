@@ -434,13 +434,17 @@
   .recurrent-player-empty{margin:0;padding:9px;color:var(--muted);font-size:11px;text-align:center;}
   .my-status-choice{display:flex; gap:7px;}
   .my-status-choice button{
-    flex:1; border:1px solid var(--card-border); border-radius:9px; background:var(--bg-bottom);
-    color:var(--muted); padding:10px 8px; font:700 13px 'Inter',sans-serif; cursor:pointer;
-    min-height:40px;
+    flex:1; border:1px solid var(--card-border); border-radius:9px; background:transparent;
+    color:var(--muted); padding:9px 6px; font:700 12.5px 'Inter',sans-serif; cursor:pointer;
+    min-height:40px; transition:background .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
   }
-  .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff;}
-  .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02;}
-  .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger);}
+  /* Activo (PR #39): color por estado + "✓" decorativo + halo. La 2ª señal evita depender
+     sólo del hue —sol en mobile, daltonismo entre "Estoy" verde y "Soy baja" rojo—; los
+     inactivos quedan como chips outline livianos para que el elegido domine. */
+  .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff; box-shadow:0 0 0 2px rgba(63,174,122,.22), 0 2px 9px -4px rgba(0,0,0,.4);}
+  .my-status-choice button.active::before{content:'✓ ';}
+  .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02; box-shadow:0 0 0 2px rgba(224,163,62,.24), 0 2px 9px -4px rgba(0,0,0,.4);}
+  .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger); color:#fff; box-shadow:0 0 0 2px rgba(228,99,75,.24), 0 2px 9px -4px rgba(0,0,0,.4);}
   .my-status-availability[hidden]{display:none;}
   .my-status-times{display:flex; flex-wrap:wrap; align-items:center; gap:7px 8px; margin-top:0;}
   .my-status-time-pair{display:flex; align-items:center; min-width:0;}
