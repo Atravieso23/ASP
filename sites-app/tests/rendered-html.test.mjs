@@ -195,20 +195,26 @@ test("keeps player state derived from universal responses without reseeding demo
   assert.doesNotMatch(demo, /response\.team = player\.team/);
 });
 
-test("puts the unpaid list below the payment controls", async () => {
+test("la lista de morosos vive con el resumen de plata del ticket, no en el bloque de pago", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const statusCard = demo.indexOf('id="my-status-card"');
   const paymentControls = demo.indexOf('class="my-status-payment"', statusCard);
-  const shame = demo.indexOf('id="faltan-pagar"');
   const statusCardEnd = demo.indexOf('</section>', statusCard);
   const ticket = demo.indexOf('class="ticket"');
-
-  assert.ok(statusCard >= 0 && paymentControls > statusCard && shame > paymentControls && statusCardEnd > shame && ticket > statusCardEnd);
   const teamsSection = demo.indexOf('class="section teams-section"');
-  assert.ok(teamsSection > ticket);
+  const shame = demo.indexOf('id="faltan-pagar"');
+  const moneySummary = demo.indexOf('class="money-summary"');
+
+  // PR #40: #faltan-pagar salió del card de "Mi estado" y ahora vive dentro del ticket,
+  // justo debajo de .money-summary (info colectiva junto al resumen de plata).
+  assert.equal(demo.split('id="faltan-pagar"').length - 1, 1, "hay un único #faltan-pagar");
+  assert.ok(statusCard >= 0 && paymentControls > statusCard && ticket > statusCardEnd);
+  assert.ok(shame > statusCardEnd, "ya no está dentro del card de Mi estado");
+  assert.ok(shame > moneySummary && shame > ticket && shame < teamsSection, "está en el ticket, después de la money-summary");
+
   const ticketMarkup = demo.slice(ticket, teamsSection);
   assert.match(ticketMarkup, /class="ticket-heading-row"[\s\S]*id="team-name"[\s\S]*id="sb-type"/);
-  assert.match(ticketMarkup, /class="money-summary"[\s\S]*id="paid-count"[\s\S]*id="total-collected"[\s\S]*id="edit-match-btn"/);
+  assert.match(ticketMarkup, /class="money-summary"[\s\S]*id="paid-count"[\s\S]*id="total-collected"[\s\S]*id="edit-match-btn"[\s\S]*<p class="faltan-pagar" id="faltan-pagar" aria-live="polite"><\/p>/);
   assert.doesNotMatch(demo, /class="cash-section"/);
   assert.doesNotMatch(demo, /class="sb-label">Fútbol</);
 });

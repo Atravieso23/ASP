@@ -38,8 +38,8 @@ test("1. el bloque de pago es un checkbox único 'Ya pagué' + helper, sin boton
   assert.match(payment, /<span>Ya pagué<\/span>/);
   // helper del default
   assert.match(payment, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\.<\/p>/);
-  // el nodo que render() necesita sigue dentro del bloque
-  assert.match(payment, /<p class="faltan-pagar" id="faltan-pagar" aria-live="polite"><\/p>/);
+  // PR #40: la lista colectiva ya NO vive en el bloque personal de pago.
+  assert.doesNotMatch(payment, /faltan-pagar/);
   // ya no hay botones bipolares
   assert.doesNotMatch(payment, /data-value=/);
   assert.doesNotMatch(payment, /role="group"/);
