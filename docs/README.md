@@ -15,6 +15,8 @@ Lo más importante que documenta:
 
 Hallazgo principal: la app anterior tenía lista de espera, estado "Duda" y deshacer el cierre de fecha. El manejo de pagos de hoy es el de esa app, copiado sin revisar.
 
+**[runbook-agregar-habitual.md](runbook-agregar-habitual.md)** — Procedimiento para agregar o sacar un jugador habitual del grupo de forma segura. Hoy no hay UI: es una operación manual con `sites-app/scripts/seed-habitual-players.mjs`. Documenta el modelo (`habitualPlayers` como fuente de verdad, `habitualName` vs `name`), el paso a paso con dry-run y reconciliación contra prod, los riesgos de `--force` y el impacto en "Faltan confirmar" y tarjetas.
+
 **[briefing-ux.md](briefing-ux.md)** — Documento autocontenido para pasarle a alguien externo que analice la experiencia de usuario. Incluye el contexto del grupo, el ciclo semanal real, las decisiones ya tomadas que no hay que reproponer, y un pedido explícito de que priorice en vez de tirar una lista larga. Los nombres reales están reemplazados por roles.
 
 ## Lo que NO está acá
