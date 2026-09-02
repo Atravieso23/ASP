@@ -3,6 +3,10 @@
 // input (aún sin guardar). Sólo lectura: no persiste, no toca name/habitualName, no
 // toca el handler de "Guardar cambios" (única persistencia). Fuera del modo
 // identificado queda oculto.
+//
+// PR #48 — el preview sólo aparece cuando APORTA DIFERENCIA: si el nombre visible
+// coincide con la identidad base (o el input vacío cae a ella) se oculta, para no
+// repetir el heading. label / helper / copy del preview quedan verbatim.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -64,19 +68,30 @@ function runPreview({ identified, changing = false, inputValue = "", propia = nu
   return { hidden: wrap.hidden, name: nameEl.textContent };
 }
 
-test("3. carga identificado: preview = response.name (lo que trae el input)", () => {
+test("3. carga identificado con name != habitualName: preview = lo que trae el input", () => {
   const out = runPreview({ identified: true, inputValue: "Pablito" });
   assert.equal(out.hidden, false);
   assert.equal(out.name, "Pablito");
 });
 
-test("4. identificado sin nada en el input: cae a habitualName", () => {
+test("4. PR #48: input vacío -> cae a habitualName -> oculto (no hay diferencia)", () => {
   const out = runPreview({ identified: true, inputValue: "" });
-  assert.equal(out.hidden, false);
-  assert.equal(out.name, "Pablo de Achaval");
+  assert.equal(out.hidden, true);
+  assert.equal(out.name, "");
 });
 
-test("5. live: editar el input cambia el preview con el texto escrito", () => {
+test("4b. PR #48: name == habitualName al cargar (input = identidad base) -> oculto", () => {
+  const out = runPreview({ identified: true, inputValue: "Pablo de Achaval", propia: { name: "Pablo de Achaval", habitualName: "Pablo de Achaval" } });
+  assert.equal(out.hidden, true);
+  assert.equal(out.name, "");
+});
+
+test("4c. PR #48: comparación con trim en los dos lados", () => {
+  assert.equal(runPreview({ identified: true, inputValue: "  Pablo de Achaval  ", propia: { habitualName: "Pablo de Achaval" } }).hidden, true);
+  assert.equal(runPreview({ identified: true, inputValue: "Pablo de Achaval", propia: { habitualName: "  Pablo de Achaval  " } }).hidden, true);
+});
+
+test("5. live: editar el input a algo != habitualName -> visible con el texto escrito", () => {
   const out = runPreview({ identified: true, inputValue: "Fran" });
   assert.equal(out.hidden, false);
   assert.equal(out.name, "Fran");
@@ -84,15 +99,28 @@ test("5. live: editar el input cambia el preview con el texto escrito", () => {
   assert.equal(runPreview({ identified: true, inputValue: "  Fran  " }).name, "Fran");
 });
 
-test("6. vaciar el input vuelve al fallback seguro (habitualName), no al name previo", () => {
-  const out = runPreview({ identified: true, inputValue: "", propia: { name: "Pablito", habitualName: "Pablo de Achaval" } });
-  assert.equal(out.name, "Pablo de Achaval");
+test("5b. PR #48: live toggle -> distinto de habitualName visible, igual oculto", () => {
+  const propia = { name: "Pablito", habitualName: "Pablo de Achaval" };
+  assert.equal(runPreview({ identified: true, inputValue: "Pablón", propia }).hidden, false, "distinto -> visible");
+  assert.equal(runPreview({ identified: true, inputValue: "Pablo de Achaval", propia }).hidden, true, "vuelve a la identidad base -> oculto");
 });
 
-test("7. sin fallback (legacy sin habitualName) y input vacío -> oculto", () => {
+test("6. PR #48: vaciar el input vuelve al fallback (habitualName) -> oculto", () => {
+  const out = runPreview({ identified: true, inputValue: "", propia: { name: "Pablito", habitualName: "Pablo de Achaval" } });
+  assert.equal(out.hidden, true);
+  assert.equal(out.name, "");
+});
+
+test("7. legacy sin habitualName + input vacío -> oculto (no hay nada que mostrar)", () => {
   const out = runPreview({ identified: true, inputValue: "", propia: { name: "Frankie" } });
   assert.equal(out.hidden, true);
   assert.equal(out.name, "");
+});
+
+test("7b. PR #48: legacy sin habitualName + input NO vacío -> visible (no hay identidad base contra qué comparar)", () => {
+  const out = runPreview({ identified: true, inputValue: "Frankie", propia: { name: "Frankie" } });
+  assert.equal(out.hidden, false);
+  assert.equal(out.name, "Frankie");
 });
 
 test("8. ambos faltan -> oculto", () => {
