@@ -61,7 +61,7 @@ test("3. el bloque de pago mantiene sólo el control personal", () => {
   );
   assert.match(payment, /<span class="my-status-label">Pago<\/span>/);
   assert.match(payment, /<input type="checkbox" id="my-status-paid-check">\s*<span>Ya pagué<\/span>/);
-  assert.match(payment, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\.<\/p>/);
+  assert.match(payment, /<p class="my-status-paid-help">Si no lo marcás, quedás pendiente\. Al arrancar el partido, pendiente = 🟨\.<\/p>/);
 });
 
 /* ---------- 4. render() sigue encontrando el nodo y calculando igual ---------- */

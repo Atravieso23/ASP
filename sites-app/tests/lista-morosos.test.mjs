@@ -78,6 +78,15 @@ test("3. las reglas están en el HTML estático (se ven haya o no tarjetas)", ()
   assert.match(demo, /<p class="lista-morosos-rules">[\s\S]*?sumás 🟨[\s\S]*?birra para la banda 🍺[\s\S]*?<\/p>/);
 });
 
+test("3b. PR #43: las reglas abren con la línea que separa la deuda de hoy de la sanción acumulada", () => {
+  assert.match(demo, /Esto no es la cuota de hoy: son las tarjetas que se arrastran\./);
+  // Va primero, antes de las dos reglas que ya estaban (que quedan intactas).
+  assert.match(
+    demo,
+    /<p class="lista-morosos-rules">[\s\S]*?Esto no es la cuota de hoy: son las tarjetas que se arrastran\.[\s\S]*?Si no figurás pago antes del inicio del partido, sumás 🟨\.[\s\S]*?Cada 2 amarillas, debés una birra para la banda 🍺\.[\s\S]*?<\/p>/,
+  );
+});
+
 /* ---------- lo que NO es ---------- */
 
 test("4. no aparece 'Fair Play' en ningún lado", () => {
