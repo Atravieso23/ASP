@@ -93,9 +93,9 @@ test("6+7+8+9. no cambia disponibilidad / chip full-day / pagos / invitados / mo
   assert.match(demo, /<span class="my-status-fullday-text">Siempre para la pelota<\/span>/);
   assert.match(demo, /\.my-status-times\.is-full-day \.my-status-time-pair\{display:none;\}/);
   assert.match(demo, /mockAvailabilityBlock\.hidden = mockAvailability === 'out';/);
-  // Data-values de estado y pago sin tocar.
+  // Estado sin tocar; Pago = checkbox único (PR #38), presente igual.
   assert.match(demo, /data-value="out" aria-pressed="false">Soy baja</);
-  assert.match(demo, /data-value="no" aria-pressed="true">Debo</);
+  assert.match(demo, /<input type="checkbox" id="my-status-paid-check">/);
   // Las funciones de esas zonas no mencionan el botón nuevo.
   for (const name of ["syncPagoControls", "renderGuestManager", "renderListaMorosos", "computeCards", "evaluarTarjetasSiCorresponde", "saldarBirra", "setFullDayAvailability"]) {
     const start = demo.search(new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`));

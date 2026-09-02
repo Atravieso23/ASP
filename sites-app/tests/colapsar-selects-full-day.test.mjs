@@ -193,7 +193,7 @@ test("11+12+13. no afecta pagos / invitados / selector / Lista de morosos / Sald
     );
   }
   assert.match(demo, /data-value="out" aria-pressed="false">Soy baja</);
-  assert.match(demo, /data-value="no" aria-pressed="true">Debo</);
+  assert.match(demo, /<input type="checkbox" id="my-status-paid-check">/);
   // No hay selector segmentado: la disponibilidad sigue con dos <select>, no botones.
   assert.match(demo, /<select id="my-status-from"/);
   assert.match(demo, /<select id="my-status-to"/);
