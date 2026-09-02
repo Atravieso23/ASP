@@ -383,6 +383,25 @@
   }
   .new-loc-field{margin-top:8px;}
 
+  /* PRÓXIMO PARTIDO — ancla de orientación arriba de "Mi estado". Sin fondo: dos
+     líneas de texto sobre la página, no una card. Duplica a propósito fecha/hora/
+     cancha del ticket (vistazo rápido vs. detalle + edición). */
+  .proximo-partido{margin:0 2px 16px;}
+  .proximo-partido-eyebrow{
+    display:flex; align-items:center; gap:7px; margin:0 0 5px;
+    font:700 11px 'Oswald',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  }
+  .proximo-partido-eyebrow::before{
+    content:""; flex:none; width:7px; height:7px; border-radius:50%; background:var(--celeste);
+    box-shadow:0 0 0 3px rgba(79,166,222,.14);
+  }
+  .proximo-partido-main{
+    margin:0; font:700 clamp(15px,4.4vw,19px) 'Oswald',sans-serif;
+    letter-spacing:.01em; color:var(--navy); word-break:break-word;
+  }
+  .proximo-partido-sub{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
+  .proximo-partido-sub:empty{display:none;}
+
   /* MI ESTADO (maqueta local, sin persistencia) */
   .my-status-card{
     background:var(--white); border:1px solid var(--card-border); border-radius:16px;
@@ -661,6 +680,14 @@
   </div>
 
   <div id="tab-partido">
+
+  <!-- Ancla de orientación: fecha/hora/cancha del próximo partido antes del form
+       personal. El ticket (más abajo) sigue siendo el detalle completo + edición. -->
+  <section class="proximo-partido" id="proximo-partido" aria-label="Próximo partido">
+    <p class="proximo-partido-eyebrow">Próximo partido</p>
+    <p class="proximo-partido-main" id="proximo-partido-main">—</p>
+    <p class="proximo-partido-sub" id="proximo-partido-sub"></p>
+  </section>
 
   <section class="my-status-card" id="my-status-card" aria-labelledby="my-status-title">
     <h2 class="my-status-heading" id="my-status-title">Registro</h2>
@@ -1973,12 +2000,31 @@ function render(){
   renderHistory();
   renderFaltaConfirmar();
   renderListaMorosos();
+  renderProximoPartido();
 }
 
 function setSb(id, val, emptyLabel){
   const el = document.getElementById(id);
   el.textContent = val || (emptyLabel !== undefined ? emptyLabel : 'Sin asignar');
   el.className = 'sb-value' + ((val)? '':' empty');
+}
+
+// PRÓXIMO PARTIDO — ancla de orientación arriba de "Mi estado". Reusa lo que ya se
+// calcula para el ticket (formatDateDisplay, matchInfo.time/loc, daysUntilLabel);
+// acá es sólo el vistazo rápido. Sin fecha u hora -> estado sobrio, no se inventa
+// horario. Sólo textContent: no toca estado ni ningún campo persistible.
+function renderProximoPartido(){
+  const main = document.getElementById('proximo-partido-main');
+  const sub = document.getElementById('proximo-partido-sub');
+  if(!main || !sub) return;
+  const mi = (state && state.matchInfo) || {};
+  if(mi.date && mi.time){
+    main.textContent = `${formatDateDisplay(mi.date)} · ${mi.time}`;
+    sub.textContent = [mi.loc, daysUntilLabel(mi.date)].filter(Boolean).join(' · ');
+  }else{
+    main.textContent = 'Próximo partido sin confirmar';
+    sub.textContent = '';
+  }
 }
 
 function computeStandings(){
