@@ -17,6 +17,8 @@ Hallazgo principal: la app anterior tenía lista de espera, estado "Duda" y desh
 
 **[runbook-agregar-habitual.md](runbook-agregar-habitual.md)** — Procedimiento para agregar o sacar un jugador habitual del grupo de forma segura. Hoy no hay UI: es una operación manual con `sites-app/scripts/seed-habitual-players.mjs`. Documenta el modelo (`habitualPlayers` como fuente de verdad, `habitualName` vs `name`), el paso a paso con dry-run y reconciliación contra prod, los riesgos de `--force` y el impacto en "Faltan confirmar" y tarjetas.
 
+**[runbook-sanciones-pago.md](runbook-sanciones-pago.md)** — Reglas vigentes del dominio de plata: pago personal, `Faltan pagar` (deuda viva de la fecha), `Lista de morosos` (sanciones acumuladas), tarjetas 🟨 y birras 🍺. Aclara que son tres conceptos distintos, cómo se calcula cada tarjeta en `computeCards` (habitual + `status:'in'` + impago al horario de inicio, latcheado por `matchKey`), que pagar tarde no borra una amarilla, que los invitados cuentan para `Faltan pagar` pero nunca reciben tarjetas, y los casos borde. Es documentación de lo que ya hace el código, no una propuesta de cambio.
+
 **[briefing-ux.md](briefing-ux.md)** — Documento autocontenido para pasarle a alguien externo que analice la experiencia de usuario. Incluye el contexto del grupo, el ciclo semanal real, las decisiones ya tomadas que no hay que reproponer, y un pedido explícito de que priorice en vez de tirar una lista larga. Los nombres reales están reemplazados por roles.
 
 ## Lo que NO está acá
