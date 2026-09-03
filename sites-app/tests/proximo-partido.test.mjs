@@ -1,8 +1,10 @@
-// PR #44 — mini-bloque "Próximo partido": ancla de orientación (fecha/hora/cancha/
-// countdown) al inicio de #tab-partido, ANTES de #my-status-card. El ticket y su
-// .scoreboard no se tocan: acá es el vistazo rápido, el ticket sigue siendo el
-// detalle completo + edición. Sólo markup + CSS aislado + poblar nodos con
-// textContent en render() (vía renderProximoPartido()).
+// PR #44 — mini-bloque "Próximo partido": ancla de orientación al inicio de
+// #tab-partido, ANTES de #my-status-card. El ticket y su .scoreboard no se tocan.
+//
+// PR #53 — el bloque pasó a "quick glance" con dos frames según el estado del
+// partido. Acá quedan los invariantes de PR #44 (ubicación, ticket intacto,
+// estado B = definido). El comportamiento del estado A ("en armado") y el scrim
+// viven en quick-glance-partido.test.mjs.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -31,8 +33,9 @@ test("1. el bloque #proximo-partido existe con eyebrow + main + sub", () => {
     demo.indexOf("</section>", demo.indexOf('<section class="proximo-partido"')) + 10,
   );
   assert.match(block, /<section class="proximo-partido" id="proximo-partido" aria-label="Próximo partido">/);
-  assert.match(block, /<p class="proximo-partido-eyebrow">Próximo partido<\/p>/);
-  assert.match(block, /<p class="proximo-partido-main" id="proximo-partido-main">/);
+  // PR #53 — el eyebrow pasó a poblarse por JS (texto según estado): nace vacío con id.
+  assert.match(block, /<p class="proximo-partido-eyebrow" id="proximo-partido-eyebrow"><\/p>/);
+  assert.match(block, /<p class="proximo-partido-main" id="proximo-partido-main"><\/p>/);
   assert.match(block, /<p class="proximo-partido-sub" id="proximo-partido-sub"><\/p>/);
 });
 
@@ -75,7 +78,7 @@ test("5. render() llama a renderProximoPartido()", () => {
   assert.match(render, /renderProximoPartido\(\);/);
 });
 
-test("6. renderProximoPartido sólo usa textContent (no toca estado ni innerHTML)", () => {
+test("6. renderProximoPartido sólo lee: textContent + toggle de clase, sin writers", () => {
   const fn = extractFunction(demo, "renderProximoPartido");
   assert.match(fn, /getElementById\('proximo-partido-main'\)/);
   assert.match(fn, /getElementById\('proximo-partido-sub'\)/);
@@ -85,24 +88,32 @@ test("6. renderProximoPartido sólo usa textContent (no toca estado ni innerHTML
   assert.match(fn, /daysUntilLabel\(mi\.date\)/);
   // Guard de fecha+hora, sin inventar horario.
   assert.match(fn, /if\(mi\.date && mi\.time\)/);
-  assert.match(fn, /Próximo partido sin confirmar/);
-  // Lee state.matchInfo pero no escribe: sólo asigna a .textContent, sin innerHTML,
-  // sin classList, sin writers, sin asignar a state/mi.
-  assert.doesNotMatch(fn, /innerHTML|\.classList|saveState\(|persistFocalizado|guardarCambio/);
+  // PR #53 — ya NO escribe "Próximo partido sin confirmar" como línea principal.
+  assert.doesNotMatch(fn, /Próximo partido sin confirmar/);
+  // PR #53 — el único cambio de DOM además de textContent es toggle de esta clase.
+  assert.match(fn, /classList\.(add|remove)\('proximo-partido--armado'\)/);
+  // Lee state.matchInfo pero no escribe: sin innerHTML, sin writers, sin asignar a state/mi/matchInfo.
+  assert.doesNotMatch(fn, /innerHTML|saveState\(|persistFocalizado|guardarCambio|guardarPartido|matchInfo\s*=/);
   assert.doesNotMatch(fn, /(?:state|mi)\.\w+\s*=[^=]/);
-  assert.equal((fn.match(/\.textContent\s*=/g) || []).length, 4, "sólo debería asignar textContent (main/sub x2)");
 });
 
 /* ---------- 7. comportamiento real de renderProximoPartido ---------- */
 
-function runRender(matchInfo) {
+function runRender(matchInfo, { faltan = 0 } = {}) {
+  const classes = new Set();
   const nodes = {
+    "proximo-partido": {
+      classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) },
+    },
+    "proximo-partido-eyebrow": { textContent: "" },
     "proximo-partido-main": { textContent: "" },
     "proximo-partido-sub": { textContent: "" },
+    "proximo-partido-hint": { textContent: "" },
   };
   const context = vm.createContext({
     document: { getElementById: (id) => nodes[id] || null },
     state: { matchInfo },
+    faltanConfirmar: () => Array.from({ length: faltan }, (_, i) => `x${i}`),
     Boolean, String, Array,
   });
   vm.runInContext(
@@ -114,35 +125,45 @@ function runRender(matchInfo) {
     ].join("\n"),
     context,
   );
-  return { main: nodes["proximo-partido-main"].textContent, sub: nodes["proximo-partido-sub"].textContent };
+  return {
+    eyebrow: nodes["proximo-partido-eyebrow"].textContent,
+    main: nodes["proximo-partido-main"].textContent,
+    sub: nodes["proximo-partido-sub"].textContent,
+    hint: nodes["proximo-partido-hint"].textContent,
+    armado: classes.has("proximo-partido--armado"),
+  };
 }
 
-test("7. matchInfo lleno: main = 'fecha · hora', sub = 'cancha · countdown'", () => {
+test("7. estado B (fecha+hora): eyebrow 'Próximo partido', main = 'fecha · hora', sub = 'cancha · countdown'", () => {
   const out = runRender({ date: "2099-12-25", time: "16:00", loc: "Cancha del barrio" });
+  assert.equal(out.eyebrow, "Próximo partido");
+  assert.equal(out.armado, false);
   assert.match(out.main, /· 16:00$/);
   assert.ok(/diciembre/i.test(out.main), `main sin fecha legible: ${out.main}`);
   assert.match(out.sub, /^Cancha del barrio · /);
   assert.match(out.sub, /(faltan|falta) \d+ d/); // countdown reutilizado
 });
 
-test("8. sin hora: estado sobrio, sin inventar horario", () => {
+test("8. sin hora: NO se inventa horario ni se escribe 'sin confirmar' como línea principal", () => {
   const out = runRender({ date: "2099-12-25", time: "", loc: "Cancha del barrio" });
-  assert.equal(out.main, "Próximo partido sin confirmar");
-  assert.equal(out.sub, "");
+  assert.equal(out.main, "");
+  assert.equal(out.armado, true);
+  assert.doesNotMatch([out.eyebrow, out.main, out.sub, out.hint].join(" "), /sin confirmar|se juega|reservad/i);
 });
 
-test("9. sin fecha: estado sobrio, sin crashear", () => {
+test("9. sin fecha: no crashea, cae al frame 'en armado'", () => {
   assert.doesNotThrow(() => {
     const out = runRender({ date: "", time: "16:00", loc: "Cancha del barrio" });
-    assert.equal(out.main, "Próximo partido sin confirmar");
-    assert.equal(out.sub, "");
+    assert.equal(out.main, "");
+    assert.equal(out.eyebrow, "Así viene el partido");
   });
 });
 
-test("10. matchInfo vacío entero: no crashea y cae al estado sobrio", () => {
+test("10. matchInfo vacío entero: no crashea y cae al frame 'en armado'", () => {
   assert.doesNotThrow(() => {
     const out = runRender({});
-    assert.equal(out.main, "Próximo partido sin confirmar");
+    assert.equal(out.main, "");
+    assert.equal(out.armado, true);
   });
 });
 
@@ -152,11 +173,14 @@ test("11. fecha+hora sin cancha: sub queda sólo con el countdown", () => {
   assert.match(out.sub, /^(faltan|falta) \d+ d/);
 });
 
-/* ---------- 8. CSS: bloque sutil, no una card ---------- */
+/* ---------- 8. CSS: scrim sutil, no una card pesada ---------- */
 
-test("12. CSS: el bloque no tiene fondo de card ni borde (no compite con el ticket)", () => {
+test("12. CSS: el bloque tiene scrim de fondo pero NO sombra ni borde de card", () => {
   const css = demo.slice(demo.indexOf(".proximo-partido{"), demo.indexOf("/* MI ESTADO"));
-  assert.doesNotMatch(css, /\.proximo-partido\{[^}]*background/);
+  // PR #53 — scrim oscuro para recuperar contraste sobre el glow del body.
+  assert.match(css, /\.proximo-partido\{[^}]*background:rgba\(8,20,32,\.6\)/);
+  // pero sigue sin ser card: nada de box-shadow ni borde grueso.
+  assert.doesNotMatch(css, /\.proximo-partido\{[^}]*box-shadow/);
   assert.doesNotMatch(css, /\.proximo-partido\{[^}]*border:/);
   assert.match(css, /\.proximo-partido-sub:empty\{display:none;\}/);
 });
