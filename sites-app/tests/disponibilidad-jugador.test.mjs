@@ -146,20 +146,28 @@ test("12. va antes de #my-status-card", () => {
   assert.ok(demo.indexOf('id="proximo-partido-horarios"') < demo.indexOf('id="my-status-card"'));
 });
 
-test("12b. render() llama renderHorariosDisponibles después de renderProximoPartido", () => {
-  assert.match(extractFunction(demo, "render"), /renderProximoPartido\(\);\s*renderHorariosDisponibles\(\);/);
+test("12b. render() llama renderHorariosDisponibles pasándole la hora del partido", () => {
+  // PR #56 — el call site pasa `state.matchInfo && state.matchInfo.time` para ocultar
+  // los horarios cuando ya hay hora cargada.
+  assert.match(
+    extractFunction(demo, "render"),
+    /renderProximoPartido\(\);\s*renderHorariosDisponibles\(state\.matchInfo && state\.matchInfo\.time\);/,
+  );
 });
 
 /* ============ comportamiento del helper de Jugador ============ */
 
-function runHelper(responses) {
+function runHelper(responses, horaYaCargada) {
   const box = { innerHTML: "PREV" };
   const ctx = vm.createContext({
     document: { getElementById: (id) => (id === "proximo-partido-horarios" ? box : null) },
     localAvailabilityResponses: responses,
     String,
   });
-  vm.runInContext(`${puraSrc}\n${helperSrc}\nrenderHorariosDisponibles();`, ctx);
+  vm.runInContext(
+    `${puraSrc}\n${helperSrc}\nrenderHorariosDisponibles(${JSON.stringify(horaYaCargada ?? null)});`,
+    ctx,
+  );
   return box.innerHTML;
 }
 
@@ -190,6 +198,42 @@ test("15. sin confirmados -> nodo vacío (:empty lo oculta)", () => {
   assert.equal(runHelper([{ status: "duda", from: "18:00", to: "20:00" }, { status: "out" }]), "");
 });
 
+/* ============ PR #56 — ocultar cuando ya hay Hora cargada ============ */
+
+const CONF = [IN("18:00", "19:00"), IN("18:00", "19:00"), IN("17:00", "18:00")];
+
+test("15c. sin hora (o vacía / null / undefined) -> horarios VISIBLES como hasta ahora", () => {
+  assert.match(runHelper(CONF), /Horarios que mejor cierran/);
+  assert.match(runHelper(CONF, ""), /Horarios que mejor cierran/);
+  assert.match(runHelper(CONF, null), /Horarios que mejor cierran/);
+  // llamada literal sin argumento
+  const box = { innerHTML: "PREV" };
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => (id === "proximo-partido-horarios" ? box : null) },
+    localAvailabilityResponses: CONF,
+    String,
+  });
+  vm.runInContext(`${puraSrc}\n${helperSrc}\nrenderHorariosDisponibles();`, ctx);
+  assert.match(box.innerHTML, /Horarios que mejor cierran/);
+});
+
+test("15d. time='20:00' -> horarios OCULTOS (nodo vacío, :empty lo esconde)", () => {
+  assert.equal(runHelper(CONF, "20:00"), "");
+});
+
+test("15e. time='a coordinar' (texto libre) -> horarios OCULTOS (regla truthy, sin regex)", () => {
+  assert.equal(runHelper(CONF, "a coordinar"), "");
+});
+
+test("15f. el early return ocurre ANTES de llamar a horariosDisponibles", () => {
+  const cuerpo = helperSrc.slice(helperSrc.indexOf("{"));
+  const iEarly = cuerpo.indexOf("if(horaYaCargada)");
+  const iCalc = cuerpo.indexOf("horariosDisponibles(localAvailabilityResponses");
+  assert.ok(iEarly !== -1 && iCalc !== -1, "no ubiqué las dos líneas");
+  assert.ok(iEarly < iCalc, "el guard de hora tiene que ir antes del cálculo");
+  assert.match(cuerpo, /if\(horaYaCargada\)\{ box\.innerHTML=''; return; \}/);
+});
+
 test("15b. CSS: filas compactas muted, heading tipo eyebrow diferenciado, sin barras, con :empty", () => {
   const css = demo.slice(demo.indexOf(".proximo-partido-horarios{"), demo.indexOf("/* MI ESTADO"));
   assert.match(css, /\.proximo-partido-horarios:empty\{display:none;\}/);
@@ -207,7 +251,11 @@ test("15b. CSS: filas compactas muted, heading tipo eyebrow diferenciado, sin ba
 
 test("16. copy prohibido ausente en el helper y en su salida", () => {
   const html = runHelper([IN("18:00", "19:00"), IN("16:00", "17:00")]);
-  for (const prohibido of [/ganador/i, /se juega/i, /elegido/i, /horario ganador/i, /viene ganando/i]) {
+  for (const prohibido of [
+    /ganador/i, /se juega/i, /elegido/i, /horario ganador/i, /viene ganando/i,
+    // PR #56 — ocultar por hora cargada no debe insinuar reserva/confirmación/cupo
+    /reservad/i, /\breserva\b/i, /confirmad[oa]/i, /\bcupo\b/i,
+  ]) {
     assert.doesNotMatch(helperSrc, prohibido, `el helper no debe decir ${prohibido}`);
     assert.doesNotMatch(html, prohibido, `la salida no debe decir ${prohibido}`);
   }
