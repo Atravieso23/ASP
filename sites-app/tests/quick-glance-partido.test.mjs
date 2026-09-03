@@ -106,9 +106,9 @@ test("4. estado A: sin duda el string de convocatoria no lleva 'en duda' (render
   assert.match(render, /if\(mi\.type\) partes\.push\(`apuntamos a \$\{cap\}`\)/);
 });
 
-test("5. estado A muestra 'faltan N por responder' (en la pista, BAJO el resumen) SÓLO si faltanConfirmar().length > 0", () => {
-  assert.match(runGlance({ date: "", time: "" }, { faltan: 3 }).hint, /faltan 3 por responder/);
-  assert.doesNotMatch(runGlance({ date: "", time: "" }, { faltan: 0 }).hint, /faltan/);
+test("5. estado A muestra 'N todavía no respondieron' (en la pista, BAJO el resumen) SÓLO si faltanConfirmar().length > 0", () => {
+  assert.match(runGlance({ date: "", time: "" }, { faltan: 3 }).hint, /^3 todavía no respondieron$/);
+  assert.equal(runGlance({ date: "", time: "" }, { faltan: 0 }).hint, "");
   assert.match(fnSrc, /const faltan = faltanConfirmar\(\)\.length;/);
   assert.match(fnSrc, /if\(faltan > 0\)/);
   // la pista va DESPUÉS de #proximo-partido-squad en el markup (bajo el resumen primario)
@@ -117,11 +117,12 @@ test("5. estado A muestra 'faltan N por responder' (en la pista, BAJO el resumen
   assert.ok(block.indexOf('id="proximo-partido-hint"') < block.indexOf('id="proximo-partido-horarios"'));
 });
 
-test("6. nunca 'faltan N' sin 'por responder'", () => {
-  assert.doesNotMatch(fnSrc, /faltan \$\{faltan\}(?! por responder)/);
+test("6. PR #54 — nunca 'faltan N' a secas ni 'por responder'; el copy es 'N todavía no respondieron'", () => {
+  assert.doesNotMatch(fnSrc, /faltan \$\{faltan\}|por responder/);
   for (const n of [1, 2, 7, 14]) {
     const hint = runGlance({ date: "", time: "" }, { faltan: n }).hint;
-    if (/faltan/.test(hint)) assert.match(hint, new RegExp(`faltan ${n} por responder`));
+    assert.equal(hint, `${n} todavía no respondieron`);
+    assert.doesNotMatch(hint, /faltan|cupo/i);
   }
 });
 
@@ -139,7 +140,7 @@ test("7b. estado A sin fecha: no aparece 'hora a definir' colgada; sub queda vac
 
 test("7c. una sola pista: si falta gente por responder, gana el nudge (no la fecha)", () => {
   const out = runGlance({ date: "2026-09-06", time: "" }, { faltan: 4 });
-  assert.match(out.hint, /^faltan 4 por responder$/);
+  assert.match(out.hint, /^4 todavía no respondieron$/);
   assert.doesNotMatch(out.hint, /hora a definir/);
 });
 
@@ -156,10 +157,11 @@ test("9. estado B conserva fecha/hora como main", () => {
   assert.match(out.main, /Sábado, 6 de septiembre · 20:00/);
 });
 
-test("10. estado B conserva cancha/countdown como sub; sin pista de armado", () => {
-  const out = runGlance({ date: "2026-09-06", time: "20:00", loc: "La Terraza F7" });
+test("10. estado B conserva cancha/countdown como sub; sin pista de armado (ni 'todavía no respondieron')", () => {
+  const out = runGlance({ date: "2026-09-06", time: "20:00", loc: "La Terraza F7" }, { faltan: 7 });
   assert.match(out.sub, /^La Terraza F7 · faltan 3 días$/);
   assert.equal(out.hint, "");
+  assert.doesNotMatch(out.all, /todavía no respondieron/);
 });
 
 test("11. estado B: la convocatoria queda como línea de apoyo (muted), no promovida", () => {
