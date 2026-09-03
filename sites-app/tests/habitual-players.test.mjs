@@ -276,7 +276,7 @@ test("mensaje: varios faltantes usan coma y 'y' antes del último, con 👀", ()
   const w = faltaConfirmarWorld();
   assert.equal(
     w.mensaje({ habitualPlayers: ["Pablo", "Mingo", "Roca", "Negro"] }, []),
-    "Falta confirmar: Pablo, Mingo, Roca y Negro 👀",
+    "Faltan responder: Pablo, Mingo, Roca y Negro 👀",
   );
 });
 
@@ -284,7 +284,7 @@ test("mensaje: un solo faltante, sin coma ni 'y'", () => {
   const w = faltaConfirmarWorld();
   assert.equal(
     w.mensaje({ habitualPlayers: ["Pablo", "Mingo"] }, [{ name: "Mingo", isGuest: false }]),
-    "Falta confirmar: Pablo 👀",
+    "Faltan responder: Pablo 👀",
   );
 });
 
