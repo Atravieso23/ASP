@@ -144,7 +144,7 @@ test("9. mensajeFaltaConfirmar() sigue funcionando y lista a TODOS (aunque la UI
     habitualPlayers: ["Ana", "Beto", "Caro", "Dani", "Emi", "Fede", "Gonza"],
     responses: [],
   });
-  assert.match(out.mensaje, /^Falta confirmar: /);
+  assert.match(out.mensaje, /^Faltan responder: /);
   for (const n of ["Ana", "Beto", "Caro", "Dani", "Emi", "Fede", "Gonza"]) {
     assert.ok(out.mensaje.includes(n), `el mensaje de WhatsApp debe incluir a ${n}`);
   }

@@ -3481,15 +3481,16 @@ function faltanConfirmar(estado = state, responses = localAvailabilityResponses)
     !respondieron.has(nombre.trim().toLocaleLowerCase('es'))
   );
 }
-// "Falta confirmar: Pablo, Mingo, Roca y Negro 👀" — coma entre todos menos el último,
-// que va con " y ". Vacío si no falta nadie.
+// "Faltan responder: Pablo, Mingo, Roca y Negro 👀" — coma entre todos menos el último,
+// que va con " y ". Vacío si no falta nadie. El prefijo copia el título del bloque
+// ("Faltan responder") para que UI y mensaje de WhatsApp usen el mismo lenguaje.
 function mensajeFaltaConfirmar(estado = state, responses = localAvailabilityResponses){
   const faltan = faltanConfirmar(estado, responses);
   if(faltan.length === 0) return '';
   const lista = faltan.length === 1
     ? faltan[0]
     : faltan.slice(0, -1).join(', ') + ' y ' + faltan[faltan.length - 1];
-  return `Falta confirmar: ${lista} 👀`;
+  return `Faltan responder: ${lista} 👀`;
 }
 function renderFaltaConfirmar(){
   const block = document.getElementById('falta-confirmar-block');
