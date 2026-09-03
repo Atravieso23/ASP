@@ -391,7 +391,7 @@
      cancha del ticket (vistazo rápido vs. detalle + edición). */
   .proximo-partido{margin:0 2px 16px;}
   .proximo-partido-eyebrow{
-    display:flex; align-items:center; gap:7px; margin:0 0 5px;
+    display:flex; align-items:center; gap:7px; margin:0 0 3px;
     font:700 11px 'Oswald',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
   }
   .proximo-partido-eyebrow::before{
@@ -402,20 +402,26 @@
     margin:0; font:700 clamp(15px,4.4vw,19px) 'Oswald',sans-serif;
     letter-spacing:.01em; color:var(--navy); word-break:break-word;
   }
-  .proximo-partido-sub{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
+  /* Ritmo ceñido: cancha/countdown y convocatoria son líneas de apoyo, pegadas a la
+     fecha/hora. line-height apenas menor que el default, sigue legible en 320. */
+  .proximo-partido-sub{margin:2px 0 0; font-size:12px; line-height:1.35; color:var(--muted);}
   .proximo-partido-sub:empty{display:none;}
   /* Convocatoria: "9 confirmados · 1 en duda · apuntamos a 14". Es feedback real
      (lo que la gente entra a mirar); acá arriba, sin scroll. El ticket mantiene
      .squad-status con el detalle. Sin fondo ni chip: no es un marcador. */
-  .proximo-partido-squad{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
+  .proximo-partido-squad{margin:2px 0 0; font-size:12px; line-height:1.35; color:var(--muted);}
   .proximo-partido-squad:empty{display:none;}
   /* "Horarios que mejor cierran": disponibilidad inferida, no decisión. Texto plano,
      compacto, muted; sin fondo, sin barras, sin destacar una franja como elegida.
-     :empty lo oculta cuando no hay confirmados. */
-  .proximo-partido-horarios{margin:7px 0 0;}
+     Separador hairline + heading tipo eyebrow para que se lea como sección aparte
+     (grupo/partido arriba, horarios abajo) sin volverse una card. :empty lo oculta. */
+  .proximo-partido-horarios{margin:6px 0 0; padding-top:6px; border-top:1px solid var(--card-border);}
   .proximo-partido-horarios:empty{display:none;}
-  .proximo-partido-horarios-eyebrow{margin:0 0 2px; font-size:12px; line-height:1.45; color:var(--muted);}
-  .proximo-partido-horarios-row{margin:0; font-size:12px; line-height:1.5; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .proximo-partido-horarios-eyebrow{
+    margin:0 0 2px; font:700 10px 'Oswald',sans-serif;
+    letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+  }
+  .proximo-partido-horarios-row{margin:0; font-size:12px; line-height:1.4; color:var(--muted); font-variant-numeric:tabular-nums;}
 
   /* MI ESTADO (maqueta local, sin persistencia) */
   .my-status-card{
