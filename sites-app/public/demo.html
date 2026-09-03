@@ -836,8 +836,8 @@
   <section class="falta-confirmar" id="falta-confirmar-block" aria-labelledby="falta-confirmar-title" hidden>
     <div class="falta-confirmar-head">
       <div class="falta-confirmar-title-row">
-        <h2 class="falta-confirmar-title" id="falta-confirmar-title">Faltan confirmar</h2>
-        <span class="falta-confirmar-count" id="falta-confirmar-count" aria-label="Cuántos faltan confirmar" hidden></span>
+        <h2 class="falta-confirmar-title" id="falta-confirmar-title">Faltan responder</h2>
+        <span class="falta-confirmar-count" id="falta-confirmar-count" aria-label="Cuántos todavía no respondieron" hidden></span>
       </div>
       <p class="falta-confirmar-sub" id="falta-confirmar-sub"></p>
     </div>
@@ -2109,11 +2109,12 @@ function renderProximoPartido(){
     main.textContent = '';
     sub.textContent = '';
     // Una sola pista bajo el resumen, la más accionable: si falta gente por
-    // responder, ese es el nudge; si ya respondieron todos y hay fecha sin hora,
-    // recién ahí "… hora a definir". Nunca las dos juntas (se iban a dos líneas).
+    // responder, ese es el nudge ("N todavía no respondieron" — no "faltan N",
+    // que se confundía con faltantes para el cupo); si ya respondieron todos y
+    // hay fecha sin hora, recién ahí "… hora a definir". Nunca las dos juntas.
     const faltan = faltanConfirmar().length;
     if(faltan > 0){
-      hint.textContent = `faltan ${faltan} por responder`;
+      hint.textContent = `${faltan} todavía no respondieron`;
     }else if(mi.date){
       hint.textContent = `${formatDateDisplay(mi.date)} · hora a definir`;
     }else{
@@ -3469,8 +3470,8 @@ function renderFaltaConfirmar(){
   const sub = document.getElementById('falta-confirmar-sub');
   const namesEl = document.getElementById('falta-confirmar-names');
   const copyBtn = document.getElementById('falta-confirmar-copy');
-  // El chip del contador es opcional: null-guard para no romper harness de tests que no
-  // lo declaran. La feature sigue siendo sólo lectura (no toca estado ni storage).
+  // El chip del contador quedó fuera de la UI (siempre hidden); null-guard igual
+  // para no romper harness de tests que no lo declaran. Sólo lectura.
   const countEl = document.getElementById('falta-confirmar-count');
   if(!block || !sub || !namesEl || !copyBtn) return;
   const habituales = Array.isArray(state.habitualPlayers) ? state.habitualPlayers : [];
@@ -3489,10 +3490,16 @@ function renderFaltaConfirmar(){
     return;
   }
   block.classList.remove('falta-confirmar--ok');
-  // Copy con personalidad: el "cuántos" vive en el chip, no en una oración.
   sub.textContent = 'Tiren una señal, por favor 🙏';
-  if(countEl){ countEl.textContent = String(faltan.length); countEl.hidden = false; }
-  namesEl.textContent = faltan.join(', ');
+  // El chip numérico quedó fuera de la UI: el "cuántos" se lee en el sub y en la
+  // lista. Se deja siempre oculto (no se borra el markup).
+  if(countEl) countEl.hidden = true;
+  // Lista capada a 4 nombres para que no sea un muro: si hay más, "… y N más".
+  // El mensaje de WhatsApp (mensajeFaltaConfirmar) sigue listando a todos.
+  const MAX_VISIBLE = 4;
+  namesEl.textContent = faltan.length <= MAX_VISIBLE
+    ? faltan.join(', ')
+    : `${faltan.slice(0, MAX_VISIBLE).join(', ')} y ${faltan.length - MAX_VISIBLE} más`;
   namesEl.hidden = false;
   copyBtn.hidden = false;
 }
