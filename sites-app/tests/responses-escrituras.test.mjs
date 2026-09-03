@@ -633,3 +633,58 @@ test("la derivación sin argumentos sigue trabajando sobre el estado global", as
   assert.ok(!w.json("state.players").some((p) => p.name === "Ariel"),
     "el comportamiento por defecto no cambia");
 });
+
+// ── savePlayerRegistration: los invitados del propio dispositivo sobreviven y se re-anclan ──
+// Cuando el anfitrión vuelve a guardar su estado (pasa a "No estoy", renombra su casaca),
+// savePlayerRegistration reconstruye la lista de responses a partir de la lectura fresca.
+// Dos invariantes de producto (CLAUDE.md) que hasta ahora sólo cubría un assert.match sobre
+// el texto de la función:
+//   - los invitados que cargó ese anfitrión NO se caen de la lista
+//     ("guests do not disappear if the host changes to No estoy");
+//   - el invitedBy de esos invitados se re-sincroniza al name con el que quedó el anfitrión
+//     ("invitedBy identifies the host").
+// r-invitado en BASE_ROW ya es un invitado propio (ownerId DEVICE) con invitedBy "Felix".
+const ALTA_ANFITRION = (extra = {}) => ({
+  responseId: "r-propia", ownerId: DEVICE, ownerIds: [DEVICE],
+  name: "Felix", status: "in", from: "16:00", to: "20:00",
+  paid: null, team: null, updatedAt: "2026-08-10T12:00:00.000Z", ...extra,
+});
+
+test("savePlayerRegistration: el anfitrión pasa a 'out' y su invitado propio sigue en la lista", async () => {
+  const w = makeWorld();
+  const invitadoAntes = structuredClone(resp(w.db.row, "r-invitado"));
+
+  const ok = await w.run(
+    `savePlayerRegistration(${JSON.stringify(ALTA_ANFITRION({ status: "out" }))}).then(r => r.ok)`,
+  );
+
+  assert.equal(ok, true);
+  assert.equal(w.db.writes, 1, "un re-guardado del anfitrión es exactamente una escritura");
+  assert.equal(resp(w.db.row, "r-propia").status, "out", "el anfitrión quedó en 'out'");
+
+  const invitado = resp(w.db.row, "r-invitado");
+  assert.ok(invitado, "el invitado propio no puede desaparecer porque el anfitrión no juega");
+  assert.equal(invitado.isGuest, true, "sigue siendo invitado");
+  // El re-guardado del anfitrión no toca la identidad ni los datos del invitado.
+  assert.equal(invitado.responseId, "r-invitado", "misma response, mismo id");
+  assert.equal(invitado.from, invitadoAntes.from, "conserva su franja");
+  assert.equal(invitado.to, invitadoAntes.to, "conserva su franja");
+  assert.equal(invitado.paid, invitadoAntes.paid, "conserva su estado de pago");
+});
+
+test("savePlayerRegistration: el anfitrión renombra su casaca y el invitedBy del invitado lo sigue", async () => {
+  const w = makeWorld();
+
+  const ok = await w.run(
+    `savePlayerRegistration(${JSON.stringify(ALTA_ANFITRION({ name: "Félix (10)" }))}).then(r => r.ok)`,
+  );
+
+  assert.equal(ok, true);
+  assert.equal(w.db.writes, 1, "una sola escritura");
+
+  const invitado = resp(w.db.row, "r-invitado");
+  assert.ok(invitado, "el invitado sigue estando tras el rename del anfitrión");
+  assert.equal(invitado.invitedBy, "Félix (10)", "invitedBy se re-ancla al nombre nuevo del anfitrión");
+  assert.equal(invitado.responseId, "r-invitado", "sigue siendo la misma response");
+  assert.equal(invitado.isGuest, true);
+});
