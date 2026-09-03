@@ -1014,7 +1014,22 @@
     <h2>Editar partido</h2>
     <div class="field"><label>Nombre del grupo</label><input type="text" id="m-teamname"></div>
     <div class="field"><label>Día</label><input type="date" id="m-date"></div>
-    <div class="field"><label>Hora</label><input type="text" id="m-time" placeholder="18:00"></div>
+    <div class="field">
+      <label>Hora</label>
+      <input type="text" id="m-time" list="horas-tipicas" autocomplete="off" placeholder="Ej: 20:00 (o dejala vacía)">
+      <datalist id="horas-tipicas">
+        <option value="15:00"></option>
+        <option value="16:00"></option>
+        <option value="17:00"></option>
+        <option value="18:00"></option>
+        <option value="19:00"></option>
+        <option value="20:00"></option>
+        <option value="21:00"></option>
+        <option value="22:00"></option>
+        <option value="23:00"></option>
+      </datalist>
+      <p class="field-note">Si todavía no está, dejala vacía — el partido se muestra igual.</p>
+    </div>
     <div class="field">
       <label>Cancha / lugar</label>
       <select id="m-loc"></select>
@@ -1039,6 +1054,7 @@
       <p class="field-note">Se divide sola entre la cantidad de gente según la cancha (F5 ÷10, F7 ÷14, F8 ÷16, F9 ÷18, F11 ÷22).</p>
     </div>
     <div class="field"><label>Alias para pagar</label><input type="text" id="m-alias" list="frequent-aliases" autocomplete="off" placeholder="Escribí o elegí un alias frecuente"><datalist id="frequent-aliases"></datalist><p class="field-note">Los alias usados quedan disponibles como sugerencias para próximas fechas.</p></div>
+    <p class="field-note" id="m-context-note" style="margin:16px 0 0;">Lo que cargues acá aparece arriba, en “Próximo partido”.</p>
     <p class="modal-error" id="m-error" role="alert" hidden>No se pudo guardar. Revisá la conexión e intentá otra vez.</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="m-cancel">Cancelar</button>
