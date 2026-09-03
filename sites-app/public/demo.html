@@ -2083,7 +2083,7 @@ function render(){
   renderFaltaConfirmar();
   renderListaMorosos();
   renderProximoPartido();
-  renderHorariosDisponibles();
+  renderHorariosDisponibles(state.matchInfo && state.matchInfo.time);
 }
 
 function setSb(id, val, emptyLabel){
@@ -4047,9 +4047,14 @@ function horariosDisponibles(responses, { top = 3 } = {}){
 // (misma regla que el chart del Organizador). Sólo escribe innerHTML de su propio
 // nodo: no toca estado ni matchInfo ni llama writers. Sin slots -> nodo vacío
 // (:empty lo oculta).
-function renderHorariosDisponibles(){
+// `horaYaCargada`: si el partido ya tiene una hora (cualquier valor no vacío en
+// matchInfo.time), la señal de disponibilidad era para decidir CUÁNDO y ya cumplió
+// su función -> no se muestra, para no alargar el bloque. No mira formato: sólo
+// "hay algo escrito en el campo Hora".
+function renderHorariosDisponibles(horaYaCargada){
   const box = document.getElementById('proximo-partido-horarios');
   if(!box) return;
+  if(horaYaCargada){ box.innerHTML=''; return; }
   const top = horariosDisponibles(localAvailabilityResponses, {top:3});
   if(top.length===0){ box.innerHTML=''; return; }
   const filas = top.map(item=>

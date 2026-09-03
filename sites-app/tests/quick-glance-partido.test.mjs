@@ -179,7 +179,8 @@ test("12. 'Horarios que mejor cierran' sigue en el bloque, poblado por renderHor
   );
   assert.match(block, /<div class="proximo-partido-horarios" id="proximo-partido-horarios"><\/div>/);
   assert.match(extractFunction(demo, "renderHorariosDisponibles"), /Horarios que mejor cierran/);
-  assert.match(extractFunction(demo, "render"), /renderProximoPartido\(\);\s*renderHorariosDisponibles\(\);/);
+  // PR #56 — render() ahora le pasa la hora del partido (para ocultarlos si ya hay una).
+  assert.match(extractFunction(demo, "render"), /renderProximoPartido\(\);\s*renderHorariosDisponibles\(state\.matchInfo && state\.matchInfo\.time\);/);
 });
 
 /* ============ copy prohibido ============ */
