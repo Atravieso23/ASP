@@ -86,8 +86,8 @@ test("6. renderProximoPartido sólo lee: textContent + toggle de clase, sin writ
   assert.match(fn, /mi\.time/);
   assert.match(fn, /mi\.loc/);
   assert.match(fn, /daysUntilLabel\(mi\.date\)/);
-  // Guard de fecha+hora, sin inventar horario.
-  assert.match(fn, /if\(mi\.date && mi\.time\)/);
+  // Guard de fecha + hora REAL (PR #57): Estado B sólo con HH:MM, no con cualquier texto.
+  assert.match(fn, /if\(mi\.date && isHoraValida\(mi\.time\)\)/);
   // PR #53 — ya NO escribe "Próximo partido sin confirmar" como línea principal.
   assert.doesNotMatch(fn, /Próximo partido sin confirmar/);
   // PR #53 — el único cambio de DOM además de textContent es toggle de esta clase.
@@ -120,6 +120,7 @@ function runRender(matchInfo, { faltan = 0 } = {}) {
     [
       extractFunction(demo, "formatDateDisplay"),
       extractFunction(demo, "daysUntilLabel"),
+      extractFunction(demo, "isHoraValida"),
       extractFunction(demo, "renderProximoPartido"),
       "renderProximoPartido();",
     ].join("\n"),
