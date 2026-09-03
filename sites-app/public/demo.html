@@ -171,6 +171,9 @@
   .split-col.negro h3{color:#fff;}
   .split-col.blanco h3{color:#1a1a1a;}
   .split-col ul{list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; justify-content:center; gap:4px 14px;}
+  /* Vista Jugador: la nómina de cada equipo va en columna (una línea por jugador) para
+     escanear de un vistazo quién juega en cada equipo. El Organizador usa markup propio. */
+  #teams-view-lista .split-col ul{flex-direction:column; flex-wrap:nowrap;}
   .split-col li{
     display:flex; align-items:center; justify-content:center; gap:8px;
   }
@@ -859,7 +862,6 @@
           <h3 id="negro-team-label">Equipo Negro</h3>
           <ul id="team-negro-list"></ul>
         </div>
-        <div class="teams-vs" aria-hidden="true">VS</div>
         <div class="split-col blanco">
           <h3 id="blanco-team-label">Equipo Blanco</h3>
           <ul id="team-blanco-list"></ul>
