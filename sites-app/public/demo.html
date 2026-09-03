@@ -409,6 +409,13 @@
      .squad-status con el detalle. Sin fondo ni chip: no es un marcador. */
   .proximo-partido-squad{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
   .proximo-partido-squad:empty{display:none;}
+  /* "Horarios que mejor cierran": disponibilidad inferida, no decisión. Texto plano,
+     compacto, muted; sin fondo, sin barras, sin destacar una franja como elegida.
+     :empty lo oculta cuando no hay confirmados. */
+  .proximo-partido-horarios{margin:7px 0 0;}
+  .proximo-partido-horarios:empty{display:none;}
+  .proximo-partido-horarios-eyebrow{margin:0 0 2px; font-size:12px; line-height:1.45; color:var(--muted);}
+  .proximo-partido-horarios-row{margin:0; font-size:12px; line-height:1.5; color:var(--muted); font-variant-numeric:tabular-nums;}
 
   /* MI ESTADO (maqueta local, sin persistencia) */
   .my-status-card{
@@ -701,6 +708,7 @@
     <p class="proximo-partido-main" id="proximo-partido-main">—</p>
     <p class="proximo-partido-sub" id="proximo-partido-sub"></p>
     <p class="proximo-partido-squad" id="proximo-partido-squad"></p>
+    <div class="proximo-partido-horarios" id="proximo-partido-horarios"></div>
   </section>
 
   <section class="my-status-card" id="my-status-card" aria-labelledby="my-status-title">
@@ -2032,6 +2040,7 @@ function render(){
   renderFaltaConfirmar();
   renderListaMorosos();
   renderProximoPartido();
+  renderHorariosDisponibles();
 }
 
 function setSb(id, val, emptyLabel){
@@ -3868,21 +3877,11 @@ function renderLocalOrganizer(){
   if(!chart || !body) return;
   document.getElementById('organizer-responses-count').textContent = localAvailabilityResponses.length;
 
-  const hourly = [];
-  for(let hour=9; hour<22; hour++){
-    const label = String(hour).padStart(2,'0') + ':00';
-    const available = localAvailabilityResponses.filter(item=>
-      item.status==='in' && item.from<=label && item.to>label
-    );
-    hourly.push({
-      label,
-      confirmed:available.length,
-      total:available.length
-    });
-  }
-  const topHours = hourly.filter(item=>item.total>0)
-    .sort((a,b)=>b.total-a.total || b.confirmed-a.confirmed || a.label.localeCompare(b.label))
-    .slice(0,3);
+  // Mismo cálculo de disponibilidad por hora que ve la vista Jugador: función pura
+  // compartida (horariosDisponibles). El chart de acá conserva su template —barras,
+  // .peak, "N jugadores"—; `confirmed` queda igual a `total` como antes.
+  const topHours = horariosDisponibles(localAvailabilityResponses, {top:3})
+    .map(item=>({ label:item.label, total:item.total, confirmed:item.total }));
   if(topHours.length===0){
     chart.innerHTML = '<p class="organizer-empty">Todavía no hay horarios para comparar. Confirmá respuestas desde “Mi estado”.</p>';
   }else{
@@ -3938,6 +3937,47 @@ function renderLocalOrganizer(){
       await cambiarEquipoDeJugador(name, player.team===selectedTeam ? null : selectedTeam);
     };
   });
+}
+
+// Disponibilidad inferida por horario: cuántas responses 'in' pueden en cada hora
+// redonda de 09:00 a 21:00 (13 slots). SÓLO LECTURA — nunca decide ni escribe
+// matchInfo. Regla: cuenta si status==='in' y la franja [from, to) cubre el slot
+// (fin exclusivo: 16:00–20:00 cuenta 16/17/18/19, no 20). Full-day (09:00–22:00)
+// cuenta en los 13 slots. Invitados cuentan (son responses 'in' con franja).
+// 'duda' y 'out' no cuentan. Ordena por cantidad desc y, a igualdad, hora más
+// temprana; recorta a `top`. Compartida por el chart del Organizador y la señal
+// compacta de la vista Jugador (renderHorariosDisponibles).
+function horariosDisponibles(responses, { top = 3 } = {}){
+  const lista = Array.isArray(responses) ? responses : [];
+  const slots = [];
+  for(let hour=9; hour<22; hour++){
+    const label = String(hour).padStart(2,'0') + ':00';
+    const total = lista.filter(item=>
+      item && item.status==='in' && item.from<=label && item.to>label
+    ).length;
+    slots.push({ label, total });
+  }
+  return slots
+    .filter(item=>item.total>0)
+    .sort((a,b)=>b.total-a.total || a.label.localeCompare(b.label))
+    .slice(0, top);
+}
+
+// HORARIOS QUE MEJOR CIERRAN — señal compacta en la vista Jugador, dentro del
+// bloque "Próximo partido". Disponibilidad inferida, NO decisión: sin "ganador",
+// sin "se juega a X", sin barras, sin destacar una franja. Reusa horariosDisponibles()
+// (misma regla que el chart del Organizador). Sólo escribe innerHTML de su propio
+// nodo: no toca estado ni matchInfo ni llama writers. Sin slots -> nodo vacío
+// (:empty lo oculta).
+function renderHorariosDisponibles(){
+  const box = document.getElementById('proximo-partido-horarios');
+  if(!box) return;
+  const top = horariosDisponibles(localAvailabilityResponses, {top:3});
+  if(top.length===0){ box.innerHTML=''; return; }
+  const filas = top.map(item=>
+    `<p class="proximo-partido-horarios-row">${item.label} · ${item.total} pueden</p>`
+  ).join('');
+  box.innerHTML = `<p class="proximo-partido-horarios-eyebrow">Horarios que mejor cierran</p>${filas}`;
 }
 
 loadLocalAvailability();
