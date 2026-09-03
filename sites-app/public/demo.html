@@ -1587,6 +1587,14 @@ function nextSaturdayISO(){
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${dd}`;
 }
+// El campo Hora es texto libre (acepta "a coordinar", "20hs", etc.), pero el quick
+// glance sólo pasa a "Próximo partido" cuando hay una hora REAL: HH:MM 00:00–23:59,
+// con o sin cero inicial en la hora. Trim defensivo. No normaliza ni bloquea el
+// guardado; sólo decide qué frame mostrar arriba. El ticket sigue mostrando el
+// texto crudo.
+function isHoraValida(t){
+  return /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t || '').trim());
+}
 
 /* ---------- FORMACIÓN ---------- */
 function getFormationOptions(type){ return FORMATIONS[type] || FORMATIONS.F5; }
@@ -2083,7 +2091,7 @@ function render(){
   renderFaltaConfirmar();
   renderListaMorosos();
   renderProximoPartido();
-  renderHorariosDisponibles(state.matchInfo && state.matchInfo.time);
+  renderHorariosDisponibles(isHoraValida(state.matchInfo && state.matchInfo.time));
 }
 
 function setSb(id, val, emptyLabel){
@@ -2093,16 +2101,18 @@ function setSb(id, val, emptyLabel){
 }
 
 // PRÓXIMO PARTIDO / quick glance — el frame del bloque depende del estado del
-// partido (matchInfo.date && matchInfo.time):
+// partido (matchInfo.date && isHoraValida(matchInfo.time)):
 //   B. definido  -> eyebrow "Próximo partido", main = fecha·hora, sub = cancha·countdown.
 //                   La convocatoria (#proximo-partido-squad, poblada en render()) queda
 //                   como línea de apoyo, igual que antes.
-//   A. en armado -> eyebrow "Así viene el partido". NO se escribe "Próximo partido sin
-//                   confirmar": la línea primaria pasa a ser el resumen de convocatoria
-//                   (via la clase .proximo-partido--armado sobre #proximo-partido-squad),
-//                   y sub lleva pistas neutras ("… hora a definir", "faltan N por
-//                   responder"). No existe estado real de "reservado/confirmado": el
-//                   copy nunca lo insinúa.
+//   A. en armado -> eyebrow "Así viene el partido". Incluye el caso "hay texto en
+//                   Hora pero no es una hora real" ("a coordinar", "20hs"): la
+//                   decisión de cuándo sigue abierta. NO se escribe "Próximo partido
+//                   sin confirmar": la línea primaria pasa a ser el resumen de
+//                   convocatoria (via la clase .proximo-partido--armado sobre
+//                   #proximo-partido-squad), y sub lleva pistas neutras ("… hora a
+//                   definir", "faltan N por responder"). No existe estado real de
+//                   "reservado/confirmado": el copy nunca lo insinúa.
 // Reusa formatDateDisplay/daysUntilLabel/faltanConfirmar (lectura). Sólo textContent
 // + toggle de una clase: no toca matchInfo, no llama writers, no toca Supabase.
 function renderProximoPartido(){
@@ -2113,7 +2123,7 @@ function renderProximoPartido(){
   const hint = document.getElementById('proximo-partido-hint');
   if(!box || !eyebrow || !main || !sub || !hint) return;
   const mi = (state && state.matchInfo) || {};
-  if(mi.date && mi.time){
+  if(mi.date && isHoraValida(mi.time)){
     box.classList.remove('proximo-partido--armado');
     eyebrow.textContent = 'Próximo partido';
     main.textContent = `${formatDateDisplay(mi.date)} · ${mi.time}`;
@@ -4047,10 +4057,10 @@ function horariosDisponibles(responses, { top = 3 } = {}){
 // (misma regla que el chart del Organizador). Sólo escribe innerHTML de su propio
 // nodo: no toca estado ni matchInfo ni llama writers. Sin slots -> nodo vacío
 // (:empty lo oculta).
-// `horaYaCargada`: si el partido ya tiene una hora (cualquier valor no vacío en
-// matchInfo.time), la señal de disponibilidad era para decidir CUÁNDO y ya cumplió
-// su función -> no se muestra, para no alargar el bloque. No mira formato: sólo
-// "hay algo escrito en el campo Hora".
+// `horaYaCargada`: el call site pasa `isHoraValida(matchInfo.time)`. Si el partido
+// ya tiene una hora REAL (HH:MM), la señal de disponibilidad era para decidir
+// CUÁNDO y ya cumplió su función -> no se muestra. Con "a coordinar"/"20hs" (texto
+// que no es una hora) la decisión sigue abierta y los horarios se muestran.
 function renderHorariosDisponibles(horaYaCargada){
   const box = document.getElementById('proximo-partido-horarios');
   if(!box) return;

@@ -146,12 +146,12 @@ test("12. va antes de #my-status-card", () => {
   assert.ok(demo.indexOf('id="proximo-partido-horarios"') < demo.indexOf('id="my-status-card"'));
 });
 
-test("12b. render() llama renderHorariosDisponibles pasándole la hora del partido", () => {
-  // PR #56 — el call site pasa `state.matchInfo && state.matchInfo.time` para ocultar
-  // los horarios cuando ya hay hora cargada.
+test("12b. render() llama renderHorariosDisponibles pasándole si hay una HORA REAL", () => {
+  // PR #56 introdujo el argumento; PR #57 lo envuelve en isHoraValida() para que
+  // "a coordinar"/"20hs" NO oculten los horarios (la decisión de cuándo sigue abierta).
   assert.match(
     extractFunction(demo, "render"),
-    /renderProximoPartido\(\);\s*renderHorariosDisponibles\(state\.matchInfo && state\.matchInfo\.time\);/,
+    /renderProximoPartido\(\);\s*renderHorariosDisponibles\(isHoraValida\(state\.matchInfo && state\.matchInfo\.time\)\);/,
   );
 });
 
@@ -198,14 +198,18 @@ test("15. sin confirmados -> nodo vacío (:empty lo oculta)", () => {
   assert.equal(runHelper([{ status: "duda", from: "18:00", to: "20:00" }, { status: "out" }]), "");
 });
 
-/* ============ PR #56 — ocultar cuando ya hay Hora cargada ============ */
+/* ============ PR #56 — el helper oculta con el argumento truthy ============ */
+// El helper es un primitivo: oculta si su argumento es truthy, sin mirar formato.
+// Quién decide si pasarle truthy (el call site: PR #56 = time no vacío, PR #57 =
+// isHoraValida(time)) se prueba en hora-valida.test.mjs / el test 12b de arriba.
 
 const CONF = [IN("18:00", "19:00"), IN("18:00", "19:00"), IN("17:00", "18:00")];
 
-test("15c. sin hora (o vacía / null / undefined) -> horarios VISIBLES como hasta ahora", () => {
+test("15c. argumento falsy (o vacío / null / undefined) -> horarios VISIBLES", () => {
   assert.match(runHelper(CONF), /Horarios que mejor cierran/);
   assert.match(runHelper(CONF, ""), /Horarios que mejor cierran/);
   assert.match(runHelper(CONF, null), /Horarios que mejor cierran/);
+  assert.match(runHelper(CONF, false), /Horarios que mejor cierran/);
   // llamada literal sin argumento
   const box = { innerHTML: "PREV" };
   const ctx = vm.createContext({
@@ -217,12 +221,9 @@ test("15c. sin hora (o vacía / null / undefined) -> horarios VISIBLES como hast
   assert.match(box.innerHTML, /Horarios que mejor cierran/);
 });
 
-test("15d. time='20:00' -> horarios OCULTOS (nodo vacío, :empty lo esconde)", () => {
+test("15d. argumento truthy (true / string) -> horarios OCULTOS (nodo vacío, :empty lo esconde)", () => {
+  assert.equal(runHelper(CONF, true), "");
   assert.equal(runHelper(CONF, "20:00"), "");
-});
-
-test("15e. time='a coordinar' (texto libre) -> horarios OCULTOS (regla truthy, sin regex)", () => {
-  assert.equal(runHelper(CONF, "a coordinar"), "");
 });
 
 test("15f. el early return ocurre ANTES de llamar a horariosDisponibles", () => {

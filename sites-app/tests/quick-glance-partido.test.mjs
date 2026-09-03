@@ -40,6 +40,7 @@ function extractFunction(source, name) {
 }
 
 const fnSrc = extractFunction(demo, "renderProximoPartido");
+const isHoraValidaSrc = extractFunction(demo, "isHoraValida");
 
 function runGlance(matchInfo, { faltan = 0 } = {}) {
   const classes = new Set();
@@ -60,7 +61,7 @@ function runGlance(matchInfo, { faltan = 0 } = {}) {
     daysUntilLabel: () => "faltan 3 días",
     Boolean, String, Array,
   });
-  vm.runInContext(`${fnSrc}\nrenderProximoPartido();`, ctx);
+  vm.runInContext(`${isHoraValidaSrc}\n${fnSrc}\nrenderProximoPartido();`, ctx);
   const g = (id) => nodes[id].textContent;
   return {
     eyebrow: g("proximo-partido-eyebrow"),
@@ -179,8 +180,8 @@ test("12. 'Horarios que mejor cierran' sigue en el bloque, poblado por renderHor
   );
   assert.match(block, /<div class="proximo-partido-horarios" id="proximo-partido-horarios"><\/div>/);
   assert.match(extractFunction(demo, "renderHorariosDisponibles"), /Horarios que mejor cierran/);
-  // PR #56 — render() ahora le pasa la hora del partido (para ocultarlos si ya hay una).
-  assert.match(extractFunction(demo, "render"), /renderProximoPartido\(\);\s*renderHorariosDisponibles\(state\.matchInfo && state\.matchInfo\.time\);/);
+  // PR #56/#57 — render() le pasa si hay una HORA REAL (isHoraValida) para ocultarlos.
+  assert.match(extractFunction(demo, "render"), /renderProximoPartido\(\);\s*renderHorariosDisponibles\(isHoraValida\(state\.matchInfo && state\.matchInfo\.time\)\);/);
 });
 
 /* ============ copy prohibido ============ */
