@@ -23,6 +23,8 @@ Hallazgo principal: la app anterior tenía lista de espera, estado "Duda" y desh
 
 **[briefing-ux.md](briefing-ux.md)** — Documento autocontenido para pasarle a alguien externo que analice la experiencia de usuario. Incluye el contexto del grupo, el ciclo semanal real, las decisiones ya tomadas que no hay que reproponer, y un pedido explícito de que priorice en vez de tirar una lista larga. Los nombres reales están reemplazados por roles.
 
+**[asp-sop.md](asp-sop.md)** — Acuerdo operativo de producto e ingeniería: cómo trabajamos (feedback real → interpretación → diagnóstico proporcional al riesgo → PR mínimo → verificación → STOP), roles, niveles de riesgo, STOP rules y estado canónico. Describe el proceso, no el producto ni el backlog.
+
 ## Lo que NO está acá
 
 El análisis del historial de WhatsApp y los scripts que lo procesan están en `analisis-privado/`, fuera del control de versiones: citan mensajes textuales de 26 personas.
