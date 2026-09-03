@@ -386,14 +386,20 @@
   }
   .new-loc-field{margin-top:8px;}
 
-  /* PRÓXIMO PARTIDO — ancla de orientación arriba de "Mi estado". Sin fondo: dos
-     líneas de texto sobre la página, no una card. Duplica a propósito fecha/hora/
-     cancha del ticket (vistazo rápido vs. detalle + edición). */
-  .proximo-partido{margin:0 2px 16px;}
+  /* PRÓXIMO PARTIDO / quick glance — arriba de "Mi estado". Scrim oscuro sutil
+     (rgba(8,20,32,.6)): el bloque no tiene fondo propio y su texto muted caía
+     sobre el glow blanco superior-izq del body -> se lavaba (contraste ~2.5:1).
+     El scrim devuelve el fondo hacia navy (contraste ~5:1) sin volverlo card
+     (sin box-shadow, sin borde grueso). No compite con el ticket. */
+  .proximo-partido{
+    margin:0 2px 16px; padding:10px 12px; border-radius:12px;
+    background:rgba(8,20,32,.6);
+  }
   .proximo-partido-eyebrow{
-    display:flex; align-items:center; gap:7px; margin:0 0 5px;
+    display:flex; align-items:center; gap:7px; margin:0 0 3px;
     font:700 11px 'Oswald',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
   }
+  .proximo-partido-eyebrow:empty{display:none;}
   .proximo-partido-eyebrow::before{
     content:""; flex:none; width:7px; height:7px; border-radius:50%; background:var(--celeste);
     box-shadow:0 0 0 3px rgba(79,166,222,.14);
@@ -402,20 +408,38 @@
     margin:0; font:700 clamp(15px,4.4vw,19px) 'Oswald',sans-serif;
     letter-spacing:.01em; color:var(--navy); word-break:break-word;
   }
-  .proximo-partido-sub{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
+  .proximo-partido-main:empty{display:none;}
+  /* Ritmo ceñido: cancha/countdown y convocatoria son líneas de apoyo, pegadas a la
+     línea primaria. line-height apenas menor que el default, sigue legible en 320. */
+  .proximo-partido-sub{margin:2px 0 0; font-size:12px; line-height:1.35; color:var(--muted);}
   .proximo-partido-sub:empty{display:none;}
-  /* Convocatoria: "9 confirmados · 1 en duda · apuntamos a 14". Es feedback real
-     (lo que la gente entra a mirar); acá arriba, sin scroll. El ticket mantiene
-     .squad-status con el detalle. Sin fondo ni chip: no es un marcador. */
-  .proximo-partido-squad{margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--muted);}
+  /* Convocatoria: "9 confirmados · 1 en duda · apuntamos a 14". Feedback real
+     (lo que la gente entra a mirar). En estado "definido" es línea de apoyo (muted);
+     en "armado" sube a línea primaria (ver .proximo-partido--armado). El ticket
+     mantiene .squad-status con el detalle. Sin chip: no es un marcador. */
+  .proximo-partido-squad{margin:2px 0 0; font-size:12px; line-height:1.35; color:var(--muted);}
   .proximo-partido-squad:empty{display:none;}
+  /* Estado A (partido en armado): el resumen de convocatoria es lo primero que
+     necesita el jugador -> se promueve a línea primaria. Navy + semibold, no más
+     pesada que una CTA, legible sobre el scrim. */
+  .proximo-partido--armado .proximo-partido-squad{
+    margin-top:0; font:600 13.5px 'Inter',sans-serif; line-height:1.4; color:var(--navy);
+    text-wrap:balance;
+  }
+  /* Pista neutra bajo el resumen en estado A: "faltan N por responder", o
+     "<fecha> · hora a definir" si hay fecha sin hora. Nunca insinúa reserva. */
+  .proximo-partido-hint{margin:2px 0 0; font-size:12px; line-height:1.35; color:var(--muted);}
+  .proximo-partido-hint:empty{display:none;}
   /* "Horarios que mejor cierran": disponibilidad inferida, no decisión. Texto plano,
-     compacto, muted; sin fondo, sin barras, sin destacar una franja como elegida.
-     :empty lo oculta cuando no hay confirmados. */
-  .proximo-partido-horarios{margin:7px 0 0;}
+     compacto, muted; sin barras, sin destacar una franja como elegida. Separador
+     hairline + heading tipo eyebrow para leerse como sección aparte. :empty lo oculta. */
+  .proximo-partido-horarios{margin:6px 0 0; padding-top:6px; border-top:1px solid var(--card-border);}
   .proximo-partido-horarios:empty{display:none;}
-  .proximo-partido-horarios-eyebrow{margin:0 0 2px; font-size:12px; line-height:1.45; color:var(--muted);}
-  .proximo-partido-horarios-row{margin:0; font-size:12px; line-height:1.5; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .proximo-partido-horarios-eyebrow{
+    margin:0 0 2px; font:700 10px 'Oswald',sans-serif;
+    letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+  }
+  .proximo-partido-horarios-row{margin:0; font-size:12px; line-height:1.4; color:var(--muted); font-variant-numeric:tabular-nums;}
 
   /* MI ESTADO (maqueta local, sin persistencia) */
   .my-status-card{
@@ -701,13 +725,16 @@
 
   <div id="tab-partido">
 
-  <!-- Ancla de orientación: fecha/hora/cancha del próximo partido antes del form
-       personal. El ticket (más abajo) sigue siendo el detalle completo + edición. -->
+  <!-- Quick glance de situación del partido, antes del form personal. El frame
+       (eyebrow + línea primaria) depende del estado: "en armado" muestra el
+       resumen de convocatoria arriba; "definido" muestra fecha/hora. El ticket
+       (más abajo) sigue siendo el detalle completo + edición. -->
   <section class="proximo-partido" id="proximo-partido" aria-label="Próximo partido">
-    <p class="proximo-partido-eyebrow">Próximo partido</p>
-    <p class="proximo-partido-main" id="proximo-partido-main">—</p>
+    <p class="proximo-partido-eyebrow" id="proximo-partido-eyebrow"></p>
+    <p class="proximo-partido-main" id="proximo-partido-main"></p>
     <p class="proximo-partido-sub" id="proximo-partido-sub"></p>
     <p class="proximo-partido-squad" id="proximo-partido-squad"></p>
+    <p class="proximo-partido-hint" id="proximo-partido-hint"></p>
     <div class="proximo-partido-horarios" id="proximo-partido-horarios"></div>
   </section>
 
@@ -2049,21 +2076,49 @@ function setSb(id, val, emptyLabel){
   el.className = 'sb-value' + ((val)? '':' empty');
 }
 
-// PRÓXIMO PARTIDO — ancla de orientación arriba de "Mi estado". Reusa lo que ya se
-// calcula para el ticket (formatDateDisplay, matchInfo.time/loc, daysUntilLabel);
-// acá es sólo el vistazo rápido. Sin fecha u hora -> estado sobrio, no se inventa
-// horario. Sólo textContent: no toca estado ni ningún campo persistible.
+// PRÓXIMO PARTIDO / quick glance — el frame del bloque depende del estado del
+// partido (matchInfo.date && matchInfo.time):
+//   B. definido  -> eyebrow "Próximo partido", main = fecha·hora, sub = cancha·countdown.
+//                   La convocatoria (#proximo-partido-squad, poblada en render()) queda
+//                   como línea de apoyo, igual que antes.
+//   A. en armado -> eyebrow "Así viene el partido". NO se escribe "Próximo partido sin
+//                   confirmar": la línea primaria pasa a ser el resumen de convocatoria
+//                   (via la clase .proximo-partido--armado sobre #proximo-partido-squad),
+//                   y sub lleva pistas neutras ("… hora a definir", "faltan N por
+//                   responder"). No existe estado real de "reservado/confirmado": el
+//                   copy nunca lo insinúa.
+// Reusa formatDateDisplay/daysUntilLabel/faltanConfirmar (lectura). Sólo textContent
+// + toggle de una clase: no toca matchInfo, no llama writers, no toca Supabase.
 function renderProximoPartido(){
+  const box = document.getElementById('proximo-partido');
+  const eyebrow = document.getElementById('proximo-partido-eyebrow');
   const main = document.getElementById('proximo-partido-main');
   const sub = document.getElementById('proximo-partido-sub');
-  if(!main || !sub) return;
+  const hint = document.getElementById('proximo-partido-hint');
+  if(!box || !eyebrow || !main || !sub || !hint) return;
   const mi = (state && state.matchInfo) || {};
   if(mi.date && mi.time){
+    box.classList.remove('proximo-partido--armado');
+    eyebrow.textContent = 'Próximo partido';
     main.textContent = `${formatDateDisplay(mi.date)} · ${mi.time}`;
     sub.textContent = [mi.loc, daysUntilLabel(mi.date)].filter(Boolean).join(' · ');
+    hint.textContent = '';
   }else{
-    main.textContent = 'Próximo partido sin confirmar';
+    box.classList.add('proximo-partido--armado');
+    eyebrow.textContent = 'Así viene el partido';
+    main.textContent = '';
     sub.textContent = '';
+    // Una sola pista bajo el resumen, la más accionable: si falta gente por
+    // responder, ese es el nudge; si ya respondieron todos y hay fecha sin hora,
+    // recién ahí "… hora a definir". Nunca las dos juntas (se iban a dos líneas).
+    const faltan = faltanConfirmar().length;
+    if(faltan > 0){
+      hint.textContent = `faltan ${faltan} por responder`;
+    }else if(mi.date){
+      hint.textContent = `${formatDateDisplay(mi.date)} · hora a definir`;
+    }else{
+      hint.textContent = '';
+    }
   }
 }
 

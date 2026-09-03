@@ -190,12 +190,16 @@ test("15. sin confirmados -> nodo vacío (:empty lo oculta)", () => {
   assert.equal(runHelper([{ status: "duda", from: "18:00", to: "20:00" }, { status: "out" }]), "");
 });
 
-test("15b. CSS: compacto, muted, ~12px, sin fondo/borde/barras, con :empty", () => {
+test("15b. CSS: filas compactas muted, heading tipo eyebrow diferenciado, sin barras, con :empty", () => {
   const css = demo.slice(demo.indexOf(".proximo-partido-horarios{"), demo.indexOf("/* MI ESTADO"));
   assert.match(css, /\.proximo-partido-horarios:empty\{display:none;\}/);
-  assert.match(css, /\.proximo-partido-horarios-eyebrow\{[^}]*font-size:12px[^}]*color:var\(--muted\)/);
+  // PR #52/#53 — el heading dejó de ser una fila más: eyebrow compacto (Oswald 10px,
+  // uppercase, muted), distinto de las filas "HH:MM · N pueden" (12px sentence-case).
+  assert.match(css, /\.proximo-partido-horarios-eyebrow\{[^}]*font:700 10px 'Oswald'[^}]*text-transform:uppercase[^}]*color:var\(--muted\)/);
   assert.match(css, /\.proximo-partido-horarios-row\{[^}]*font-size:12px[^}]*color:var\(--muted\)/);
-  assert.doesNotMatch(css, /\.proximo-partido-horarios[^{]*\{[^}]*(background|border:)/);
+  // separador hairline permitido (border-top 1px), pero sin fondo propio ni caja de card.
+  assert.doesNotMatch(css, /\.proximo-partido-horarios[^{]*\{[^}]*background/);
+  assert.match(css, /\.proximo-partido-horarios\{[^}]*border-top:1px solid var\(--card-border\)/);
   assert.doesNotMatch(css, /availability-fill|availability-track|\.peak/);
 });
 
