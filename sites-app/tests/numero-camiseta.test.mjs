@@ -121,6 +121,35 @@ test("cambiar el número en la response se refleja en el player existente", () =
   assert.equal(players[0].number, 23);
 });
 
+/* ---------- 2b. layout: casaca + N° agrupados en .casaca-row ---------- */
+
+test(".casaca-row envuelve el campo de casaca y el de N° de camiseta, en ese orden", () => {
+  const start = demo.indexOf('<div class="casaca-row">');
+  assert.ok(start > -1, "no ubiqué .casaca-row");
+  const end = demo.indexOf('<span class="my-status-label">Estado</span>', start);
+  const row = demo.slice(start, end);
+  assert.match(row, /class="my-status-field recurrent-player-field"/);
+  assert.match(row, /id="my-status-number-field"/);
+  assert.ok(
+    row.indexOf("recurrent-player-field") < row.indexOf('id="my-status-number-field"'),
+    "la casaca va antes que el N°",
+  );
+});
+
+test(".casaca-row: flex responsive + el campo de N° vuelve la casaca full-width cuando está hidden", () => {
+  assert.match(demo, /\.casaca-row\{[^}]*display:flex[^}]*flex-wrap:wrap[^}]*\}/);
+  assert.match(demo, /\.casaca-row \.recurrent-player-field\{[^}]*min-width:0[^}]*\}/);
+  // El toggle sigue siendo por [hidden] (renderIdentityHeader) y con display:none la
+  // casaca (flex:1 1 …) ocupa la fila sola.
+  assert.match(demo, /\.my-status-number-field\[hidden\]\{display:none;\}/);
+});
+
+test("el label del N° es 'N°' y el helper es 'Opcional.'", () => {
+  const field = demo.slice(demo.indexOf('id="my-status-number-field"'), demo.indexOf('<span class="my-status-label">Estado</span>'));
+  assert.match(field, /<label for="my-status-number">N°<\/label>/);
+  assert.match(field, /<p class="my-status-number-help">Opcional\.<\/p>/);
+});
+
 /* ---------- 3. render (buildTeamListRow) ---------- */
 
 function fakeDoc() {
