@@ -716,6 +716,11 @@
     .organizer-responses-content{padding-top:10px;}
     .organizer-table th{padding:7px 2px;font-size:8px;letter-spacing:.02em;}
     .organizer-table td{padding:8px 2px;font-size:10px;}
+    /* A 320px la columna de nombre (17%, ~41px de texto disponible) no alcanza para
+       apellidos reales de 8-9 letras ("Forrester","Gutiérrez") a 10px: medido, entran
+       justo a 8.5px (margen ~1-3px) sin necesitar ningún corte forzado. El
+       hyphens/overflow-wrap de .organizer-player-static queda de red para el resto. */
+    .organizer-player-static{font-size:8.5px;}
     .team-choice-group{flex-direction:column;gap:3px;}
     .team-choice{width:100%;padding:5px 2px;font-size:8px;}
     .status-pill{padding:3px 4px;font-size:9px;}

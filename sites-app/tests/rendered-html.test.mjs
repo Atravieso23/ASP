@@ -283,24 +283,28 @@ test("keeps player responses collapsible in the organizer page", async () => {
 // de la tabla de respuestas a 320px: word-break:break-word cortaba a mitad de palabra
 // sin guión ("Forreste"/"r"). El fix es acotado a .organizer-player-static (el nombre),
 // no a .organizer-table td entero, para no tocar el resto de las columnas.
-test("los nombres largos de la tabla del organizador cortan en un punto legible, no a mitad de palabra", async () => {
+test("los nombres largos de la tabla del organizador cortan en espacios, no a mitad de palabra", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   const regla = demo.slice(
     demo.indexOf(".organizer-player-static{"),
     demo.indexOf("}", demo.indexOf(".organizer-player-static{")) + 1,
   );
-  assert.match(regla, /hyphens:auto/, "falta hyphens:auto para cortar en un punto legible");
+  assert.match(regla, /hyphens:auto/, "falta hyphens:auto como red adicional para un nombre extremo");
   assert.match(regla, /overflow-wrap:break-word/, "sin red de contención, un nombre larguísimo reabriría scroll horizontal");
-  assert.doesNotMatch(regla, /word-break:break-word/, "sigue permitiendo el corte crudo sin guión");
+  assert.doesNotMatch(regla, /word-break:break-word/, "sigue permitiendo el corte crudo sin guión como mecanismo principal");
 
-  // .organizer-table td (el resto de las columnas: equipo/estado/disponibilidad/pago)
-  // no se tocó: el fix queda acotado al nombre.
-  const reglaTd = demo.slice(
-    demo.indexOf(".organizer-table td{"),
-    demo.indexOf("}", demo.indexOf(".organizer-table td{")) + 1,
+  // El mecanismo real que evita el corte con los apellidos reales observados
+  // ("Forrester", "Gutiérrez": 8-9 letras) es el font-size reducido a 320-560px:
+  // medido en un smoke real, a 10px "Forrester" (44.2px) no entra en los ~41px de
+  // columna disponible y fuerza el corte; a 8.5px (39.8px) entra completo. hyphens/
+  // overflow-wrap quedan de red para un nombre más largo todavía, no resuelven éstos.
+  const mediaAngosto = demo.slice(
+    demo.indexOf("@media(max-width:560px){"),
+    demo.indexOf("\n  }", demo.indexOf("@media(max-width:560px){")),
   );
-  assert.match(reglaTd, /word-break:break-word/, "el fix se filtró a .organizer-table td, no quedó acotado al nombre");
+  assert.match(mediaAngosto, /\.organizer-player-static\{font-size:8\.5px;\}/,
+    "falta reducir el font-size del nombre en el breakpoint angosto: sin esto, los apellidos reales siguen sin entrar en una línea");
 });
 
 test("reflows the ticket header on narrow screens", async () => {
