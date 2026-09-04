@@ -689,7 +689,12 @@
   .payment-mark{font-weight:700;font-size:16px;}
   .payment-mark.yes{color:var(--ok);}
   .payment-mark.no{color:var(--danger);}
-  .organizer-player-static{display:block;font-weight:600;text-align:center;word-break:break-word;}
+  /* Nombres reales largos ("Francisco Sánchez Keenan") no entran en la columna angosta
+     (17%) a 320px. word-break:break-word cortaba a mitad de palabra sin guión
+     ("Forreste"/"r"). hyphens:auto (con <html lang="es">) corta en un punto legible
+     cuando el navegador lo soporta; overflow-wrap sigue de red por si no lo soporta,
+     para no volver a abrir scroll horizontal. */
+  .organizer-player-static{display:block;font-weight:600;text-align:center;word-break:normal;overflow-wrap:break-word;hyphens:auto;}
   .team-choice-group{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;width:100%;}
   .team-choice{
     flex:1;border-radius:8px;padding:7px 8px;font:700 10px 'Inter',sans-serif;cursor:pointer;

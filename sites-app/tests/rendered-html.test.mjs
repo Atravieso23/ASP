@@ -279,6 +279,30 @@ test("keeps player responses collapsible in the organizer page", async () => {
   assert.doesNotMatch(demo, /organizer-mode-switch|organizer-panel-responses/);
 });
 
+// Nombres reales largos ("Francisco Sánchez Keenan") no entraban en la columna angosta
+// de la tabla de respuestas a 320px: word-break:break-word cortaba a mitad de palabra
+// sin guión ("Forreste"/"r"). El fix es acotado a .organizer-player-static (el nombre),
+// no a .organizer-table td entero, para no tocar el resto de las columnas.
+test("los nombres largos de la tabla del organizador cortan en un punto legible, no a mitad de palabra", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const regla = demo.slice(
+    demo.indexOf(".organizer-player-static{"),
+    demo.indexOf("}", demo.indexOf(".organizer-player-static{")) + 1,
+  );
+  assert.match(regla, /hyphens:auto/, "falta hyphens:auto para cortar en un punto legible");
+  assert.match(regla, /overflow-wrap:break-word/, "sin red de contención, un nombre larguísimo reabriría scroll horizontal");
+  assert.doesNotMatch(regla, /word-break:break-word/, "sigue permitiendo el corte crudo sin guión");
+
+  // .organizer-table td (el resto de las columnas: equipo/estado/disponibilidad/pago)
+  // no se tocó: el fix queda acotado al nombre.
+  const reglaTd = demo.slice(
+    demo.indexOf(".organizer-table td{"),
+    demo.indexOf("}", demo.indexOf(".organizer-table td{")) + 1,
+  );
+  assert.match(reglaTd, /word-break:break-word/, "el fix se filtró a .organizer-table td, no quedó acotado al nombre");
+});
+
 test("reflows the ticket header on narrow screens", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
