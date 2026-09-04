@@ -52,6 +52,8 @@ const NEEDED = [
   "ejecutarCambioEnResponses",
   "marcarMiPago",
   "marcarPagoDeInvitado",
+  "parseNumeroCamiseta",
+  "marcarMiNumero",
   "agregarInvitado",
   "eliminarInvitado",
   "eliminarJugador",
@@ -208,6 +210,11 @@ const ACCIONES = [
     verificar: (row) => assert.ok(!resp(row, "r-camilo")),
   },
   {
+    nombre: "mi número de camiseta",
+    llamar: "marcarMiNumero(10)",
+    verificar: (row) => assert.equal(resp(row, "r-propia").number, 10),
+  },
+  {
     nombre: "alta de disponibilidad",
     llamar: `savePlayerRegistration({
       responseId: "r-propia", ownerId: ${JSON.stringify(DEVICE)}, ownerIds: [${JSON.stringify(DEVICE)}],
@@ -345,6 +352,7 @@ for (const accion of ACCIONES) {
 // ── Objetivo ausente: si otro dispositivo lo borró, no se lo resucita ──
 const OBJETIVOS = [
   { nombre: "mi pago", llamar: "marcarMiPago(true)", borrar: "r-propia" },
+  { nombre: "mi número de camiseta", llamar: "marcarMiNumero(10)", borrar: "r-propia" },
   { nombre: "pago de invitado", llamar: `marcarPagoDeInvitado("r-invitado", true)`, borrar: "r-invitado" },
   { nombre: "eliminar invitado", llamar: `eliminarInvitado("r-invitado")`, borrar: "r-invitado" },
   { nombre: "eliminar jugador", llamar: `eliminarJugador("r-camilo")`, borrar: "r-camilo" },
@@ -364,6 +372,66 @@ for (const objetivo of OBJETIVOS) {
     assert.deepEqual(w.db.row, antes);
   });
 }
+
+// ── Reglas propias del número de camiseta ──
+// El número es presentación del partido actual: writer focalizado por responseId, vacío
+// limpia a null, fuera de rango no escribe, duplicados permitidos.
+test("mi número: vacío limpia a null con una sola escritura", async () => {
+  const w = makeWorld();
+  w.db.row.responses.find((r) => r.responseId === "r-propia").number = 9;
+  const ok = await w.run(`marcarMiNumero("")`);
+  assert.equal(ok, true);
+  assert.equal(w.db.writes, 1);
+  assert.equal(resp(w.db.row, "r-propia").number, null);
+});
+
+test("mi número: fuera de rango no escribe (0 writes)", async () => {
+  for (const malo of ["0", "100", "-3", "7.5", "abc", "12x"]) {
+    const w = makeWorld();
+    const antes = structuredClone(w.db.row);
+    const ok = await w.run(`marcarMiNumero(${JSON.stringify(malo)})`);
+    assert.equal(ok, false, `${malo} no es un número de camiseta válido`);
+    assert.equal(w.db.writes, 0, `${malo} no puede persistir`);
+    assert.deepEqual(w.db.row, antes);
+  }
+});
+
+test("mi número: 1 y 99 son válidos", async () => {
+  for (const bueno of [1, 99]) {
+    const w = makeWorld();
+    assert.equal(await w.run(`marcarMiNumero(${bueno})`), true);
+    assert.equal(resp(w.db.row, "r-propia").number, bueno);
+  }
+});
+
+test("mi número: resuelve por responseId, no por nombre (homónimo intacto)", async () => {
+  const w = makeWorld();
+  // Otro jugador de la fecha se llama igual que el del dispositivo, y va PRIMERO en la
+  // lista: un writer que buscara por nombre lo agarraría a él.
+  w.db.row.responses.unshift(RESPONSE("r-otro-felix", "Felix"));
+  const ok = await w.run(`marcarMiNumero(10)`);
+  assert.equal(ok, true);
+  assert.equal(resp(w.db.row, "r-propia").number, 10, "el número va a la response propia (por responseId)");
+  assert.equal(resp(w.db.row, "r-otro-felix").number, undefined, "el homónimo que va primero no se toca");
+});
+
+test("mi número: sin response propia no escribe", async () => {
+  const w = makeWorld();
+  w.db.row.responses = w.db.row.responses.filter((r) => r.responseId !== "r-propia");
+  const antes = structuredClone(w.db.row);
+  assert.equal(await w.run(`marcarMiNumero(10)`), false);
+  assert.equal(w.db.writes, 0);
+  assert.deepEqual(w.db.row, antes);
+});
+
+test("mi número: duplicado permitido (dos jugadores con el mismo N°)", async () => {
+  const w = makeWorld();
+  w.db.row.responses.find((r) => r.responseId === "r-ariel").number = 10;
+  const ok = await w.run(`marcarMiNumero(10)`);
+  assert.equal(ok, true, "no se bloquea aunque Ariel ya use el 10");
+  assert.equal(resp(w.db.row, "r-propia").number, 10);
+  assert.equal(resp(w.db.row, "r-ariel").number, 10);
+});
 
 // ── Reglas propias de agregar invitado ──
 // Decisión de producto (post-QA real): el nombre del invitado tiene que ser único en la

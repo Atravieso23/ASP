@@ -148,9 +148,12 @@ test("11. elementos ausentes (harness parcial) -> no crashea", () => {
 
 /* ---------- 4. wiring: renderIdentityHeader + listener input ---------- */
 
-test("12. renderIdentityHeader llama a renderCasacaPreview al final", () => {
+test("12. renderIdentityHeader revela la card y termina con renderCasacaPreview", () => {
   const fn = extractFunction(demo, "renderIdentityHeader");
-  assert.match(fn, /if\(row\) row\.hidden = false;\s*renderCasacaPreview\(\);\s*}$/);
+  assert.match(fn, /if\(row\) row\.hidden = false;/);
+  // renderCasacaPreview sigue siendo la última llamada (entremedio quedó el toggle del
+  // campo de N° de camiseta, que no persiste nada).
+  assert.match(fn, /renderCasacaPreview\(\);\s*}$/);
 });
 
 test("13. el preview sigue al input en vivo, sin tocar el cableado del dirty indicator", () => {
