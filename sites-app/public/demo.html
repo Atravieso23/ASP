@@ -1632,6 +1632,111 @@ function isHoraValida(t){
   return /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t || '').trim());
 }
 
+/* ---------- SPLIT — motor puro (PR 1: sin UI, sin state, sin Supabase) ----------
+   Mini-cuenta del tercer tiempo/post partido. Estas cuatro funciones son el único
+   contenido de este PR: nada acá lee ni escribe `state`, DOM o Supabase, y nada las
+   llama todavía. No reemplazan ni tocan el pago de cancha (matchInfo.priceTotal,
+   Faltan pagar, tarjetas), que es un sistema completamente aparte.
+
+   Modelo (ver docs de la spec, no persistido todavía):
+     participants = [{ id, name }]
+     expenses = [{ id, label, amount (entero, pesos), payers:[{participantId,amount}],
+                    consumers:[participantId,...] (orden = orden de entrada) }] */
+
+// Reparte `monto` (entero, pesos) entre `n` consumidores sin perder ni un peso.
+// base = piso de la división; el resto (siempre < n) son pesos que no se pueden
+// partir: se los lleva 1 extra cada uno de los PRIMEROS `resto` consumidores, en el
+// orden en que aparecen en consumers[] del gasto — no por id, no round-robin entre
+// gastos. Es la regla más simple de mostrar en un detalle auditable ("los primeros
+// de la lista pagan $1 más"), determinística y no depende de más estado que el propio
+// gasto. sum(resultado) === monto siempre (ver tests: invariante, no supuesto).
+//
+// Precondición estricta (falla ruidoso, no silencioso): monto y n ya vinieron
+// validados por validarGasto(). Un n<=0 acá es un bug del llamador, no un dato de
+// usuario — dividir por cero no debe devolver Infinity/NaN calladito.
+function repartirExacto(monto, n){
+  if(!Number.isInteger(monto) || monto < 0){
+    throw new Error('repartirExacto: monto debe ser un entero >= 0');
+  }
+  if(!Number.isInteger(n) || n <= 0){
+    throw new Error('repartirExacto: n debe ser un entero >= 1');
+  }
+  const base = Math.floor(monto / n);
+  const resto = monto - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < resto ? 1 : 0));
+}
+
+// Gate de entrada: todo gasto pasa por acá ANTES de tocar el motor. Nunca confía en
+// que el dato ya viene bien formado. Devuelve {ok, motivo} en vez de tirar, porque
+// esto sí es dato de usuario (un gasto mal cargado), no un bug de programador.
+function validarGasto(gasto){
+  if(!gasto || typeof gasto !== 'object') return { ok:false, motivo:'gasto-invalido' };
+  if(!Number.isInteger(gasto.amount) || gasto.amount <= 0) return { ok:false, motivo:'monto-invalido' };
+  if(!Array.isArray(gasto.consumers) || gasto.consumers.length === 0) return { ok:false, motivo:'sin-consumidores' };
+  if(new Set(gasto.consumers).size !== gasto.consumers.length) return { ok:false, motivo:'consumidor-duplicado' };
+  if(!Array.isArray(gasto.payers) || gasto.payers.length === 0) return { ok:false, motivo:'sin-pagadores' };
+  if(new Set(gasto.payers.map(p=>p && p.participantId)).size !== gasto.payers.length) return { ok:false, motivo:'pagador-duplicado' };
+  for(const p of gasto.payers){
+    if(!p || !Number.isInteger(p.amount) || p.amount <= 0) return { ok:false, motivo:'monto-de-pagador-invalido' };
+  }
+  const sumaPagadores = gasto.payers.reduce((acc,p)=>acc + p.amount, 0);
+  if(sumaPagadores !== gasto.amount) return { ok:false, motivo:'pagadores-no-cierran' };
+  return { ok:true, motivo:null };
+}
+
+// Saldo final de cada participante: lo que puso como pagador menos lo que le tocó
+// consumir. Precondición: `expenses` ya pasaron por validarGasto (esta función no
+// re-valida a propósito, para no esconder un gasto mal formado como si fuera 0).
+// Invariante fundamental (testeada): sum(balance de todos) === 0 siempre, porque
+// todo lo pagado = todo lo repartido por construcción.
+function calcularBalances(participants, expenses){
+  const balance = new Map();
+  for(const p of (participants||[])){
+    if(p && p.id != null) balance.set(p.id, 0);
+  }
+  for(const gasto of (expenses||[])){
+    for(const pagador of gasto.payers){
+      balance.set(pagador.participantId, (balance.get(pagador.participantId) || 0) + pagador.amount);
+    }
+    const shares = repartirExacto(gasto.amount, gasto.consumers.length);
+    gasto.consumers.forEach((consumerId, i)=>{
+      balance.set(consumerId, (balance.get(consumerId) || 0) - shares[i]);
+    });
+  }
+  return Array.from(balance.entries()).map(([id, monto])=>({ id, balance:monto }));
+}
+
+// Cantidad chica de pagos finales para saldar: deudor más grande paga al acreedor más
+// grande, se repite. Heurística conocida (la misma que usan apps de este tipo), NO
+// una demostración de mínimo absoluto -- encontrar el mínimo exacto es un problema
+// difícil en general. Para grupos chicos da resultados muy buenos o el mínimo real,
+// pero el copy de producto no debe afirmar "el mínimo matemáticamente garantizado".
+// Determinística si `balances` llega en un orden estable (Array.sort es estable
+// desde ES2019: a igualdad de monto, se conserva el orden de entrada).
+function liquidarMinimo(balances){
+  const deudores = [];
+  const acreedores = [];
+  for(const item of (balances||[])){
+    if(!item) continue;
+    if(item.balance < 0) deudores.push({ id:item.id, monto:-item.balance });
+    else if(item.balance > 0) acreedores.push({ id:item.id, monto:item.balance });
+  }
+  deudores.sort((a,b)=>b.monto-a.monto);
+  acreedores.sort((a,b)=>b.monto-a.monto);
+
+  const pagos = [];
+  let i = 0, j = 0;
+  while(i < deudores.length && j < acreedores.length){
+    const monto = Math.min(deudores[i].monto, acreedores[j].monto);
+    if(monto > 0) pagos.push({ de:deudores[i].id, a:acreedores[j].id, monto });
+    deudores[i].monto -= monto;
+    acreedores[j].monto -= monto;
+    if(deudores[i].monto === 0) i++;
+    if(acreedores[j].monto === 0) j++;
+  }
+  return pagos;
+}
+
 /* ---------- FORMACIÓN ---------- */
 function getFormationOptions(type){ return FORMATIONS[type] || FORMATIONS.F5; }
 function computeSlots(formationStr){
