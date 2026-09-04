@@ -522,14 +522,15 @@ test("el sondeo conserva lo que no es estado compartido del jugador", async () =
   const local = BASE_ROW();
   const ana = local.players.find((p) => p.name === "Ana");
   ana.isCaptain = true;
-  ana.number = 10;
   const w = makeWorld({ local });
   w.db.row.players.find((p) => p.name === "Ana").pos = { x: 44, y: 66 };
+  // El número de camiseta se deriva de la response (como paid): la autoridad es responses.
+  w.db.row.responses.find((r) => r.name === "Ana").number = 10;
 
   await w.run("refreshFromServer()");
 
   assert.equal(enLocal(w, "Ana").isCaptain, true, "adoptar `pos` no puede arrastrarse el resto");
-  assert.equal(enLocal(w, "Ana").number, 10);
+  assert.equal(enLocal(w, "Ana").number, 10, "el número se deriva de response.number");
 });
 
 test("adoptar la posición compartida no resucita lo que el merge descartó", () => {
@@ -732,19 +733,19 @@ test("el sondeo no amplía la autoridad de fresh a otros campos del jugador", as
   const local = BASE_ROW();
   const ana = local.players.find((p) => p.name === "Ana");
   ana.isCaptain = true;
-  ana.number = 7;
   const w = makeWorld({ local });
   w.db.row.formations.negro = "2-2";
   const remota = w.db.row.players.find((p) => p.name === "Ana");
   remota.isCaptain = false;
-  remota.number = 99;
+  remota.number = 99; // players[].number ya no es autoridad: se pisa con lo derivado
   remota.pos = { x: 44, y: 66 };
   w.db.row.responses.find((r) => r.name === "Ana").paid = true;
+  w.db.row.responses.find((r) => r.name === "Ana").number = 5;
 
   await w.run("refreshFromServer()");
 
   assert.equal(enLocal(w, "Ana").isCaptain, true, "isCaptain no es de esta política");
-  assert.equal(enLocal(w, "Ana").number, 7, "number no es de esta política");
+  assert.equal(enLocal(w, "Ana").number, 5, "number se deriva de responses, como paid");
   assert.deepEqual(enLocal(w, "Ana").pos, { x: 44, y: 66 });
   assert.equal(enLocal(w, "Ana").paid, true, "paid se sigue derivando de responses");
   assert.equal(enLocal(w, "Ana").team, "negro");

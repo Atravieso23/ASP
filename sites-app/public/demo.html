@@ -476,6 +476,11 @@
   .recurrent-player-field{position:relative;}
   .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
   .player-picker-help[hidden]{display:none;}
+  .my-status-number-field[hidden]{display:none;}
+  .my-status-number-field input{width:5.5em; -moz-appearance:textfield;}
+  .my-status-number-field input::-webkit-outer-spin-button,
+  .my-status-number-field input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .my-status-number-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
   /* Preview vivo de "Nombre en la casaca": refleja lo que hay en el input (aún sin
      guardar), para que se note que ese campo cambia cómo te ve el grupo. */
   .casaca-preview{margin:7px 2px 0;font-size:11.5px;line-height:1.4;color:var(--navy);}
@@ -752,6 +757,11 @@
         <p class="casaca-preview" id="casaca-preview" hidden>En la lista te ven como <b id="casaca-preview-name"></b></p>
         <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
         <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
+      </div>
+      <div class="my-status-field my-status-number-field" id="my-status-number-field" hidden>
+        <label for="my-status-number">N° de camiseta</label>
+        <input type="number" id="my-status-number" inputmode="numeric" min="1" max="99" step="1" placeholder="—" autocomplete="off">
+        <p class="my-status-number-help">Opcional. Es para este partido, no cambia tu jugador.</p>
       </div>
       <span class="my-status-label">Estado</span>
       <div class="my-status-choice" role="group" aria-label="Estado">
@@ -3314,6 +3324,38 @@ async function marcarMiPago(paid){
   });
 }
 
+// Número de camiseta: vacío/null, o entero 1–99. Devuelve { ok, value } — value ya
+// normalizado (número o null). No infiere, no recorta: fuera de rango es un rechazo.
+function parseNumeroCamiseta(raw){
+  if(raw === null || raw === undefined) return { ok:true, value:null };
+  const s = String(raw).trim();
+  if(s === '') return { ok:true, value:null };
+  if(!/^\d{1,2}$/.test(s)) return { ok:false, value:null };
+  const n = Number(s);
+  if(!Number.isInteger(n) || n < 1 || n > 99) return { ok:false, value:null };
+  return { ok:true, value:n };
+}
+
+// Writer focalizado, como marcarMiPago: escribe response.number del jugador propio por
+// responseId. El número es presentación del partido actual — no toca identidad, dedupe,
+// pagos, tarjetas ni el selector. Duplicados permitidos: no valida contra otros números.
+async function marcarMiNumero(raw){
+  const parsed = parseNumeroCamiseta(raw);
+  if(!parsed.ok) return false;
+  const propia = localAvailabilityResponses.find(item=>
+    !item.isGuest && responseBelongsToCurrentDevice(item)
+  );
+  if(!propia) return false;
+  const responseId = propia.responseId;
+  return guardarCambioEnResponses(responses=>{
+    const target = responses.find(item=>item.responseId===responseId);
+    if(!target) return false;
+    target.number = parsed.value;
+    target.updatedAt = new Date().toISOString();
+    return true;
+  });
+}
+
 async function marcarPagoDeInvitado(responseId, paid){
   return guardarCambioEnResponses(responses=>{
     const target = responses.find(item=>item.responseId===responseId && item.isGuest);
@@ -3348,6 +3390,14 @@ function renderIdentityHeader(){
     if(label) label.textContent = changingRegisteredPlayer ? 'Cambiar jugador' : 'Tu nombre';
   }
   if(row) row.hidden = false;
+  // El N° de camiseta sólo se ofrece al jugador ya identificado (mismo criterio que la
+  // casaca). El input se hidrata desde la response, salvo que lo esté tipeando.
+  const numberField = document.getElementById('my-status-number-field');
+  const numberInput = document.getElementById('my-status-number');
+  if(numberField) numberField.hidden = !modoIdentificado;
+  if(numberInput && document.activeElement !== numberInput){
+    numberInput.value = modoIdentificado && Number.isInteger(propia.number) ? String(propia.number) : '';
+  }
   renderCasacaPreview();
 }
 
@@ -3776,6 +3826,10 @@ function syncLocalAvailabilityWithPlayers(target = state, responses = localAvail
     // nunca, y el próximo guardado de este lo revertía para todo el grupo.
     const nextTeam = playerStatus==='in' && (response.team==='negro' || response.team==='blanco')
       ? response.team : null;
+    // El número de camiseta se deriva de la response, igual que status/paid/team: es
+    // presentación del partido actual, no estado propio del player. Vive en la response
+    // para sobrevivir al re-armado del player (p. ej. tras renombrar la casaca).
+    const nextNumber = Number.isInteger(response.number) ? response.number : null;
     let player = target.players.find(item=>item.name.toLocaleLowerCase('es')===normalizedName);
     if(player){
       player.status = playerStatus;
@@ -3784,11 +3838,12 @@ function syncLocalAvailabilityWithPlayers(target = state, responses = localAvail
       // la posición deja de significar algo y el render lo ubica en la cancha nueva.
       if(player.team !== nextTeam) player.pos = null;
       player.team = nextTeam;
+      player.number = nextNumber;
     }else{
       player = {
         name:response.name,
         status:playerStatus,
-        number:null,
+        number:nextNumber,
         team:nextTeam,
         paid:response.status === 'in' && response.paid === true,
         isCaptain:false
@@ -4131,6 +4186,7 @@ const mockTimes = document.getElementById('my-status-times');
 const mockAvailabilityBlock = document.getElementById('my-status-availability');
 const mockPayment = document.querySelector('.my-status-payment');
 const mockPaidCheck = document.getElementById('my-status-paid-check');
+const mockNumberInput = document.getElementById('my-status-number');
 const guestManager = document.getElementById('guest-manager');
 const guestManagerToggle = document.getElementById('guest-manager-toggle');
 const mockFrom = document.getElementById('my-status-from');
@@ -4425,6 +4481,9 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   const habitualExacto = (state.habitualPlayers || []).find(h=>String(h).toLocaleLowerCase('es')===playerName.toLocaleLowerCase('es'));
   const habitualName = editandoMiEstado ? existingResponse.habitualName : habitualExacto;
   if(habitualName) response.habitualName = habitualName;
+  // El N° de camiseta tiene su propio writer (marcarMiNumero); acá sólo se arrastra el
+  // que ya estaba para que "Guardar cambios" no lo borre.
+  if(existingResponse && Number.isInteger(existingResponse.number)) response.number = existingResponse.number;
   // Guard duro de identidad cerrada: fuera de editar "Nombre en la casaca", una response no
   // invitada sólo se guarda con una identidad habitual exacta. Sin habitualExacto no hay
   // identidad estable que asignar; se bloquea y se orienta a pedir el alta al grupo.
@@ -4557,6 +4616,37 @@ mockPaidCheck.onchange = async ()=>{
   // Repinta el pago desde la lista fresca: la de antes del guardado ya no es la
   // que está en state.
   syncPagoControls();
+};
+
+// N° de camiseta: writer aparte de "Guardar cambios", como el pago. Guarda al salir del
+// input (change). Sin response propia el campo está oculto; igual se falla cerrado.
+mockNumberInput.onchange = async ()=>{
+  const response = localAvailabilityResponses.find(item=>
+    !item.isGuest && responseBelongsToCurrentDevice(item)
+  );
+  if(!response){ renderIdentityHeader(); return; }
+  const parsed = parseNumeroCamiseta(mockNumberInput.value);
+  const actual = Number.isInteger(response.number) ? response.number : null;
+  if(!parsed.ok){
+    mockNumberInput.value = actual === null ? '' : String(actual);
+    showToast('El número de camiseta va de 1 a 99 (o dejalo vacío).');
+    return;
+  }
+  if(parsed.value === actual){
+    mockNumberInput.value = actual === null ? '' : String(actual);
+    return;
+  }
+  mockNumberInput.disabled = true;
+  const ok = await marcarMiNumero(mockNumberInput.value);
+  mockNumberInput.disabled = false;
+  if(!ok){
+    mockNumberInput.value = actual === null ? '' : String(actual);
+    showToast('No se pudo guardar el número. Revisá la conexión e intentá otra vez.');
+    return;
+  }
+  render();
+  renderLocalOrganizer();
+  renderIdentityHeader();
 };
 
 (async function init(){
