@@ -219,6 +219,41 @@ test("la lista de morosos vive con el resumen de plata del ticket, no en el bloq
   assert.doesNotMatch(demo, /class="sb-label">Fútbol</);
 });
 
+// "Editar partido" cambia datos compartidos de todo el grupo: en mobile angosto no puede
+// quedar como un ícono sin texto. Ver docs/asp-ux-working-agreement.md ("el texto visible
+// debe alcanzar para entender la acción... aunque se ignoren los emojis").
+test("el botón de editar partido conserva un label visible también en mobile angosto", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const boton = sliceBetween(demo, '<button class="edit-btn" id="edit-match-btn"', '</button>', 'el botón de editar partido');
+  assert.match(boton, /<span class="edit-label edit-label-full">Editar partido<\/span>/,
+    'falta el label largo para pantallas anchas');
+  assert.match(boton, /<span class="edit-label edit-label-short">Editar<\/span>/,
+    'falta el label abreviado para mobile angosto');
+
+  // Ninguna regla puede ocultar los dos labels a la vez: eso dejaría el botón sin texto.
+  assert.doesNotMatch(demo, /\.edit-label\{display:none;?\}/,
+    'oculta los dos labels del botón por igual, sin dejar texto visible');
+
+  const anchoAngosto = sliceBetween(demo, '@media(max-width:420px){', '\n  }', 'el media query de mobile angosto');
+  assert.match(anchoAngosto, /\.money-summary \.edit-label-full\{display:none;\}/,
+    'en angosto no oculta el label largo para dejar sólo el corto');
+  assert.match(anchoAngosto, /\.money-summary \.edit-label-short\{display:inline;\}/,
+    'en angosto no muestra el label corto');
+});
+
+// El cambio de tipo de cancha reinicia formaciones y posiciones ya armadas
+// (guardarPartido, ver comentario "Semántica de siempre para el cambio de tipo"). El
+// modal no lo decía en ningún lado: copy honesto exige avisarlo antes de guardar.
+test('el modal de editar partido avisa que cambiar el tipo reinicia formaciones', async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+  const campoType = sliceBetween(demo, '<div class="field"><label>Tipo de fútbol</label>', '</div>', 'el campo de tipo de fútbol');
+  assert.match(campoType, /<select id="m-type">/, 'no es el campo de tipo esperado');
+  assert.match(campoType, /<p class="field-note">Cambiar el tipo reinicia las formaciones y posiciones ya armadas\.<\/p>/,
+    'falta el aviso de que cambiar el tipo reinicia formaciones/posiciones');
+});
+
 test("centers key summaries and fits organizer responses without a scroll bar", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 

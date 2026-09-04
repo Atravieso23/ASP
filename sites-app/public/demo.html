@@ -126,6 +126,10 @@
     display:inline-flex; align-items:center; gap:6px;
   }
   .edit-btn:hover{border-color:var(--celeste-deep); background:var(--bg-bottom);}
+  /* Edita datos compartidos del partido: en angosto se abrevia, nunca se saca el texto
+     del todo (ver docs/asp-ux-working-agreement.md, "el texto visible debe alcanzar
+     para entender la acción aunque se ignoren los emojis/íconos"). */
+  .edit-label-short{display:none;}
 
   /* SECTIONS */
   .section{margin-top:26px;}
@@ -361,8 +365,9 @@
     .countdown-badge{font-size:9px; padding:2px 5px; margin-left:2px;}
     .ticket-type-badge{padding:3px 6px;}
     .money-summary{gap:5px;padding:12px 0 0;}
-    .money-summary .edit-btn{padding:8px; min-width:40px; min-height:40px;}
-    .money-summary .edit-label{display:none;}
+    .money-summary .edit-btn{padding:8px 10px; min-height:40px;}
+    .money-summary .edit-label-full{display:none;}
+    .money-summary .edit-label-short{display:inline;}
   }
   .alias-row, .loc-row{display:flex; align-items:center; justify-content:center; gap:6px;}
   .copy-alias-btn{
@@ -902,7 +907,7 @@
     <div class="money-summary" aria-label="Resumen de pagos y edición del partido">
       <span class="cash-metric">Pagaron <span class="cash-metric-value"><b id="paid-count">0</b> de <span id="confirmed-count-2">0</span></span></span>
       <span class="cash-metric">Recaudado <span class="cash-metric-value"><b id="total-collected">$0</b></span></span>
-      <button class="edit-btn" id="edit-match-btn" aria-label="Editar datos del partido"><span aria-hidden="true">✏️</span><span class="edit-label">Editar partido</span></button>
+      <button class="edit-btn" id="edit-match-btn" aria-label="Editar datos del partido"><span aria-hidden="true">✏️</span><span class="edit-label edit-label-full">Editar partido</span><span class="edit-label edit-label-short">Editar</span></button>
     </div>
     <!-- Info colectiva (PR #40): quiénes del "Estoy" todavía no marcaron pago. Vive con el
          resumen de plata del ticket, no en el bloque personal de Pago de "Mi estado". -->
@@ -1067,6 +1072,7 @@
         <option value="F9">Fútbol 9</option>
         <option value="F11">Fútbol 11</option>
       </select>
+      <p class="field-note">Cambiar el tipo reinicia las formaciones y posiciones ya armadas.</p>
     </div>
     <div class="field">
       <label>Precio total de la cancha</label>
