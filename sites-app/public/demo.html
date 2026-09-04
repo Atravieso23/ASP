@@ -951,6 +951,7 @@
     <header class="organizer-header">
       <h1>Panel del organizador</h1>
       <p>Resumen visual de disponibilidad y respuestas del grupo.</p>
+      <p>Herramientas compartidas del grupo: usalas con cuidado.</p>
     </header>
 
     <section class="organizer-card" aria-labelledby="availability-summary-title">
@@ -2763,6 +2764,11 @@ function renderSedesManageList(){
   });
   ul.querySelectorAll('[data-action="delete-sede"]').forEach(btn=>{
     btn.onclick = async ()=>{
+      // El nombre para la confirmación sale del input de la misma fila (DOM): el
+      // handler no lee ni muta la copia local de canchas antes de guardar.
+      const nombreInput = btn.closest('.manage-row').querySelector('[data-field="name"]');
+      const nombreSede = nombreInput ? nombreInput.value : 'esta cancha';
+      if(!window.confirm(`¿Eliminar la cancha "${nombreSede}"? La sacás para todo el grupo.`)) return;
       hideSedesError();
       const {ok, motivo} = await eliminarSede(btn.dataset.sedeKey);
       if(!ok){
