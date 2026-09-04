@@ -476,8 +476,15 @@
   .recurrent-player-field{position:relative;}
   .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
   .player-picker-help[hidden]{display:none;}
+  /* Casaca + N° = una unidad de presentación del jugador. Fila responsive: la casaca
+     crece, el número queda compacto. Con el campo de N° hidden (Registro / "Cambiar
+     jugador") la casaca vuelve a ocupar todo el ancho. flex-wrap: si el ancho no da,
+     el número cae abajo en vez de aplastar la casaca. */
+  .casaca-row{display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px; margin-bottom:4px;}
+  .casaca-row .recurrent-player-field{flex:1 1 150px; min-width:0; margin-bottom:0;}
+  .casaca-row .my-status-number-field{flex:0 0 72px; margin-bottom:0;}
   .my-status-number-field[hidden]{display:none;}
-  .my-status-number-field input{width:5.5em; -moz-appearance:textfield;}
+  .my-status-number-field input{width:100%; -moz-appearance:textfield;}
   .my-status-number-field input::-webkit-outer-spin-button,
   .my-status-number-field input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   .my-status-number-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
@@ -750,18 +757,20 @@
         <p class="my-status-identity" id="my-status-identity">Elegí tu jugador</p>
         <button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>Cambiar jugador</button>
       </div>
-      <div class="my-status-field recurrent-player-field">
-        <label for="my-player-name" id="my-player-name-label">Tu nombre</label>
-        <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
-        <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
-        <p class="casaca-preview" id="casaca-preview" hidden>En la lista te ven como <b id="casaca-preview-name"></b></p>
-        <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
-        <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
-      </div>
-      <div class="my-status-field my-status-number-field" id="my-status-number-field" hidden>
-        <label for="my-status-number">N° de camiseta</label>
-        <input type="number" id="my-status-number" inputmode="numeric" min="1" max="99" step="1" placeholder="—" autocomplete="off">
-        <p class="my-status-number-help">Opcional. Es para este partido, no cambia tu jugador.</p>
+      <div class="casaca-row">
+        <div class="my-status-field recurrent-player-field">
+          <label for="my-player-name" id="my-player-name-label">Tu nombre</label>
+          <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
+          <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
+          <p class="casaca-preview" id="casaca-preview" hidden>En la lista te ven como <b id="casaca-preview-name"></b></p>
+          <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
+          <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
+        </div>
+        <div class="my-status-field my-status-number-field" id="my-status-number-field" hidden>
+          <label for="my-status-number">N°</label>
+          <input type="number" id="my-status-number" inputmode="numeric" min="1" max="99" step="1" placeholder="—" autocomplete="off">
+          <p class="my-status-number-help">Opcional.</p>
+        </div>
       </div>
       <span class="my-status-label">Estado</span>
       <div class="my-status-choice" role="group" aria-label="Estado">
