@@ -558,6 +558,25 @@ test("agregar invitado cuelga al invitado del anfitrión fresco", async () => {
   assert.ok(nuevo.responseId, "todo invitado nace con responseId");
 });
 
+// El invitado no tiene disponibilidad propia en v1: hereda la franja del anfitrión para
+// que horariosDisponibles() y las listas cuenten a ese grupo en la ventana correcta. Se
+// le da al anfitrión una franja distinta de la default 16:00–20:00 para no confundir la
+// herencia con el fallback `anfitrion.from || '16:00'`.
+test("agregar invitado hereda la franja from/to del anfitrión", async () => {
+  const row = BASE_ROW();
+  const anfitrion = row.responses.find((r) => r.responseId === "r-propia");
+  anfitrion.from = "18:00";
+  anfitrion.to = "22:00";
+  const w = makeWorld({ row });
+
+  await w.run(`agregarInvitado("Ruso")`);
+
+  const nuevo = w.db.row.responses.find((r) => r.name === "Ruso");
+  assert.equal(nuevo.from, "18:00", "el invitado arranca en el from del anfitrión");
+  assert.equal(nuevo.to, "22:00", "el invitado arranca en el to del anfitrión");
+  assert.equal(w.db.writes, 1, "agregar un invitado hace exactamente una escritura");
+});
+
 // ── Derivación desacoplada: los players salen de las responses frescas ──
 test("los players derivados salen de los del servidor, no de los locales", async () => {
   const w = makeWorld();
