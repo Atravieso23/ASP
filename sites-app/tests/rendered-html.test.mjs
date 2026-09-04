@@ -2166,6 +2166,33 @@ test("the venue handlers never touch the local state before the save", async () 
   assert.match(s.eliminar, /eliminarSede\(btn\.dataset\.sedeKey\)/);
 });
 
+// Eliminar una cancha es la única de las tres operaciones que borra en vez de agregar
+// o editar, y no pedía confirmación: un tap accidental en "✕" bastaba. Ver
+// docs/asp-ux-working-agreement.md (acciones sensibles con confirmación proporcional
+// al daño posible) y docs/asp-sop.md (copy honesto: ASP no finge roles, pero reduce
+// el riesgo de un tap accidental en una escritura compartida).
+test("eliminar una cancha pide confirmación antes de escribir", async () => {
+  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+  const s = extractSedes(demo);
+
+  const idxConfirm = s.eliminar.indexOf('window.confirm(');
+  assert.ok(idxConfirm > -1, 'el handler de eliminar cancha no pide confirmación');
+
+  // Guard de early-return: si el usuario cancela, no sigue ejecutando nada del handler
+  // (ni siquiera hideSedesError), así que eliminarSede() nunca se llama.
+  const guardMatch = s.eliminar.match(/if\(!window\.confirm\([^)]*\)\)\s*return;/);
+  assert.ok(guardMatch, 'la confirmación no corta la ejecución con un return inmediato');
+
+  const idxGuardEnd = s.eliminar.indexOf(guardMatch[0]) + guardMatch[0].length;
+  const idxEliminar = s.eliminar.indexOf('eliminarSede(btn.dataset.sedeKey)');
+  assert.ok(idxGuardEnd < idxEliminar,
+    'eliminarSede() se llama antes de resolver la confirmación');
+
+  // El nombre de la cancha viaja en el mensaje: "esta cancha" a secas no ayuda a
+  // confirmar qué se está por borrar.
+  assert.match(guardMatch[0], /nombreSede/, 'el mensaje de confirmación no identifica la cancha');
+});
+
 test("the venue handlers only touch the screen once the save landed", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   const s = extractSedes(demo);
