@@ -1,6 +1,6 @@
 # ASP — UX Working Agreement
 
-*Estado: borrador para revisión. No commiteado, no reemplaza nada.*
+*Estado: propuesta inicial. Complementa el SOP operativo y no reemplaza documentación existente.*
 
 ## Qué es esto y qué no es
 
