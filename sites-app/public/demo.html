@@ -1222,7 +1222,20 @@ function defaultState(){
     responses: [],
     frequentAliases: [],
     habitualPlayers: [],
-    cards: { byPlayer:{}, evaluated:{}, log:[] }
+    cards: { byPlayer:{}, evaluated:{}, log:[] },
+    split: { participants: [], expenses: [] }
+  };
+}
+
+// Split (tercer tiempo): forma canónica de state.split. Cuenta EFÍMERA por fecha, no
+// historial financiero: a diferencia de `cards`, Finalizar y Limpiar la resetean a
+// blanco a propósito (ver sus handlers). PR 3A: sólo shape + normalización defensiva.
+// Sin UI editable, sin writers de participantes/gastos todavía — nada escribe acá.
+function normalizeSplit(previas){
+  const s = (previas && typeof previas === 'object') ? previas : {};
+  return {
+    participants: Array.isArray(s.participants) ? s.participants : [],
+    expenses: Array.isArray(s.expenses) ? s.expenses : []
   };
 }
 
@@ -1429,6 +1442,12 @@ async function leerEstadoDelServidor(){
     if(!parsed.cards.byPlayer || typeof parsed.cards.byPlayer !== 'object') parsed.cards.byPlayer = {};
     if(!parsed.cards.evaluated || typeof parsed.cards.evaluated !== 'object') parsed.cards.evaluated = {};
     if(!Array.isArray(parsed.cards.log)) parsed.cards.log = [];
+    // Split (PR 3A): forma canónica de la key, sin dependencia de normalizeSplit —
+    // mismo criterio que cards. Sin UI ni writers todavía: esto sólo evita que un blob
+    // viejo o malformado tire abajo la lectura.
+    if(!parsed.split || typeof parsed.split !== 'object') parsed.split = { participants:[], expenses:[] };
+    if(!Array.isArray(parsed.split.participants)) parsed.split.participants = [];
+    if(!Array.isArray(parsed.split.expenses)) parsed.split.expenses = [];
     return { estado:parsed, motivo:'ok' };
   }catch(e){
     console.error('Error leyendo de Supabase', e);
@@ -3205,7 +3224,11 @@ finalizeConfirmBtn.onclick = async ()=>{
       responses: [],
       players: [],
       formations: {},
-      matchInfo: blankMatchInfo()
+      matchInfo: blankMatchInfo(),
+      // Split es una cuenta EFÍMERA del tercer tiempo, no historial financiero: a
+      // diferencia de `cards`, no viaja desde `fresh` ni se archiva en `history`.
+      // Reset explícito para que no sobreviva por accidente vía el spread de arriba.
+      split: { participants: [], expenses: [] }
     };
     const ok = await saveState(nextState);
     if(!ok){
@@ -3300,7 +3323,9 @@ clearConfirmBtn.onclick = async ()=>{
       clearError.hidden = false;
       return;
     }
-    const nextState = {...fresh, responses: [], players: [], formations: {}};
+    // Split también resetea acá: es cuenta efímera del tercer tiempo, no algo que
+    // "limpiar todo" deba conservar por accidente vía el spread de `fresh`.
+    const nextState = {...fresh, responses: [], players: [], formations: {}, split: { participants: [], expenses: [] }};
     const ok = await saveState(nextState);
     if(!ok){
       clearError.hidden = false;
