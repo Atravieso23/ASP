@@ -646,6 +646,10 @@
   .organizer-header p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;}
   .organizer-card{background:var(--white);border:1px solid var(--card-border);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 14px 30px -24px rgba(14,42,61,.45);}
   .organizer-card-title{margin:0 0 15px;text-align:center;font:700 16px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
+  /* Split (tercer tiempo) — PR 2: card read-only, sin state.split ni datos reales todavía. */
+  .split-money-subtitle{margin:-9px 0 12px;text-align:center;font-size:12px;color:var(--muted);}
+  .split-money-empty{margin:0;text-align:center;font-size:13px;line-height:1.5;color:var(--muted);}
+  .split-money-note{margin:10px 0 0;text-align:center;font-size:11px;line-height:1.5;color:var(--muted);}
   .organizer-player-list-details{margin-top:4px;}
   .organizer-responses-summary{display:grid;grid-template-columns:auto minmax(90px,1fr) auto auto;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);font:700 12px 'Inter',sans-serif;color:var(--navy);}
   .organizer-responses-summary::-webkit-details-marker{display:none;}
@@ -1024,6 +1028,16 @@
         </div>
       </div>
       <p class="organizer-formation-help">Tocá una ficha para pasarla al otro equipo o arrastrala para cambiarla de posición. Al cambiar de equipo busca automáticamente un lugar libre.</p>
+    </section>
+
+    <!-- Split (tercer tiempo) — PR 2: card read-only estática. Sin state.split, sin
+         normalizeSplit, sin writers, sin Supabase. Sólo anuncia el lugar futuro con
+         copy honesto; no lee ni escribe nada todavía. -->
+    <section class="organizer-card split-money-card" aria-labelledby="split-money-title">
+      <h2 class="organizer-card-title" id="split-money-title">Split</h2>
+      <p class="split-money-subtitle">Cuenta del tercer tiempo</p>
+      <p class="split-money-empty" id="split-money-empty">Todavía no hay gastos cargados.</p>
+      <p class="split-money-note">En esta versión el Split todavía no se edita desde la app.</p>
     </section>
 
     <section class="organizer-card organizer-actions" aria-labelledby="organizer-actions-title">
