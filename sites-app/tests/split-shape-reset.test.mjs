@@ -127,15 +127,12 @@ test("las asignaciones a .split viven sólo en lectura/Finalizar/Limpiar y los w
 
 /* ---------- guards: nada más toca split en este PR ----------
    PR 3B agregó los writers de participantes; PR 4 agregó alta/baja de gastos
-   (agregarGastoSplit/eliminarGastoSplit) — ver split-gastos.test.mjs. Lo que PR 4
-   NO autorizó y sigue sin existir: edición de gastos y balances/liquidación. */
+   (agregarGastoSplit/eliminarGastoSplit); PR 5 conectó calcularBalances/
+   liquidarMinimo a un resumen read-only (armarResumenSplit) — ver
+   split-balances.test.mjs. Lo único que sigue sin existir es edición de gastos. */
 
-test("sin edición de gastos ni balances/liquidación conectados todavía (PR 5 pendiente)", () => {
+test("sin edición de gastos todavía", () => {
   assert.doesNotMatch(demo, /function\s+editarGastoSplit\s*\(/);
-  // calcularBalances/liquidarMinimo siguen definidas (PR 1) pero sin ningún caller
-  // real fuera de su propia definición.
-  assert.equal([...demo.matchAll(/\bcalcularBalances\s*\(/g)].length, 1);
-  assert.equal([...demo.matchAll(/\bliquidarMinimo\s*\(/g)].length, 1);
 });
 
 test("la card Split sigue sin leer state.split directamente en su propio markup", () => {

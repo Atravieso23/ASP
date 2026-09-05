@@ -352,14 +352,10 @@ test("sin edición de gastos en el MVP: no hay acción 'editar', sólo borrar", 
   assert.doesNotMatch(demo, /data-action="edit-split-expense"|editarGastoSplit/);
 });
 
-test("sin balances/liquidación conectados todavía (PR 5 pendiente)", () => {
-  // calcularBalances/liquidarMinimo siguen sin caller fuera de su propia definición
-  // y de split.test.mjs (que las ejercita en un vm aislado, no desde la UI real).
-  const usosBalances = [...demo.matchAll(/\bcalcularBalances\s*\(/g)];
-  const usosLiquidar = [...demo.matchAll(/\bliquidarMinimo\s*\(/g)];
-  assert.equal(usosBalances.length, 1, "sólo la definición; ningún caller real todavía");
-  assert.equal(usosLiquidar.length, 1, "sólo la definición; ningún caller real todavía");
-});
+// El guard "sin balances/liquidación conectados todavía" vivía acá con la premisa
+// de PR 4 (sin PR 5). Esa premisa quedó superada por diseño: PR 5 conecta
+// calcularBalances/liquidarMinimo vía armarResumenSplit(), read-only, sin writers
+// nuevos. La invariante correspondiente ahora vive en split-balances.test.mjs.
 
 test("copy nuevo no afirma pagado/saldada/confirmado/mínimo garantizado", () => {
   const bloque = [

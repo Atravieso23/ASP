@@ -1172,7 +1172,7 @@
 <div class="modal-overlay" id="manage-split-expenses-overlay">
   <div class="modal">
     <h2>Gastos del Split</h2>
-    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Cargá lo que se gastó en el tercer tiempo. Por ahora sólo se listan: todavía no calcula quién le debe a quién.</p>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Cargá lo que se gastó en el tercer tiempo y revisá los pagos sugeridos.</p>
     <p class="manage-section-title">Gastos cargados</p>
     <ul class="manage-list" id="split-expenses-list"></ul>
     <div id="split-expense-form-wrap">
@@ -1196,6 +1196,15 @@
       <button class="btn-save" id="add-split-expense-btn" style="width:100%;">Agregar gasto</button>
     </div>
     <p class="empty-state" id="split-expense-form-empty" hidden>Agregá participantes primero (botón "Gestionar participantes") para poder cargar un gasto.</p>
+    <!-- Resumen y pagos sugeridos (PR 5): read-only, derivado de state.split. Sin
+         escritura, sin keys nuevas. calcularBalances/liquidarMinimo (PR 1) filtran acá
+         su primer caller real. liquidarMinimo es heurística, no un mínimo demostrado
+         -- por eso "sugeridos", nunca "mínimo garantizado" ni "saldado". -->
+    <p class="manage-section-title">Resumen</p>
+    <ul class="manage-list" id="split-balances-list"></ul>
+    <p class="manage-section-title">Pagos sugeridos para saldar</p>
+    <ul class="manage-list" id="split-suggested-payments-list"></ul>
+    <p style="font-size:11px;color:var(--muted);line-height:1.5;" id="split-payments-note">Son sugerencias calculadas con los gastos cargados, no la única forma de saldar.</p>
     <div class="modal-actions">
       <button class="btn-cancel" id="manage-split-expenses-close">Cerrar</button>
     </div>
@@ -3321,6 +3330,73 @@ async function eliminarGastoSplit(expenseId){
   return { ok, motivo };
 }
 
+// calcularBalances (PR 1) no valida nada -- asume gastos ya pasados por validarGasto().
+// Eso vale para el gate de ALTA, pero acá se lee un state.split que puede traer datos
+// viejos o tocados a mano. Filtro permisivo de LECTURA (nunca bloquea el resto del
+// resumen, sólo descarta la fila mala): sin esto, un gasto malformado tira abajo el
+// cálculo entero en vez de mostrar el resto.
+function esGastoValidoParaCalculo(g){
+  return Boolean(g) && typeof g === 'object'
+    && Array.isArray(g.payers) && g.payers.length > 0
+    && Array.isArray(g.consumers) && g.consumers.length > 0
+    && Number.isInteger(g.amount);
+}
+
+// Arma balances + pagos sugeridos a partir de state.split, sin escribir nada. Primer
+// caller real de calcularBalances/liquidarMinimo (PR 1 las dejó puras y sin usar a
+// propósito). liquidarMinimo es una heurística, no un mínimo demostrado -- por eso acá
+// y en el render sólo se habla de "sugeridos", nunca de "mínimo garantizado".
+//
+// Orden: calcularBalances ya siembra el mapa recorriendo `participants` primero, así
+// que balances sale en el mismo orden que split.participants (un id huérfano de un
+// gasto viejo, si lo hubiera, cae al final -- nunca se descarta en silencio). pagos
+// se deja en el orden que liquidarMinimo produce, sin reordenar.
+function armarResumenSplit(split){
+  const s = normalizeSplit(split);
+  const gastosValidos = s.expenses.filter(esGastoValidoParaCalculo);
+  const nombreDe = (id) => {
+    const p = s.participants.find(x=>x.id===id);
+    return p ? p.name : 'alguien que ya no está';
+  };
+  const balances = calcularBalances(s.participants, gastosValidos)
+    .map(b => ({ id:b.id, name:nombreDe(b.id), balance:b.balance }));
+  const pagos = liquidarMinimo(balances)
+    .map(p => ({ de:p.de, deName:nombreDe(p.de), a:p.a, aName:nombreDe(p.a), monto:p.monto }));
+  return { hayGastosValidos: gastosValidos.length > 0, balances, pagos };
+}
+
+function renderSplitResumen(){
+  const resultado = armarResumenSplit(state.split);
+  const balancesUl = document.getElementById('split-balances-list');
+  const pagosUl = document.getElementById('split-suggested-payments-list');
+  const notaEl = document.getElementById('split-payments-note');
+
+  if(!resultado.hayGastosValidos){
+    balancesUl.innerHTML = '<li class="empty-state">Todavía no hay gastos para calcular.</li>';
+    pagosUl.innerHTML = '';
+    notaEl.hidden = true;
+    return;
+  }
+
+  balancesUl.innerHTML = resultado.balances.map(b => {
+    let texto;
+    if(b.balance > 0) texto = `${escapeHtml(b.name)}: recibe ${escapeHtml(formatMoney(b.balance))}`;
+    else if(b.balance < 0) texto = `${escapeHtml(b.name)}: debe ${escapeHtml(formatMoney(-b.balance))}`;
+    else texto = `${escapeHtml(b.name)}: está a mano`;
+    return `<li class="manage-row"><span class="split-expense-info">${texto}</span></li>`;
+  }).join('');
+
+  if(resultado.pagos.length === 0){
+    pagosUl.innerHTML = '<li class="empty-state">Con los gastos cargados, no hay pagos sugeridos: ya está parejo.</li>';
+    notaEl.hidden = true;
+  } else {
+    pagosUl.innerHTML = resultado.pagos.map(p =>
+      `<li class="manage-row"><span class="split-expense-info">${escapeHtml(p.deName)} le pasa ${escapeHtml(formatMoney(p.monto))} a ${escapeHtml(p.aName)}</span></li>`
+    ).join('');
+    notaEl.hidden = false;
+  }
+}
+
 function renderSplitExpensesForm(){
   const split = normalizeSplit(state.split);
   const wrap = document.getElementById('split-expense-form-wrap');
@@ -3376,6 +3452,7 @@ function renderSplitExpensesList(){
 function renderSplitExpensesModal(){
   renderSplitExpensesList();
   renderSplitExpensesForm();
+  renderSplitResumen();
 }
 
 document.getElementById('open-manage-split-expenses-btn').onclick = ()=>{
