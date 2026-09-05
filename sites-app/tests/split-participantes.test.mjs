@@ -335,6 +335,9 @@ test("el modal de participantes reusa el patrón de sedes (manage-list/manage-ad
   assert.match(modal, /<ul class="manage-list" id="split-participants-list">/);
   assert.match(modal, /<div class="manage-add-row">/);
   assert.match(modal, /<p class="modal-error" id="split-participants-error"/);
+  // PR #76 — copy ajustado post-verificación de producción.
+  assert.match(modal, /Agregá sólo a quienes participan de la cuenta del tercer tiempo\. Sacar a alguien de acá no lo saca del partido\./);
+  assert.match(modal, /<input type="text" id="new-split-participant-name" placeholder="Nombre o apodo">/);
 });
 
 test("manage-split-overlay está registrado en anyModalOpen (no lo pisa el sondeo)", () => {
