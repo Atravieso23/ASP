@@ -98,15 +98,17 @@ test("'Limpiar todo' resetea split explícito, no lo hereda de {...fresh}", () =
   assert.match(handler, /\{\s*\.\.\.fresh,\s*responses:\s*\[\][\s\S]*split:\s*\{\s*participants:\s*\[\],\s*expenses:\s*\[\]\s*\}/);
 });
 
-test("las asignaciones a .split viven sólo en lectura/Finalizar/Limpiar y los writers de participantes de PR 3B", () => {
+test("las asignaciones a .split viven sólo en lectura/Finalizar/Limpiar y los writers de PR 3B/PR 4", () => {
   const leer = extractFunction(demo, "leerEstadoDelServidor");
   const finInicio = demo.indexOf("finalizeConfirmBtn.onclick");
   const finFin = demo.indexOf("const clearOverlay");
   const finalizarHandler = demo.slice(finInicio, finFin);
   const limpiarInicio = demo.indexOf("clearConfirmBtn.onclick");
   const limpiarHandler = demo.slice(limpiarInicio, limpiarInicio + 1600);
-  const agregarWriter = extractFunction(demo, "agregarParticipanteSplit");
-  const removerWriter = extractFunction(demo, "removerParticipanteSplit");
+  const agregarParticipante = extractFunction(demo, "agregarParticipanteSplit");
+  const removerParticipante = extractFunction(demo, "removerParticipanteSplit");
+  const agregarGasto = extractFunction(demo, "agregarGastoSplit");
+  const eliminarGasto = extractFunction(demo, "eliminarGastoSplit");
 
   const asignaciones = [...demo.matchAll(/[A-Za-z_$][\w$.]*\.split(?:\.\w+)?\s*=\s*[^=]/g)].map((m) =>
     demo.slice(m.index, m.index + 60).replace(/\s+/g, " ").trim(),
@@ -116,22 +118,24 @@ test("las asignaciones a .split viven sólo en lectura/Finalizar/Limpiar y los w
     const lhs = a.split(" = ")[0] + " = ";
     assert.ok(
       leer.includes(lhs) || finalizarHandler.includes(lhs) || limpiarHandler.includes(lhs)
-        || agregarWriter.includes(lhs) || removerWriter.includes(lhs),
-      `asignación a .split inesperada fuera de lectura/Finalizar/Limpiar/writers de participantes: "${a}"`,
+        || agregarParticipante.includes(lhs) || removerParticipante.includes(lhs)
+        || agregarGasto.includes(lhs) || eliminarGasto.includes(lhs),
+      `asignación a .split inesperada fuera de lectura/Finalizar/Limpiar/writers conocidos: "${a}"`,
     );
   }
 });
 
 /* ---------- guards: nada más toca split en este PR ----------
-   PR 3B agregó los writers de participantes (agregarParticipanteSplit/
-   removerParticipanteSplit) y su UI — ver split-participantes.test.mjs. Lo que
-   este PR 3A todavía no autorizaba, y sigue sin existir, es todo lo de GASTOS. */
+   PR 3B agregó los writers de participantes; PR 4 agregó alta/baja de gastos
+   (agregarGastoSplit/eliminarGastoSplit) — ver split-gastos.test.mjs. Lo que PR 4
+   NO autorizó y sigue sin existir: edición de gastos y balances/liquidación. */
 
-test("sin writers de gastos todavía (PR 3B sólo trajo participantes)", () => {
-  assert.doesNotMatch(
-    demo,
-    /function\s+(agregarGastoSplit|editarGastoSplit|eliminarGastoSplit)\s*\(/,
-  );
+test("sin edición de gastos ni balances/liquidación conectados todavía (PR 5 pendiente)", () => {
+  assert.doesNotMatch(demo, /function\s+editarGastoSplit\s*\(/);
+  // calcularBalances/liquidarMinimo siguen definidas (PR 1) pero sin ningún caller
+  // real fuera de su propia definición.
+  assert.equal([...demo.matchAll(/\bcalcularBalances\s*\(/g)].length, 1);
+  assert.equal([...demo.matchAll(/\bliquidarMinimo\s*\(/g)].length, 1);
 });
 
 test("la card Split sigue sin leer state.split directamente en su propio markup", () => {

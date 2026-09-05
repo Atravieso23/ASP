@@ -646,15 +646,19 @@
   .organizer-header p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;}
   .organizer-card{background:var(--white);border:1px solid var(--card-border);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 14px 30px -24px rgba(14,42,61,.45);}
   .organizer-card-title{margin:0 0 15px;text-align:center;font:700 16px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
-  /* Split (tercer tiempo) — PR 3B: participantes editables, gastos todavía no. */
+  /* Split (tercer tiempo) — PR 4: participantes y gastos editables, sin balances. */
   .split-money-subtitle{margin:-9px 0 12px;text-align:center;font-size:12px;color:var(--muted);}
   .split-money-empty{margin:0;text-align:center;font-size:13px;line-height:1.5;color:var(--muted);}
   .split-money-participants-summary{margin:8px 0 0;text-align:center;font-size:12.5px;color:var(--muted);}
   .split-money-participants-summary:empty{display:none;}
   .split-money-manage-row{margin:8px 0 0;text-align:center;}
+  .split-money-manage-row .link-btn{white-space:nowrap;}
   .split-money-note{margin:10px 0 0;text-align:center;font-size:11px;line-height:1.5;color:var(--muted);}
   .manage-row-label{flex:1;min-width:0;font-size:14px;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .manage-section-title{margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--celeste-deep);}
+  .manage-row-check{display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer;}
+  .split-expense-info{flex:1;min-width:0;font-size:13px;color:var(--navy);line-height:1.4;}
+  .split-expense-meta{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;}
   .organizer-player-list-details{margin-top:4px;}
   .organizer-responses-summary{display:grid;grid-template-columns:auto minmax(90px,1fr) auto auto;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);font:700 12px 'Inter',sans-serif;color:var(--navy);}
   .organizer-responses-summary::-webkit-details-marker{display:none;}
@@ -1035,16 +1039,21 @@
       <p class="organizer-formation-help">Tocá una ficha para pasarla al otro equipo o arrastrala para cambiarla de posición. Al cambiar de equipo busca automáticamente un lugar libre.</p>
     </section>
 
-    <!-- Split (tercer tiempo) — PR 2: card read-only estática. Sin state.split, sin
-         normalizeSplit, sin writers, sin Supabase. Sólo anuncia el lugar futuro con
-         copy honesto; no lee ni escribe nada todavía. -->
+    <!-- Split (tercer tiempo) — PR 4: gastos editables básicos (alta/baja, sin editar).
+         Sin balances ni liquidación todavía (PR 5): calcularBalances/liquidarMinimo
+         siguen sin caller. Un solo pagador por gasto en esta UI; el motor puro ya
+         soporta varios, sin exponerlo todavía. -->
     <section class="organizer-card split-money-card" aria-labelledby="split-money-title">
       <h2 class="organizer-card-title" id="split-money-title">Split</h2>
       <p class="split-money-subtitle">Cuenta del tercer tiempo</p>
       <p class="split-money-empty" id="split-money-empty">Todavía no hay gastos cargados.</p>
       <p class="split-money-participants-summary" id="split-money-participants-summary"></p>
-      <p class="split-money-manage-row"><button type="button" class="link-btn" id="open-manage-split-btn">Gestionar participantes</button></p>
-      <p class="split-money-note">Podés armar quién participa. Todavía no se cargan gastos desde la app.</p>
+      <p class="split-money-manage-row">
+        <button type="button" class="link-btn" id="open-manage-split-btn">Gestionar participantes</button>
+        <span aria-hidden="true"> · </span>
+        <button type="button" class="link-btn" id="open-manage-split-expenses-btn">Cargar gastos</button>
+      </p>
+      <p class="split-money-note">Podés armar quién participa y cargar gastos. Los balances por persona todavía no se calculan acá.</p>
     </section>
 
     <section class="organizer-card organizer-actions" aria-labelledby="organizer-actions-title">
@@ -1156,6 +1165,39 @@
     <p class="modal-error" id="split-participants-error" role="alert" hidden></p>
     <div class="modal-actions">
       <button class="btn-cancel" id="manage-split-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-split-expenses-overlay">
+  <div class="modal">
+    <h2>Gastos del Split</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Cargá lo que se gastó en el tercer tiempo. Por ahora sólo se listan: todavía no calcula quién le debe a quién.</p>
+    <p class="manage-section-title">Gastos cargados</p>
+    <ul class="manage-list" id="split-expenses-list"></ul>
+    <div id="split-expense-form-wrap">
+      <div class="field">
+        <label>Qué compraste</label>
+        <input type="text" id="new-split-expense-label" placeholder="Ej: Cervezas">
+      </div>
+      <div class="field">
+        <label>Cuánto salió</label>
+        <input type="text" id="new-split-expense-amount" placeholder="24000">
+      </div>
+      <div class="field">
+        <label>Quién pagó</label>
+        <select id="new-split-expense-payer"></select>
+      </div>
+      <div class="field">
+        <label>Quién consume</label>
+        <ul class="manage-list" id="new-split-expense-consumers"></ul>
+      </div>
+      <p class="modal-error" id="split-expenses-error" role="alert" hidden></p>
+      <button class="btn-save" id="add-split-expense-btn" style="width:100%;">Agregar gasto</button>
+    </div>
+    <p class="empty-state" id="split-expense-form-empty" hidden>Agregá participantes primero (botón "Gestionar participantes") para poder cargar un gasto.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-split-expenses-close">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1577,7 +1619,7 @@ function reconciliarPlayers(freshPlayers){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay','manage-split-expenses-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
   if(anyModalOpen || editingHistory || saving) return;
@@ -3129,10 +3171,19 @@ function renderSplitManageModal(){
 // La card sólo muestra el conteo (o nada, si todavía no hay nadie): el detalle
 // editable vive en el modal, no acá — una card no crece con cada participante.
 function renderSplitCardSummary(){
-  const el = document.getElementById('split-money-participants-summary');
-  if(!el) return;
-  const n = (state.split && Array.isArray(state.split.participants)) ? state.split.participants.length : 0;
-  el.textContent = n === 0 ? '' : (n === 1 ? '1 participante' : `${n} participantes`);
+  const participantsEl = document.getElementById('split-money-participants-summary');
+  const emptyEl = document.getElementById('split-money-empty');
+  if(!participantsEl || !emptyEl) return;
+  const split = normalizeSplit(state.split);
+  const n = split.participants.length;
+  participantsEl.textContent = n === 0 ? '' : (n === 1 ? '1 participante' : `${n} participantes`);
+  const nGastos = split.expenses.length;
+  if(nGastos === 0){
+    emptyEl.textContent = 'Todavía no hay gastos cargados.';
+  } else {
+    const total = split.expenses.reduce((acc,g)=>acc + (Number(g.amount)||0), 0);
+    emptyEl.textContent = `${nGastos === 1 ? '1 gasto' : nGastos + ' gastos'} · ${formatMoney(total)} cargados`;
+  }
 }
 
 document.getElementById('open-manage-split-btn').onclick = ()=>{
@@ -3191,11 +3242,195 @@ document.getElementById('split-participants-list').addEventListener('click', asy
   if(!ok){
     // Único motivo con copy propio: necesita el nombre, que sedes/duplicado no llevan.
     showSplitError(motivo === SPLIT_PARTICIPANTE_CON_GASTOS
-      ? `No se puede sacar a ${nombre}: ya participa en gastos del Split. Quitá o editá esos gastos primero.`
+      ? `No se puede sacar a ${nombre}: ya participa en gastos del Split. Borrá esos gastos primero.`
       : splitParticipanteMensajeDeError(motivo));
     return;
   }
   renderSplitManageModal();
+  renderSplitCardSummary();
+});
+
+/* ---------- SPLIT — gastos (PR 4) ----------
+   Alta y baja de gastos básicos. Un solo pagador por gasto en esta UI (el motor puro
+   ya soporta varios; no se expone todavía). Sin edición: la corrección es borrar y
+   volver a cargar. Sin balances/liquidación (PR 5): calcularBalances/liquidarMinimo
+   siguen sin caller. Igual que participantes, nunca toca responses/players/
+   habitualPlayers/cards — vive únicamente en state.split. */
+const SPLIT_GASTO_SIN_OBJETIVO = 'sin-objetivo';
+const SPLIT_GASTO_PARTICIPANTE_INVALIDO = 'participante-invalido';
+
+const splitExpensesError = document.getElementById('split-expenses-error');
+const SPLIT_GASTO_ERROR_GUARDADO = 'No se pudo guardar el gasto. Revisá la conexión e intentá otra vez.';
+const SPLIT_GASTO_ERROR_SIN_OBJETIVO = 'Ese gasto ya no está: otro dispositivo lo borró.';
+const SPLIT_GASTO_ERROR_PARTICIPANTE_INVALIDO = 'Alguno de los participantes elegidos ya no está en el Split. Volvé a revisar la lista.';
+function showSplitExpensesError(mensaje){ splitExpensesError.textContent = mensaje; splitExpensesError.hidden = false; }
+function hideSplitExpensesError(){ splitExpensesError.hidden = true; }
+// Motivos propios del writer + los que ya define validarGasto() (motor puro, PR 1):
+// se traducen acá para no tocar el motor con texto de UI.
+function splitGastoMensajeDeError(motivo){
+  if(motivo === SPLIT_GASTO_SIN_OBJETIVO) return SPLIT_GASTO_ERROR_SIN_OBJETIVO;
+  if(motivo === SPLIT_GASTO_PARTICIPANTE_INVALIDO) return SPLIT_GASTO_ERROR_PARTICIPANTE_INVALIDO;
+  if(motivo === 'monto-invalido') return 'El monto tiene que ser un número entero mayor a 0.';
+  if(motivo === 'sin-consumidores') return 'Elegí al menos un consumidor.';
+  if(motivo === 'consumidor-duplicado') return 'Hay un consumidor repetido.';
+  if(motivo === 'sin-pagadores') return 'Elegí quién pagó.';
+  if(motivo === 'pagador-duplicado') return 'Hay un pagador repetido.';
+  if(motivo === 'monto-de-pagador-invalido') return 'El monto del pagador no es válido.';
+  if(motivo === 'pagadores-no-cierran') return 'Lo pagado no coincide con el monto total.';
+  return SPLIT_GASTO_ERROR_GUARDADO;
+}
+
+// validarGasto (motor puro) corre ANTES de tocar el servidor: gate de entrada, nunca
+// confía en que el dato ya viene bien formado. Después, contra el estado fresco, se
+// revalida que payers/consumers sigan existiendo como participantes — evita cargarle
+// un gasto a alguien que otro dispositivo acaba de sacar del Split.
+async function agregarGastoSplit(datos){
+  const { label, amount, payers, consumers } = datos || {};
+  const gasto = { id: crypto.randomUUID(), label, amount, payers, consumers };
+  const { ok: valido, motivo: motivoInvalido } = validarGasto(gasto);
+  if(!valido) return { ok:false, motivo: motivoInvalido };
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    const split = normalizeSplit(fresh.split);
+    const idsValidos = new Set(split.participants.map(p=>p.id));
+    const consumidoresValidos = consumers.every(id=>idsValidos.has(id));
+    const pagadoresValidos = payers.every(p=>idsValidos.has(p.participantId));
+    if(!consumidoresValidos || !pagadoresValidos){
+      motivo = SPLIT_GASTO_PARTICIPANTE_INVALIDO;
+      return false;
+    }
+    fresh.split = { ...split, expenses: [...split.expenses, gasto] };
+    return true;
+  });
+  return { ok, motivo };
+}
+
+// Sin guard de "en uso": un gasto es una hoja, borrarlo no deja nada huérfano (al
+// revés de sacar un participante, que sí puede dejar gastos apuntando a nadie).
+async function eliminarGastoSplit(expenseId){
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    const split = normalizeSplit(fresh.split);
+    const indice = split.expenses.findIndex(g=>g.id===expenseId);
+    if(indice < 0){ motivo = SPLIT_GASTO_SIN_OBJETIVO; return false; }
+    const expenses = split.expenses.slice();
+    expenses.splice(indice, 1);
+    fresh.split = { ...split, expenses };
+    return true;
+  });
+  return { ok, motivo };
+}
+
+function renderSplitExpensesForm(){
+  const split = normalizeSplit(state.split);
+  const wrap = document.getElementById('split-expense-form-wrap');
+  const empty = document.getElementById('split-expense-form-empty');
+  const sinParticipantes = split.participants.length === 0;
+  wrap.hidden = sinParticipantes;
+  empty.hidden = !sinParticipantes;
+  if(sinParticipantes) return;
+
+  const payerSelect = document.getElementById('new-split-expense-payer');
+  const payerActual = payerSelect.value;
+  payerSelect.innerHTML = split.participants.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+  if(split.participants.some(p=>p.id===payerActual)) payerSelect.value = payerActual;
+
+  const consumersUl = document.getElementById('new-split-expense-consumers');
+  const marcados = new Set([...consumersUl.querySelectorAll('input:checked')].map(inp=>inp.value));
+  consumersUl.innerHTML = split.participants.map(p => `
+    <li class="manage-row">
+      <label class="manage-row-check">
+        <input type="checkbox" value="${escapeHtml(p.id)}" ${marcados.has(p.id) ? 'checked' : ''}>
+        <span class="manage-row-label">${escapeHtml(p.name)}</span>
+      </label>
+    </li>
+  `).join('');
+}
+
+function renderSplitExpensesList(){
+  const ul = document.getElementById('split-expenses-list');
+  const split = normalizeSplit(state.split);
+  if(split.expenses.length === 0){
+    ul.innerHTML = '<li class="empty-state">Todavía no hay gastos cargados.</li>';
+    return;
+  }
+  const nombreDe = (id) => {
+    const p = split.participants.find(x=>x.id===id);
+    return p ? p.name : 'alguien que ya no está';
+  };
+  ul.innerHTML = split.expenses.map(g => {
+    const pagador = (g.payers && g.payers[0]) ? nombreDe(g.payers[0].participantId) : '—';
+    const consumidores = (g.consumers||[]).map(nombreDe).join(', ');
+    return `
+      <li class="manage-row split-expense-row">
+        <span class="split-expense-info">
+          <strong>${escapeHtml(g.label || 'Gasto')}</strong> · ${escapeHtml(formatMoney(g.amount))}
+          <span class="split-expense-meta">Pagó ${escapeHtml(pagador)} · Consumen: ${escapeHtml(consumidores)}</span>
+        </span>
+        <button class="icon-btn danger" data-action="remove-split-expense" data-expense-id="${escapeHtml(g.id)}" title="Borrar gasto">✕</button>
+      </li>
+    `;
+  }).join('');
+}
+
+function renderSplitExpensesModal(){
+  renderSplitExpensesList();
+  renderSplitExpensesForm();
+}
+
+document.getElementById('open-manage-split-expenses-btn').onclick = ()=>{
+  hideSplitExpensesError();
+  renderSplitExpensesModal();
+  document.getElementById('manage-split-expenses-overlay').classList.add('open');
+};
+document.getElementById('manage-split-expenses-close').onclick = ()=>{
+  hideSplitExpensesError();
+  document.getElementById('manage-split-expenses-overlay').classList.remove('open');
+};
+document.getElementById('add-split-expense-btn').onclick = async ()=>{
+  hideSplitExpensesError();
+  const labelInput = document.getElementById('new-split-expense-label');
+  const amountInput = document.getElementById('new-split-expense-amount');
+  const payerSelect = document.getElementById('new-split-expense-payer');
+  const label = labelInput.value.trim();
+  const amount = Math.round(parsePrice(amountInput.value));
+  const payerId = payerSelect.value;
+  const consumers = [...document.querySelectorAll('#new-split-expense-consumers input:checked')].map(inp=>inp.value);
+
+  // Guards de UI antes de tocar el writer: mensajes específicos y sin gastar una
+  // lectura del servidor para un formulario a medio llenar.
+  if(!label){ showSplitExpensesError('Contá qué compraste.'); return; }
+  if(!payerId){ showSplitExpensesError('Elegí quién pagó.'); return; }
+  if(consumers.length === 0){ showSplitExpensesError('Elegí al menos un consumidor.'); return; }
+
+  const {ok, motivo} = await agregarGastoSplit({
+    label,
+    amount,
+    payers: [{ participantId: payerId, amount }],
+    consumers
+  });
+  if(!ok){
+    showSplitExpensesError(splitGastoMensajeDeError(motivo));
+    return;
+  }
+  labelInput.value = '';
+  amountInput.value = '';
+  renderSplitExpensesModal();
+  renderSplitCardSummary();
+};
+document.getElementById('split-expenses-list').addEventListener('click', async (ev)=>{
+  const boton = ev.target.closest('[data-action="remove-split-expense"]');
+  if(!boton) return;
+  hideSplitExpensesError();
+  if(!window.confirm('¿Borrar este gasto?')) return;
+  boton.disabled = true;
+  const {ok, motivo} = await eliminarGastoSplit(boton.dataset.expenseId);
+  boton.disabled = false;
+  if(!ok){
+    showSplitExpensesError(splitGastoMensajeDeError(motivo));
+    return;
+  }
+  renderSplitExpensesModal();
   renderSplitCardSummary();
 });
 
