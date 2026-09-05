@@ -1,9 +1,14 @@
 // Split (tercer tiempo) — PR 2: card read-only estática en Vista Organizador.
 //
-// Esta card NO tiene state.split, NO tiene normalizeSplit, NO lee ni escribe nada:
-// es únicamente markup+CSS que anuncia el lugar futuro del módulo con copy honesto.
-// Por eso los tests son regex sobre el HTML crudo, sin node:vm ni DOM: no hay
-// ninguna función ni handler que ejercitar todavía.
+// La card en sí sigue sin leer ni escribir nada: es únicamente markup+CSS que
+// anuncia el lugar futuro del módulo con copy honesto. Por eso estos tests son
+// regex sobre el HTML crudo, sin node:vm ni DOM: no hay ningún handler que
+// ejercitar sobre la card misma.
+//
+// PR 3A introdujo `state.split`/`normalizeSplit()` (shape defensivo, sin UI ni
+// writers todavía) — el guard "PR 2 no toca state.split" que vivía acá quedó
+// obsoleto por diseño y se retiró. Esas invariantes ahora se cubren en
+// split-shape-reset.test.mjs.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -96,14 +101,4 @@ test("la card Split vive en Vista Organizador, entre Formaciones y Cerrar/Reinic
   assert.ok(formationsTitleIdx > organizerViewStart, "Formaciones debe estar dentro de Vista Organizador");
   assert.ok(splitCardIdx > formationsTitleIdx, "Split debe ir después de Formaciones de equipos");
   assert.ok(actionsTitleIdx > splitCardIdx, "Split debe ir antes de Cerrar o reiniciar la fecha");
-});
-
-test("Split no toca state.split, normalizeSplit ni la lectura/escritura de Supabase", async () => {
-  const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  // Sólo el código real (dentro de <script>), no los comentarios HTML que describen
-  // el scope del PR (esos sí mencionan "state.split" en prosa, a propósito).
-  const script = sliceBetween(demo, "<script>", "</script>", "el bloque de script principal");
-
-  assert.doesNotMatch(script, /\bstate\.split\b/, "no debe existir state.split todavía (fuera de scope del PR 2)");
-  assert.doesNotMatch(script, /function\s+normalizeSplit\s*\(/, "no debe existir normalizeSplit todavía (fuera de scope del PR 2)");
 });

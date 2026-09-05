@@ -2061,7 +2061,9 @@ test("clearing everything starts from the server so it cannot overwrite remote f
   // antigüedad, Limpiar pisaba una sede o un alias que otro dispositivo acababa de
   // guardar. Ahora aplica sólo lo que significa "limpiar" sobre el estado fresco.
   assert.match(h.previo, /const fresh = await fetchServerState\(\);/);
-  assert.match(h.previo, /const nextState = \{\.\.\.fresh, responses: \[\], players: \[\], formations: \{\}\};/);
+  // PR 3A: Split también resetea acá (cuenta efímera del tercer tiempo, no algo
+  // que "limpiar todo" deba conservar por accidente vía el spread de `fresh`).
+  assert.match(h.previo, /const nextState = \{\.\.\.fresh, responses: \[\], players: \[\], formations: \{\}, split: \{ participants: \[\], expenses: \[\] \}\};/);
   for(const conservado of ['sedes', 'frequentAliases', 'matchInfo', 'history']){
     assert.doesNotMatch(h.previo, new RegExp(`\\n\\s*${conservado}: `), `limpiar no debería tocar ${conservado}`);
   }
