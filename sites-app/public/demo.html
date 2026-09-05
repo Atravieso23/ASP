@@ -1205,6 +1205,7 @@
     <p class="manage-section-title">Pagos sugeridos para saldar</p>
     <ul class="manage-list" id="split-suggested-payments-list"></ul>
     <p style="font-size:11px;color:var(--muted);line-height:1.5;" id="split-payments-note">Son sugerencias calculadas con los gastos cargados, no la única forma de saldar.</p>
+    <p style="margin:8px 0 0;text-align:center;"><button type="button" class="link-btn" id="copy-split-resumen-btn" hidden>Copiar resumen</button></p>
     <div class="modal-actions">
       <button class="btn-cancel" id="manage-split-expenses-close">Cerrar</button>
     </div>
@@ -3370,11 +3371,13 @@ function renderSplitResumen(){
   const balancesUl = document.getElementById('split-balances-list');
   const pagosUl = document.getElementById('split-suggested-payments-list');
   const notaEl = document.getElementById('split-payments-note');
+  const copyBtn = document.getElementById('copy-split-resumen-btn');
 
   if(!resultado.hayGastosValidos){
     balancesUl.innerHTML = '<li class="empty-state">Todavía no hay gastos para calcular.</li>';
     pagosUl.innerHTML = '';
     notaEl.hidden = true;
+    if(copyBtn) copyBtn.hidden = true;
     return;
   }
 
@@ -3395,6 +3398,31 @@ function renderSplitResumen(){
     ).join('');
     notaEl.hidden = false;
   }
+  // El botón se muestra aunque no haya pagos sugeridos: "ya está parejo" también es
+  // información que vale la pena mandar al grupo, sólo se oculta sin gastos válidos.
+  if(copyBtn) copyBtn.hidden = false;
+}
+
+// Sólo formatea texto a partir de armarResumenSplit() (PR 5): no recalcula balances
+// ni pagos por su cuenta, no escribe nada. Mismo contrato "'' si no hay nada que
+// decir" que mensajeFaltaConfirmar(), para que el llamador sepa cuándo no ofrecer
+// copiar. Sin detalle gasto por gasto ni balances por persona a propósito: el
+// mensaje es para coordinar transferencias, no para auditar -- eso ya vive en la app.
+function mensajeResumenSplit(split){
+  const resultado = armarResumenSplit(split);
+  if(!resultado.hayGastosValidos) return '';
+  const s = normalizeSplit(split);
+  const total = s.expenses.filter(esGastoValidoParaCalculo).reduce((acc,g)=>acc + g.amount, 0);
+  const lineas = ['Split del tercer tiempo ⚽', '', `Gastos cargados: ${formatMoney(total)}`, ''];
+  if(resultado.pagos.length === 0){
+    lineas.push('Con los gastos cargados, no hay pagos sugeridos: ya está parejo.');
+  } else {
+    lineas.push('Pagos sugeridos para saldar:');
+    resultado.pagos.forEach(p => lineas.push(`- ${p.deName} le pasa ${formatMoney(p.monto)} a ${p.aName}`));
+    lineas.push('');
+    lineas.push('Son sugerencias calculadas con los gastos cargados, no la única forma de saldar.');
+  }
+  return lineas.join('\n');
 }
 
 function renderSplitExpensesForm(){
@@ -3510,6 +3538,29 @@ document.getElementById('split-expenses-list').addEventListener('click', async (
   renderSplitExpensesModal();
   renderSplitCardSummary();
 });
+
+// Copiar para WhatsApp: mismo mecanismo que "Copiar alias" y "Faltan responder"
+// —clipboard nativo con fallback a textarea + execCommand—, y feedback con el
+// toast existente. Sólo lectura + clipboard local: no toca Supabase.
+document.getElementById('copy-split-resumen-btn').onclick = async ()=>{
+  const mensaje = mensajeResumenSplit(state.split);
+  if(!mensaje) return;
+  try{
+    await navigator.clipboard.writeText(mensaje);
+    showToast('Copiado para WhatsApp');
+  }catch(e){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = mensaje; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Copiado para WhatsApp');
+    }catch(e2){
+      showToast('No se pudo copiar. ' + mensaje);
+    }
+  }
+};
 
 /* ---------- MODAL EDITAR PARTIDO ---------- */
 const overlay = document.getElementById('modal-overlay');
