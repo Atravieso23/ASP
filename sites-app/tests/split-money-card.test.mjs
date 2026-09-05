@@ -49,14 +49,14 @@ test("la card Split existe una sola vez, con el copy aprobado exacto", async () 
     card,
     /<p class="split-money-empty" id="split-money-empty">Todavía no hay gastos cargados\.<\/p>/,
   );
-  // PR 3B: los participantes ya son editables — el copy honesto ahora dice
-  // exactamente eso (gastos siguen sin cargarse desde la app).
+  // PR 4: participantes y gastos ya son editables — sin balances todavía.
   assert.match(
     card,
-    /<p class="split-money-note">Podés armar quién participa\. Todavía no se cargan gastos desde la app\.<\/p>/,
+    /<p class="split-money-note">Podés armar quién participa y cargar gastos\. Los balances por persona todavía no se calculan acá\.<\/p>/,
   );
   assert.match(card, /<p class="split-money-participants-summary" id="split-money-participants-summary">/);
   assert.match(card, /<button type="button" class="link-btn" id="open-manage-split-btn">Gestionar participantes<\/button>/);
+  assert.match(card, /<button type="button" class="link-btn" id="open-manage-split-expenses-btn">Cargar gastos<\/button>/);
 });
 
 test("la card Split no usa la clase bare \"split\" (colisiona con el layout de equipos)", async () => {

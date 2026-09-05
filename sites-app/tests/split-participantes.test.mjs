@@ -356,7 +356,8 @@ test("no hay importación masiva automática: sólo el alta uno-por-uno ya cubie
 
 test("copy de bloqueo: duplicado y remoción con gastos usan el texto aprobado", () => {
   assert.match(demo, /Ya hay alguien con ese nombre en el Split\. Agregá apellido o apodo\./);
-  assert.match(demo, /ya participa en gastos del Split\. Quitá o editá esos gastos primero\./);
+  // PR 4: sin edición de gastos en el MVP, el copy ya no promete "editar".
+  assert.match(demo, /ya participa en gastos del Split\. Borrá esos gastos primero\./);
 });
 
 test("no afirma pagado/saldada/confirmado/mínimo garantizado en el copy nuevo de Split", () => {
