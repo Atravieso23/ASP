@@ -646,10 +646,15 @@
   .organizer-header p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;}
   .organizer-card{background:var(--white);border:1px solid var(--card-border);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 14px 30px -24px rgba(14,42,61,.45);}
   .organizer-card-title{margin:0 0 15px;text-align:center;font:700 16px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);}
-  /* Split (tercer tiempo) — PR 2: card read-only, sin state.split ni datos reales todavía. */
+  /* Split (tercer tiempo) — PR 3B: participantes editables, gastos todavía no. */
   .split-money-subtitle{margin:-9px 0 12px;text-align:center;font-size:12px;color:var(--muted);}
   .split-money-empty{margin:0;text-align:center;font-size:13px;line-height:1.5;color:var(--muted);}
+  .split-money-participants-summary{margin:8px 0 0;text-align:center;font-size:12.5px;color:var(--muted);}
+  .split-money-participants-summary:empty{display:none;}
+  .split-money-manage-row{margin:8px 0 0;text-align:center;}
   .split-money-note{margin:10px 0 0;text-align:center;font-size:11px;line-height:1.5;color:var(--muted);}
+  .manage-row-label{flex:1;min-width:0;font-size:14px;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .manage-section-title{margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--celeste-deep);}
   .organizer-player-list-details{margin-top:4px;}
   .organizer-responses-summary{display:grid;grid-template-columns:auto minmax(90px,1fr) auto auto;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);font:700 12px 'Inter',sans-serif;color:var(--navy);}
   .organizer-responses-summary::-webkit-details-marker{display:none;}
@@ -734,7 +739,7 @@
   .manage-row{display:flex; gap:6px; align-items:center; background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px; padding:8px;}
   .manage-row input{flex:1; background:var(--white); border:1px solid var(--card-border); border-radius:6px; padding:7px 8px; font-size:13px; min-width:0;}
   .manage-add-row{display:flex; gap:6px; margin-bottom:10px;}
-  .manage-add-row input{flex:1; background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px; padding:9px 10px; font-size:13px;}
+  .manage-add-row input{flex:1; min-width:0; background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px; padding:9px 10px; font-size:13px;}
 
   ::selection{background:var(--celeste); color:#fff;}
 </style>
@@ -1037,7 +1042,9 @@
       <h2 class="organizer-card-title" id="split-money-title">Split</h2>
       <p class="split-money-subtitle">Cuenta del tercer tiempo</p>
       <p class="split-money-empty" id="split-money-empty">Todavía no hay gastos cargados.</p>
-      <p class="split-money-note">En esta versión el Split todavía no se edita desde la app.</p>
+      <p class="split-money-participants-summary" id="split-money-participants-summary"></p>
+      <p class="split-money-manage-row"><button type="button" class="link-btn" id="open-manage-split-btn">Gestionar participantes</button></p>
+      <p class="split-money-note">Podés armar quién participa. Todavía no se cargan gastos desde la app.</p>
     </section>
 
     <section class="organizer-card organizer-actions" aria-labelledby="organizer-actions-title">
@@ -1128,6 +1135,27 @@
     <p class="modal-error" id="sedes-error" role="alert" hidden></p>
     <div class="modal-actions">
       <button class="btn-cancel" id="manage-sedes-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-split-overlay">
+  <div class="modal">
+    <h2>Participantes del Split</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Quién participa de la cuenta del tercer tiempo. Sacar a alguien de acá no lo saca del partido.</p>
+    <div id="split-suggested-wrap" hidden>
+      <p class="manage-section-title">Sugeridos del partido</p>
+      <ul class="manage-list" id="split-suggested-list"></ul>
+    </div>
+    <p class="manage-section-title">Participantes</p>
+    <ul class="manage-list" id="split-participants-list"></ul>
+    <div class="manage-add-row">
+      <input type="text" id="new-split-participant-name" placeholder="Nombre">
+      <button class="btn-save" id="add-split-participant-btn" style="flex:0 0 auto;padding:10px 14px;">Agregar</button>
+    </div>
+    <p class="modal-error" id="split-participants-error" role="alert" hidden></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-split-close">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1549,7 +1577,7 @@ function reconciliarPlayers(freshPlayers){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
   if(anyModalOpen || editingHistory || saving) return;
@@ -2276,6 +2304,7 @@ function render(){
   renderListaMorosos();
   renderProximoPartido();
   renderHorariosDisponibles(isHoraValida(state.matchInfo && state.matchInfo.time));
+  renderSplitCardSummary();
 }
 
 function setSb(id, val, emptyLabel){
@@ -2986,6 +3015,189 @@ document.getElementById('add-sede-btn').onclick = async ()=>{
   renderSedesManageList();
   render();
 };
+
+/* ---------- SPLIT — participantes (PR 3B) ----------
+   Sólo participantes: agregar manual, sugerir desde el partido, sacar. Todavía sin
+   gastos, sin UI de gastos, sin conectar el motor puro. Agregar/sacar de acá NUNCA
+   toca responses/players/habitualPlayers/cards — vive únicamente en state.split. */
+const SPLIT_PARTICIPANTE_DUPLICADO = 'duplicado';
+const SPLIT_PARTICIPANTE_SIN_OBJETIVO = 'sin-objetivo';
+const SPLIT_PARTICIPANTE_CON_GASTOS = 'con-gastos';
+
+const splitParticipantsError = document.getElementById('split-participants-error');
+const SPLIT_ERROR_GUARDADO = 'No se pudo guardar el cambio en los participantes. Revisá la conexión e intentá otra vez.';
+const SPLIT_ERROR_DUPLICADO = 'Ya hay alguien con ese nombre en el Split. Agregá apellido o apodo.';
+// Reintentar no sirve: el participante ya no está. Por eso no comparte el mensaje de red.
+const SPLIT_ERROR_SIN_OBJETIVO = 'Ese participante ya no está: otro dispositivo lo sacó.';
+function showSplitError(mensaje){ splitParticipantsError.textContent = mensaje; splitParticipantsError.hidden = false; }
+function hideSplitError(){ splitParticipantsError.hidden = true; }
+function splitParticipanteMensajeDeError(motivo){
+  if(motivo === SPLIT_PARTICIPANTE_DUPLICADO) return SPLIT_ERROR_DUPLICADO;
+  if(motivo === SPLIT_PARTICIPANTE_SIN_OBJETIVO) return SPLIT_ERROR_SIN_OBJETIVO;
+  return SPLIT_ERROR_GUARDADO;
+}
+
+// Se valida contra los participantes frescos (no los locales): el chequeo local no ve
+// al que otro teléfono acaba de agregar desde el último sondeo. Dedupe SÓLO contra
+// split.participants — un nombre puede repetirse entre el partido y el Split sin
+// problema, lo que no puede pasar es un participante de Split duplicado.
+async function agregarParticipanteSplit(datos){
+  const { name, source, responseId } = datos || {};
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    const split = normalizeSplit(fresh.split);
+    const normalizado = name.trim().toLocaleLowerCase('es');
+    if(split.participants.some(p=>p.name.trim().toLocaleLowerCase('es')===normalizado)){
+      motivo = SPLIT_PARTICIPANTE_DUPLICADO;
+      return false;
+    }
+    fresh.split = {
+      ...split,
+      participants: [...split.participants, { id:crypto.randomUUID(), name, source, responseId: responseId || null }]
+    };
+    return true;
+  });
+  return { ok, motivo };
+}
+
+// Bloquea si el participante ya aparece como payer o consumer de algún gasto: dejarlo
+// desaparecer de la lista mientras su plata sigue afectando el cierre rompe la
+// auditabilidad sin avisar. Sin gastos, es un borrado real (splice), igual que
+// eliminarInvitado/eliminarSede.
+async function removerParticipanteSplit(participantId){
+  let motivo = null;
+  const ok = await persistFocalizado(fresh=>{
+    const split = normalizeSplit(fresh.split);
+    const indice = split.participants.findIndex(p=>p.id===participantId);
+    if(indice < 0){ motivo = SPLIT_PARTICIPANTE_SIN_OBJETIVO; return false; }
+    const enUso = split.expenses.some(g=>
+      (Array.isArray(g.consumers) && g.consumers.includes(participantId)) ||
+      (Array.isArray(g.payers) && g.payers.some(pg=>pg && pg.participantId===participantId))
+    );
+    if(enUso){ motivo = SPLIT_PARTICIPANTE_CON_GASTOS; return false; }
+    const participants = split.participants.slice();
+    participants.splice(indice, 1);
+    fresh.split = { ...split, participants };
+    return true;
+  });
+  return { ok, motivo };
+}
+
+// Candidatos = responses 'in' (jugadores e invitados) todavía no importados a este
+// Split. No se auto-agregan: el organizador suma cada uno con el botón "+".
+function splitCandidatosSugeridos(){
+  const participants = (state.split && Array.isArray(state.split.participants)) ? state.split.participants : [];
+  const yaImportados = new Set(participants.filter(p=>p.responseId).map(p=>p.responseId));
+  return (localAvailabilityResponses || [])
+    .filter(r=>r && r.status==='in' && r.responseId && !yaImportados.has(r.responseId))
+    .map(r=>({ responseId:r.responseId, name:r.name }));
+}
+
+function renderSplitSuggestedList(){
+  const wrap = document.getElementById('split-suggested-wrap');
+  const ul = document.getElementById('split-suggested-list');
+  const candidatos = splitCandidatosSugeridos();
+  wrap.hidden = candidatos.length === 0;
+  ul.innerHTML = candidatos.map(c => `
+    <li class="manage-row">
+      <span class="manage-row-label">${escapeHtml(c.name)}</span>
+      <button class="icon-btn" data-action="add-suggested-split" data-response-id="${escapeHtml(c.responseId)}" data-name="${escapeHtml(c.name)}" title="Agregar al Split">+</button>
+    </li>
+  `).join('');
+}
+
+function renderSplitParticipantsList(){
+  const ul = document.getElementById('split-participants-list');
+  const participants = (state.split && Array.isArray(state.split.participants)) ? state.split.participants : [];
+  if(participants.length === 0){
+    ul.innerHTML = '<li class="empty-state">Todavía no hay participantes.</li>';
+    return;
+  }
+  ul.innerHTML = participants.map(p => `
+    <li class="manage-row">
+      <span class="manage-row-label">${escapeHtml(p.name)}</span>
+      <button class="icon-btn danger" data-action="remove-split-participant" data-participant-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" title="Sacar del Split">✕</button>
+    </li>
+  `).join('');
+}
+
+function renderSplitManageModal(){
+  renderSplitSuggestedList();
+  renderSplitParticipantsList();
+}
+
+// La card sólo muestra el conteo (o nada, si todavía no hay nadie): el detalle
+// editable vive en el modal, no acá — una card no crece con cada participante.
+function renderSplitCardSummary(){
+  const el = document.getElementById('split-money-participants-summary');
+  if(!el) return;
+  const n = (state.split && Array.isArray(state.split.participants)) ? state.split.participants.length : 0;
+  el.textContent = n === 0 ? '' : (n === 1 ? '1 participante' : `${n} participantes`);
+}
+
+document.getElementById('open-manage-split-btn').onclick = ()=>{
+  hideSplitError();
+  renderSplitManageModal();
+  document.getElementById('manage-split-overlay').classList.add('open');
+};
+document.getElementById('manage-split-close').onclick = ()=>{
+  hideSplitError();
+  document.getElementById('manage-split-overlay').classList.remove('open');
+};
+document.getElementById('add-split-participant-btn').onclick = async ()=>{
+  hideSplitError();
+  const input = document.getElementById('new-split-participant-name');
+  const name = input.value.trim();
+  if(!name) return;
+  const {ok, motivo} = await agregarParticipanteSplit({ name, source:'manual', responseId:null });
+  if(!ok){
+    showSplitError(splitParticipanteMensajeDeError(motivo));
+    return;
+  }
+  input.value = '';
+  renderSplitManageModal();
+  renderSplitCardSummary();
+};
+// Delegado: renderSplitSuggestedList/renderSplitParticipantsList reescriben su
+// innerHTML en cada render, así que un listener por botón se duplicaría o se
+// perdería (mismo motivo que la delegación de "Saldar birra").
+document.getElementById('split-suggested-list').addEventListener('click', async (ev)=>{
+  const boton = ev.target.closest('[data-action="add-suggested-split"]');
+  if(!boton) return;
+  hideSplitError();
+  boton.disabled = true;
+  const {ok, motivo} = await agregarParticipanteSplit({
+    name: boton.dataset.name,
+    source: 'match',
+    responseId: boton.dataset.responseId
+  });
+  boton.disabled = false;
+  if(!ok){
+    showSplitError(splitParticipanteMensajeDeError(motivo));
+    return;
+  }
+  renderSplitManageModal();
+  renderSplitCardSummary();
+});
+document.getElementById('split-participants-list').addEventListener('click', async (ev)=>{
+  const boton = ev.target.closest('[data-action="remove-split-participant"]');
+  if(!boton) return;
+  hideSplitError();
+  const nombre = boton.dataset.name;
+  if(!window.confirm(`¿Sacar a "${nombre}" del Split?`)) return;
+  boton.disabled = true;
+  const {ok, motivo} = await removerParticipanteSplit(boton.dataset.participantId);
+  boton.disabled = false;
+  if(!ok){
+    // Único motivo con copy propio: necesita el nombre, que sedes/duplicado no llevan.
+    showSplitError(motivo === SPLIT_PARTICIPANTE_CON_GASTOS
+      ? `No se puede sacar a ${nombre}: ya participa en gastos del Split. Quitá o editá esos gastos primero.`
+      : splitParticipanteMensajeDeError(motivo));
+    return;
+  }
+  renderSplitManageModal();
+  renderSplitCardSummary();
+});
 
 /* ---------- MODAL EDITAR PARTIDO ---------- */
 const overlay = document.getElementById('modal-overlay');
