@@ -220,7 +220,7 @@ test("la lista de morosos vive con el resumen de plata del ticket, no en el bloq
 });
 
 // "Editar partido" cambia datos compartidos de todo el grupo: en mobile angosto no puede
-// quedar como un ícono sin texto. Ver docs/asp-ux-working-agreement.md ("el texto visible
+// quedar como un ícono sin texto. Ver docs/ux/asp-ux-working-agreement.md ("el texto visible
 // debe alcanzar para entender la acción... aunque se ignoren los emojis").
 test("el botón de editar partido conserva un label visible también en mobile angosto", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
@@ -2231,7 +2231,7 @@ test("the venue handlers never touch the local state before the save", async () 
 
 // Eliminar una cancha es la única de las tres operaciones que borra en vez de agregar
 // o editar, y no pedía confirmación: un tap accidental en "✕" bastaba. Ver
-// docs/asp-ux-working-agreement.md (acciones sensibles con confirmación proporcional
+// docs/ux/asp-ux-working-agreement.md (acciones sensibles con confirmación proporcional
 // al daño posible) y docs/asp-sop.md (copy honesto: ASP no finge roles, pero reduce
 // el riesgo de un tap accidental en una escritura compartida).
 test("eliminar una cancha pide confirmación antes de escribir", async () => {
