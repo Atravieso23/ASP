@@ -84,6 +84,29 @@ node scripts/seed-habitual-players.mjs                           # dry-run
 node scripts/seed-habitual-players.mjs --apply --force           # reemplaza la lista
 ```
 
+### Atajos npm
+
+`sites-app/package.json` expone dos alias para el camino por defecto (`--add` /
+`--remove`). Todo lo demás del script no cambia: siguen siendo **dry-run salvo
+`--apply`**, corren desde el repo (no desde la app), y `--apply` sigue siendo
+**Nivel 3 con autorización propia**.
+
+```
+cd sites-app
+
+# agregar un habitual
+npm run habitual:add -- "Nombre Identidad"              # dry-run
+npm run habitual:add -- "Nombre Identidad" --apply      # escribe (Nivel 3)
+
+# sacar un habitual
+npm run habitual:remove -- "Nombre Identidad"           # dry-run
+npm run habitual:remove -- "Nombre Identidad" --apply   # escribe (Nivel 3)
+```
+
+El `--` es de npm: separa los args del script de los de `npm run`. El nombre va
+entre comillas. `--apply` va **después** del nombre. El reseed completo con
+`--force` **no** tiene alias: se corre con `node ...` a mano, a propósito.
+
 `--add` aborta (0 writes) si el nombre normalizado ya está. `--remove` aborta
 (0 writes) si no está; si el nombre a sacar tiene una response no-invitada en la
 fecha, imprime una **advertencia con el `responseId`** y sigue (la response no se
@@ -97,11 +120,22 @@ toca: queda como historial).
 
 ## Procedimiento seguro — `--add` / `--remove` (camino por defecto)
 
+> **Antes de empezar:** el jugador nuevo **no puede usar la app** hasta que se
+> corra el `--apply`. El selector "¿Quién sos?" es cerrado y `savePlayerRegistration`
+> tiene un gate duro contra `habitualPlayers`: sin estar en la lista no se puede
+> registrar ni ver su estado. Avisale que va a estar bloqueado hasta entonces.
+>
+> **Qué te pasa el organizador:** el **string de identidad base** exacto — nombre
+> real o corto, el que va a ser la clave estable. **No** la casaca ni un apodo que
+> la persona vaya a querer cambiar después (eso vive en `response.name`, editable
+> desde la app). Si dudás, preguntá; el nombre no se cambia fácil una vez sembrado.
+
 ### 1. Dry-run
 
 ```
 cd sites-app
-node scripts/seed-habitual-players.mjs --add "Nombre"     # o --remove "Nombre"
+npm run habitual:add -- "Nombre Identidad"        # o: npm run habitual:remove -- "Nombre"
+# equivalente sin alias: node scripts/seed-habitual-players.mjs --add "Nombre Identidad"
 ```
 
 Imprime:
@@ -125,17 +159,22 @@ Imprime:
 
 ### 3. Autorización explícita
 
-Pedí el OK para la escritura real. Elegí un momento tranquilo (no en pleno
-miércoles de confirmaciones; ni con el partido empezado y sin evaluar si el
-afectado está "Estoy" impago — ver [tarjetas](#tarjetas)).
+`--apply` contra producción es **Nivel 3** (toca datos de prod) y necesita su
+**propia autorización explícita** — el PR que agregó estos alias/modos no la
+cubre. Pedí el OK y elegí un momento tranquilo: no en pleno miércoles de
+confirmaciones; **no con el partido empezado y sin evaluar** si el afectado está
+"Estoy" impago (riesgo de comerse una 🟨 — ver [tarjetas](#tarjetas)).
 
 ### 4. Escribí
 
 ```
-node scripts/seed-habitual-players.mjs --add "Nombre" --apply
+npm run habitual:add -- "Nombre Identidad" --apply
+# equivalente: node scripts/seed-habitual-players.mjs --add "Nombre Identidad" --apply
 ```
 
-Una sola escritura PATCH sobre `id=1`.
+`--apply` va **después** del nombre. Una sola escritura PATCH sobre `id=1`, sólo
+la key `habitualPlayers`; el resto del blob (`responses`, `history`, `cards`,
+`matchInfo`, `sedes`, …) se preserva por construcción.
 
 ### 5. Verificá en la app
 
@@ -258,12 +297,17 @@ que no figura pago recibe 1 amarilla.
 ## Futuro posible (no implementado)
 
 - **UI sólo para Organizador:** un input "Agregar jugador al grupo" en la vista
-  Organizador que hace append a `habitualPlayers` (sin crear response). Requiere
-  revisar el invariante de test "el cliente nunca muta `habitualPlayers`" y
-  definir qué significa "sólo Organizador" (hoy la vista no tiene ninguna noción
-  de permisos). No está hecho ni aprobado; necesitaría su propio PR con scope y
-  las 5 preguntas de diseño.
+  Organizador que hace append a `habitualPlayers` (sin crear response).
+  **Evaluado y descartado** en el diagnóstico de septiembre 2026: rompe el
+  test-guard "el cliente nunca muta `habitualPlayers`"
+  (`registro-lista-cerrada.test.mjs`, `habitual-players.test.mjs`) y, como la
+  vista Organizador **no tiene noción de permisos**, "organizer-controlled"
+  degradaría a "cualquiera con la URL edita la membresía" — choca con el
+  invariante de producto. Si alguna vez se retoma, es un PR Nivel 3 propio con
+  las 5 preguntas de diseño y esa decisión de producto explícita.
 
-Los modos `--add` / `--remove` del script (antes listados acá como idea) ya están
-implementados y son el camino por defecto. Siguen siendo dev-only: corren desde
-el repo, no desde la app.
+Los modos `--add` / `--remove` del script ya están implementados y son el camino
+por defecto, ahora con alias npm (`npm run habitual:add` / `habitual:remove`).
+Siguen siendo dev-only: corren desde el repo, no desde la app. El alta de un
+habitual es rara (unas pocas veces al año); el script quirúrgico + este runbook
+alcanzan sin sumar sistema.
