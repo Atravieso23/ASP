@@ -52,6 +52,7 @@ const NEEDED = [
   "ejecutarCambioEnResponses",
   "marcarMiPago",
   "marcarPagoDeInvitado",
+  "marcarPagoDeResponse",
   "parseNumeroCamiseta",
   "marcarMiNumero",
   "agregarInvitado",
@@ -193,6 +194,11 @@ const ACCIONES = [
     nombre: "pago de invitado",
     llamar: `marcarPagoDeInvitado("r-invitado", true)`,
     verificar: (row) => assert.equal(resp(row, "r-invitado").paid, true),
+  },
+  {
+    nombre: "pago de otro (organizador)",
+    llamar: `marcarPagoDeResponse("r-ariel", true)`,
+    verificar: (row) => assert.equal(resp(row, "r-ariel").paid, true),
   },
   {
     nombre: "agregar invitado",
@@ -354,6 +360,7 @@ const OBJETIVOS = [
   { nombre: "mi pago", llamar: "marcarMiPago(true)", borrar: "r-propia" },
   { nombre: "mi número de camiseta", llamar: "marcarMiNumero(10)", borrar: "r-propia" },
   { nombre: "pago de invitado", llamar: `marcarPagoDeInvitado("r-invitado", true)`, borrar: "r-invitado" },
+  { nombre: "pago de otro (organizador)", llamar: `marcarPagoDeResponse("r-ariel", true)`, borrar: "r-ariel" },
   { nombre: "eliminar invitado", llamar: `eliminarInvitado("r-invitado")`, borrar: "r-invitado" },
   { nombre: "eliminar jugador", llamar: `eliminarJugador("r-camilo")`, borrar: "r-camilo" },
   { nombre: "agregar invitado", llamar: `agregarInvitado("Ruso").then(r => r.ok)`, borrar: "r-propia" },
@@ -774,4 +781,93 @@ test("savePlayerRegistration: el anfitrión renombra su casaca y el invitedBy de
   assert.equal(invitado.invitedBy, "Félix (10)", "invitedBy se re-ancla al nombre nuevo del anfitrión");
   assert.equal(invitado.responseId, "r-invitado", "sigue siendo la misma response");
   assert.equal(invitado.isGuest, true);
+});
+
+// ── marcarPagoDeResponse: el Organizador corrige el pago de un habitual ──
+// Writer nuevo, hermano de marcarMiPago / marcarPagoDeInvitado. Todas las invariantes
+// compartidas (fail-closed, una escritura, save-first, preservación de lo remoto, cola)
+// ya las cubre ACCIONES arriba. Acá sólo sus reglas propias.
+
+test("marcarPagoDeResponse: marca el pago de otro habitual por responseId, sin tocar al resto", async () => {
+  const w = makeWorld();
+  const ok = await w.run(`marcarPagoDeResponse("r-ariel", true)`);
+  assert.equal(ok, true);
+  assert.equal(w.db.writes, 1);
+  assert.equal(resp(w.db.row, "r-ariel").paid, true);
+  assert.equal(resp(w.db.row, "r-propia").paid, false, "no toca la response propia");
+  assert.equal(resp(w.db.row, "r-bruno").paid, false, "no toca a los demás");
+});
+
+test("marcarPagoDeResponse: resuelve por responseId, no por nombre (homónimo intacto)", async () => {
+  const w = makeWorld();
+  // Otro "Ariel" va primero en la lista: un writer por nombre lo agarraría a él.
+  w.db.row.responses.unshift(RESPONSE("r-otro-ariel", "Ariel"));
+  const ok = await w.run(`marcarPagoDeResponse("r-ariel", true)`);
+  assert.equal(ok, true);
+  assert.equal(resp(w.db.row, "r-ariel").paid, true);
+  assert.equal(resp(w.db.row, "r-otro-ariel").paid, false, "el homónimo que va primero no se toca");
+});
+
+test("marcarPagoDeResponse: no marca el pago de un invitado (esa vía es marcarPagoDeInvitado)", async () => {
+  const w = makeWorld();
+  const antes = structuredClone(w.db.row);
+  const ok = await w.run(`marcarPagoDeResponse("r-invitado", true)`);
+  assert.equal(ok, false, "un invitado no es objetivo válido de este writer");
+  assert.equal(w.db.writes, 0);
+  assert.deepEqual(w.db.row, antes);
+});
+
+test("marcarPagoDeResponse: paid:true exige status 'in'", async () => {
+  const w = makeWorld();
+  w.db.row.responses.find((r) => r.responseId === "r-ariel").status = "duda";
+  const antes = structuredClone(w.db.row);
+  const ok = await w.run(`marcarPagoDeResponse("r-ariel", true)`);
+  assert.equal(ok, false, "no se marca pago de alguien que no está 'Estoy'");
+  assert.equal(w.db.writes, 0);
+  assert.deepEqual(w.db.row, antes);
+});
+
+test("marcarPagoDeResponse: desmarcar (paid:false) funciona aunque el jugador ya no esté 'in'", async () => {
+  const w = makeWorld();
+  const ariel = w.db.row.responses.find((r) => r.responseId === "r-ariel");
+  ariel.paid = true;
+  ariel.status = "out"; // pago cargado por error; el jugador después se dio de baja
+  const ok = await w.run(`marcarPagoDeResponse("r-ariel", false)`);
+  assert.equal(ok, true, "un pago cargado por error se puede deshacer siempre");
+  assert.equal(resp(w.db.row, "r-ariel").paid, false);
+});
+
+test("marcarPagoDeResponse: togglea de ida y de vuelta", async () => {
+  const w = makeWorld();
+  assert.equal(await w.run(`marcarPagoDeResponse("r-ariel", true)`), true);
+  assert.equal(resp(w.db.row, "r-ariel").paid, true);
+  assert.equal(await w.run(`marcarPagoDeResponse("r-ariel", false)`), true);
+  assert.equal(resp(w.db.row, "r-ariel").paid, false);
+  assert.equal(w.db.writes, 2, "una escritura por toque");
+});
+
+test("marcarPagoDeResponse: no toca state.cards", async () => {
+  const w = makeWorld();
+  w.db.row.cards = { byPlayer: { Ariel: { yellows: 1, reds: 0, beers: 0 } }, evaluated: {}, log: [] };
+  await w.run(`marcarPagoDeResponse("r-ariel", true)`);
+  assert.deepEqual(
+    w.db.row.cards,
+    { byPlayer: { Ariel: { yellows: 1, reds: 0, beers: 0 } }, evaluated: {}, log: [] },
+    "marcar un pago no perdona ni cambia una tarjeta",
+  );
+});
+
+test("marcarPagoDeResponse: dos organizadores togglean a la vez -> gana el último, sin doble escritura perdida", async () => {
+  const w = makeWorld();
+  // La cola serializa dentro del dispositivo: las dos entran, la segunda pisa a la
+  // primera (last-write-wins, sin CAS). Ninguna avisa un éxito que no ocurrió.
+  const [a, b] = await Promise.all([
+    w.run(`marcarPagoDeResponse("r-ariel", true)`),
+    w.run(`marcarPagoDeResponse("r-ariel", false)`),
+  ]);
+  assert.equal(a, true);
+  assert.equal(b, true);
+  assert.equal(resp(w.db.row, "r-ariel").paid, false, "el último toque manda");
+  assert.equal(w.db.writes, 2);
+  assert.deepEqual(w.db.ops, ["lectura", "escritura", "lectura", "escritura"]);
 });

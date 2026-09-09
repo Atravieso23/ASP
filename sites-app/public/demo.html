@@ -690,10 +690,13 @@
   .organizer-table th{padding:9px 5px;text-align:center;border-bottom:2px solid var(--card-border);color:var(--muted);font-size:9px;letter-spacing:.06em;text-transform:uppercase;}
   .organizer-table td{padding:10px 5px;text-align:center;border-bottom:1px solid var(--card-border);color:var(--navy);word-break:break-word;}
   .organizer-table th:nth-child(1),.organizer-table td:nth-child(1){width:17%;}
-  .organizer-table th:nth-child(2),.organizer-table td:nth-child(2){width:28%;}
-  .organizer-table th:nth-child(3),.organizer-table td:nth-child(3){width:18%;}
-  .organizer-table th:nth-child(4),.organizer-table td:nth-child(4){width:25%;}
-  .organizer-table th:nth-child(5),.organizer-table td:nth-child(5){width:12%;}
+  .organizer-table th:nth-child(2),.organizer-table td:nth-child(2){width:24%;}
+  .organizer-table th:nth-child(3),.organizer-table td:nth-child(3){width:16%;}
+  .organizer-table th:nth-child(4),.organizer-table td:nth-child(4){width:23%;}
+  /* Pago pasó de 12% a 20%: la celda dejó de ser un ✓/✕ de sólo lectura y ahora lleva
+     el botón "Marcar pagó" para habituales "Estoy". El ancho sale de Equipo/Estado/
+     Disponibilidad, que tenían margen; la columna de nombre (tuneada a 320px) no se toca. */
+  .organizer-table th:nth-child(5),.organizer-table td:nth-child(5){width:20%;}
   .organizer-table tr:last-child td{border-bottom:0;}
   .status-pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;}
   .status-pill.in{background:rgba(45,134,89,.13);color:var(--ok);}
@@ -702,6 +705,15 @@
   .payment-mark{font-weight:700;font-size:16px;}
   .payment-mark.yes{color:var(--ok);}
   .payment-mark.no{color:var(--danger);}
+  /* Toggle de pago del Organizador: mismo lenguaje visual que .guest-paid-check (checkbox
+     ✓ + color + texto). El texto dice la acción ("Marcar pagó" / "Marcar impago"); el
+     estado real lo llevan el ✓ relleno, el color y aria-pressed, así que el color no es
+     el único portador. */
+  .organizer-paid-toggle{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--muted);padding:6px 7px;font:700 10px 'Inter',sans-serif;line-height:1.2;cursor:pointer;}
+  .organizer-paid-toggle::before{content:'✓';display:grid;place-items:center;width:15px;height:15px;flex:0 0 auto;border-radius:5px;border:1px solid var(--card-border);color:transparent;}
+  .organizer-paid-toggle.active{border-color:var(--ok);color:var(--ok);background:rgba(31,143,78,.08);}
+  .organizer-paid-toggle.active::before{border-color:var(--ok);background:var(--ok);color:#fff;}
+  .organizer-paid-toggle:disabled{opacity:.5;cursor:progress;}
   /* Nombres reales largos ("Francisco Sánchez Keenan") no entran en la columna angosta
      (17%) a 320px. word-break:break-word cortaba a mitad de palabra sin guión
      ("Forreste"/"r"). hyphens:auto (con <html lang="es">) corta en un punto legible
@@ -717,6 +729,7 @@
   .team-choice.blanco{background:var(--lacole);border:1px solid var(--lacole-border);color:#17202a;}
   .team-choice.active{opacity:1;box-shadow:0 0 0 2px var(--celeste-deep);transform:translateY(-1px);}
   .organizer-assignment-hint{margin:11px 2px 0;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.5;}
+  .organizer-paid-hint{margin:6px 2px 0;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.5;}
   .teams-section .hint{text-align:center;}
   .organizer-actions .finalize-box{background:var(--bg-bottom);}
   .organizer-actions .danger-zone{margin-top:12px;border-color:rgba(193,67,42,.45);}
@@ -737,6 +750,15 @@
     .team-choice-group{flex-direction:column;gap:3px;}
     .team-choice{width:100%;padding:5px 2px;font-size:8px;}
     .status-pill{padding:3px 4px;font-size:9px;}
+    /* A 320px: Equipo apila sus botones y necesita menos ancho, así que la columna de
+       Pago (que ahora lleva "Marcar pagó") se lleva ese margen. La columna de nombre
+       sigue en 17% (tuneada arriba). */
+    .organizer-table th:nth-child(2),.organizer-table td:nth-child(2){width:17%;}
+    .organizer-table th:nth-child(3),.organizer-table td:nth-child(3){width:17%;}
+    .organizer-table th:nth-child(4),.organizer-table td:nth-child(4){width:22%;}
+    .organizer-table th:nth-child(5),.organizer-table td:nth-child(5){width:27%;}
+    .organizer-paid-toggle{font-size:9px;padding:5px 4px;gap:3px;flex-wrap:wrap;}
+    .organizer-paid-toggle::before{width:13px;height:13px;}
   }
 
   .manage-list{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto;}
@@ -1009,6 +1031,7 @@
             </table>
           </div>
           <p class="organizer-assignment-hint">Elegí Negro o Blanco. Si tocás nuevamente el equipo activo, el jugador queda sin equipo.</p>
+          <p class="organizer-paid-hint">Si alguien pagó y no quedó marcado, corregilo acá.</p>
         </div>
       </details>
     </section>
@@ -4138,6 +4161,27 @@ async function marcarPagoDeInvitado(responseId, paid){
   });
 }
 
+// El Organizador corrige el pago de un habitual que pagó y no lo marcó a tiempo: sale de
+// "Faltan pagar" en el próximo render porque paid queda en true. Mismo canal que
+// marcarMiPago / marcarPagoDeInvitado — guardarCambioEnResponses lee el estado fresco,
+// serializa la cola y reescribe el resto del blob intacto (matchInfo, history, cards,
+// formaciones y alias sobreviven por construcción). Resuelve por responseId, nunca por
+// nombre. Excluye invitados: su pago lo maneja el anfitrión con marcarPagoDeInvitado.
+// paid:true exige status:'in' (igual que marcarMiPago); desmarcar no lo exige, para poder
+// deshacer un pago cargado por error aunque el jugador ya no esté "Estoy". No toca cards.
+// Sin auth: cualquiera que entre a la vista Organizador puede corregir esto (modelo de
+// buena fe, como "Saldar birra"); el copy no afirma cobro verificado.
+async function marcarPagoDeResponse(responseId, paid){
+  return guardarCambioEnResponses(responses=>{
+    const target = responses.find(item=>item.responseId===responseId && !item.isGuest);
+    if(!target) return false;
+    if(paid && target.status!=='in') return false;
+    target.paid = paid;
+    target.updatedAt = new Date().toISOString();
+    return true;
+  });
+}
+
 // Modo visual de la card "Mi estado": dos fases claras sobre la misma card.
 //  - Registro: sin response propia, o eligiendo/cambiando identidad (⇄). Ceja "Registro",
 //    heading "Elegí tu jugador", label "Tu nombre", sin botón ⇄.
@@ -4825,9 +4869,19 @@ function renderLocalOrganizer(){
   body.innerHTML = visibleResponses.map(item=>{
     const statusLabel = item.status==='in' ? 'Estoy' : (item.status==='duda' ? 'En duda' : 'No estoy');
     const availability = item.status==='out' ? '—' : `${escapeHtml(item.from)}–${escapeHtml(item.to)}`;
-    const payment = item.status!=='in' ? '—' : (item.paid
+    // Pago: '—' si no está "Estoy". Invitados 'in' -> marca de sólo lectura (su pago lo
+    // corrige el anfitrión en "Mis invitados"). Habituales 'in' -> botón toggle que
+    // escribe response.paid por responseId vía marcarPagoDeResponse. El texto dice la
+    // acción; el estado real lo cargan el ✓, el color y aria-pressed.
+    const paidMark = item.paid
       ? '<span class="payment-mark yes" aria-label="Pagó">✓</span>'
-      : '<span class="payment-mark no" aria-label="No pagó">✕</span>');
+      : '<span class="payment-mark no" aria-label="No pagó">✕</span>';
+    const paidToggleLabel = item.paid ? `Marcar impago a ${item.name}` : `Marcar pagó a ${item.name}`;
+    const payment = item.status!=='in'
+      ? '—'
+      : item.isGuest
+        ? paidMark
+        : `<button type="button" class="organizer-paid-toggle${item.paid?' active':''}" data-mark-paid="${escapeHtml(item.responseId)}" aria-pressed="${item.paid?'true':'false'}" aria-label="${escapeHtml(paidToggleLabel)}">${item.paid?'Marcar impago':'Marcar pagó'}</button>`;
     const player = state?.players.find(candidate=>candidate.name.toLocaleLowerCase('es')===item.name.toLocaleLowerCase('es'));
     const team = item.status==='in' && (player?.team==='negro' || player?.team==='blanco') ? player.team : null;
     const teamControls = item.status==='in' ? `
@@ -4851,6 +4905,27 @@ function renderLocalOrganizer(){
       if(!player) return;
       // Tocar el equipo que ya tenía lo saca de los dos, como antes.
       await cambiarEquipoDeJugador(name, player.team===selectedTeam ? null : selectedTeam);
+    };
+  });
+  body.querySelectorAll('[data-mark-paid]').forEach(button=>{
+    button.onclick = async ()=>{
+      const responseId = button.dataset.markPaid;
+      const target = localAvailabilityResponses.find(item=>item.responseId===responseId && !item.isGuest);
+      if(!target) return;
+      const nextPaid = !target.paid;
+      // El botón no cambia de estado hasta que el servidor confirma (mismo criterio que
+      // el pago propio y el de invitados). marcarPagoDeResponse revalida contra el estado
+      // fresco, así que un click viejo o repetido no puede pisar nada.
+      button.disabled = true;
+      const ok = await marcarPagoDeResponse(responseId, nextPaid);
+      button.disabled = false;
+      if(!ok){
+        showToast('No se pudo guardar el pago. Revisá la conexión e intentá otra vez.');
+        return;
+      }
+      render();
+      renderLocalOrganizer();
+      showToast(nextPaid ? 'Pago marcado.' : 'Pago desmarcado.');
     };
   });
 }

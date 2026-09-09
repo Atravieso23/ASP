@@ -131,6 +131,9 @@ test("6. los consumidores de paid siguen usando `=== true` / truthy", () => {
   assert.match(render, /inList\.filter\(p=>!p\.paid\)/);
   // armado de la response en el CTA principal intacto (el pago nunca fue parte de ese flujo)
   assert.match(demo, /paid:mockAvailability==='in' \? \(existingResponse\?\.paid === true\)/);
-  // Organizador
-  assert.match(extractFn("renderLocalOrganizer"), /item\.status!=='in' \? '—' : \(item\.paid/);
+  // Organizador: la celda de Pago sigue derivando de item.paid (PR "Marcar pagó" cambió
+  // el ✕ de sólo lectura por un toggle para habituales, pero la fuente de verdad es paid).
+  const organizer = extractFn("renderLocalOrganizer");
+  assert.match(organizer, /const payment = item\.status!=='in'/);
+  assert.match(organizer, /item\.paid[\s\S]{0,40}'<span class="payment-mark yes" aria-label="Pagó">✓<\/span>'/);
 });
