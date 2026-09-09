@@ -1,716 +1,430 @@
-**Estado del documento:** versión 5 — SOP operativo estable.
+# ASP — Product & Engineering SOP
 
----
+**Versión:** 6  
+**Estado:** vigente — aprobado por el usuario el 2026-09-09.
 
-## 1. Propósito
+## Propósito
 
-Este SOP existe para proteger ASP de tres riesgos principales:
+Este SOP protege ASP de tres riesgos:
 
-1. Construir de más.
+1. Resolver el problema equivocado.
 2. Romper datos, producción o confianza.
-3. Resolver el problema equivocado.
+3. Construir más sistema del necesario.
 
-No existe para meter burocracia. El nivel de rigor debe ser proporcional al riesgo del cambio.
+ASP es una web mobile-first para organizar partidos de fútbol entre amigos. El proceso debe ayudar a mejorar una app real, con cambios pequeños y verificables.
 
 **Principio central:**
 
-Feedback real → interpretación explícita → diagnóstico proporcional → PR mínimo → verificación → STOP.
+Feedback → problema entendido → alcance concreto → ejecución proporcional → verificación → cierre.
 
-PR mínimo no significa diff mínimo. Significa:
+La velocidad importa, pero implementar rápido una interpretación equivocada no es avanzar.
 
-> El menor cambio completo que resuelve el problema aprobado sin agregar sistema innecesario.
+## Filosofía de trabajo
 
----
+- Feedback real antes que hipótesis.
+- Simple antes que sofisticado.
+- Mobile real antes que diseño ideal.
+- Solución completa pequeña antes que perfección.
+- No agregar complejidad sin una necesidad concreta.
+- Revisar decisiones anteriores es válido cuando aparece evidencia nueva.
+- Preservar lo que funciona no significa congelar la interfaz.
 
-## 2. Set de documentos y precedencia
+Un PR mínimo es el menor cambio completo que resuelve el problema acordado. No significa el menor diff posible.
 
-```
-docs/asp-sop.md                       proceso: riesgo, STOP, autoridad, copy honesto
-docs/ux/asp-design-philosophy.md      tono y voz
-docs/ux/asp-ux-working-agreement.md   composición, jerarquía, patrones UX
-docs/asp-product-contract.md          contrato de producto
-docs/project-handoff.md               handoff
-backlog / issues                      qué falta hacer
-```
+## Documentos y responsabilidades
 
-**Precedencia cuando dos documentos se contradicen:**
+Cada regla tiene un único hogar:
 
-```
-SOP  >  design-philosophy  >  UX working agreement
-```
+| Documento | Responsabilidad |
+|---|---|
+| Product & Engineering SOP | Interpretación, alcance, autoridad, riesgo, ejecución y evidencia. |
+| UX Working Agreement | Recorridos, acciones, composición, interacción y validación visual. |
+| ASP Design Philosophy | Identidad, voz y personalidad. |
+| Estado y decisiones | Estado observado, decisiones y motivos, pendientes y referencias. |
 
-Si un criterio de composición exige romper un gate de proceso, gana el proceso.
+Si existe un contrato de producto, debe identificarse su versión y contenido antes de usarlo como autoridad. Una referencia a un archivo no demuestra que esté vigente.
 
-**Una regla normativa tiene un solo hogar.** El resto de los documentos la referencia por nombre; no la reescriben. Una regla escrita en dos lugares diverge — es cuestión de tiempo.
+El SOP gobierna proceso y autorizaciones; UX gobierna interacción y composición; la filosofía gobierna personalidad. Una preferencia visual no autoriza ampliar alcance ni escribir datos reales.
 
-**Las referencias entre documentos se hacen por nombre de sección, no por número.** Los números se corren en cada versión y las referencias se rompen en silencio.
+Ante una contradicción material, se identifica la regla afectada y se propone una resolución. Se detiene únicamente el trabajo que dependa de esa decisión.
 
-Una contradicción detectada entre documentos se resuelve **en el documento**, no dentro del PR que la encontró.
+Las instrucciones explícitas del usuario prevalecen sobre estos documentos.
 
----
+## Obsidian y versiones
 
-## 3. Contexto de trabajo
+Obsidian es el lugar de revisión y aprobación de estos documentos.
 
-ASP es una web mobile-first para organizar partidos de fútbol entre amigos.
+Si el repositorio necesita copias para Claude Code:
 
-El producto prioriza:
+- identificar la versión aprobada de origen;
+- actualizar las copias mediante una tarea documental;
+- verificar que coincidan;
+- evitar editar ambas versiones independientemente.
 
-- simpleza;
-- velocidad de entrega;
-- feedback real;
-- cambios chicos;
-- UX clara;
-- mobile real antes que mock lindo;
-- no sobrediseñar;
-- no agregar modelo nuevo sin necesidad real;
-- no tocar datos o producción sin gates proporcionales al riesgo.
+Las propuestas se distinguen de las reglas aprobadas. No existe sincronización automática salvo que se haya configurado y verificado.
 
-El flujo actual usa:
+El SOP no contiene backlog, historial de PRs ni inventario detallado de la interfaz.
 
-- ChatGPT como orquestador de producto y alcance;
-- Claude Code como ejecutor técnico.
+## Roles
 
-Son herramientas del flujo actual, no una restricción arquitectónica del producto.
+### Orquestador: este chat
 
----
+Responsable de:
 
-## 4. Autoridad
+- entender el problema humano;
+- hacer preguntas breves cuando exista ambigüedad material;
+- definir resultado esperado y límites;
+- revisar UX y coherencia de producto;
+- preparar encargos para Claude Code;
+- evaluar su evidencia;
+- recomendar avanzar, corregir, cerrar o detener;
+- mantener un contexto breve y actualizado.
 
-El orquestador puede diagnosticar, recomendar y preparar una decisión. El ejecutor puede inspeccionar, implementar y verificar. Pero ninguno debe autoautorizar operaciones que requieren aprobación explícita.
+No presenta como observado algo que sólo recibió como reporte. Distingue hecho, hipótesis y decisión.
 
-**Requieren autorización explícita del usuario:**
+### Ejecutor: Claude Code
+
+Responsable de:
+
+- inspeccionar código y estado técnico;
+- diagnosticar en read-only;
+- implementar el alcance autorizado;
+- verificar comportamiento y riesgos;
+- reportar evidencia;
+- detenerse ante los casos definidos en este SOP.
+
+Si el alcance parece insuficiente o riesgoso, lo explica antes de implementar. Evidencia nueva puede justificar una nueva objeción.
+
+Toda delegación técnica se dirige a Claude Code. El encargo distingue inspección, implementación y operación real.
+
+### Usuario
+
+Decide objetivos, acepta los trade-offs de producto y autoriza las operaciones que requieren aprobación explícita.
+
+No debe necesitar comprender detalles técnicos para confirmar qué quiere que ocurra en la app.
+
+## Interpretar antes de implementar
+
+Antes de encargar una solución, identificar:
+
+- quién tiene el problema;
+- en qué situación ocurre;
+- sobre qué elemento o estado;
+- qué resultado espera.
+
+Si dos interpretaciones plausibles cambian el elemento afectado, el comportamiento o el alcance, el orquestador hace una pregunta breve y espera la respuesta.
+
+Declarar una interpretación no equivale a confirmarla.
+
+Si la duda es técnica, corresponde diagnóstico read-only acotado. Si la duda es qué quiere el usuario, inspeccionar código no reemplaza preguntarle.
+
+Ejemplo:
+
+“Sacarlo de morosos” puede significar corregir una sanción. No autoriza por sí mismo a modificar su declaración de pago.
+
+El encargo y el PR conservan una explicación breve del problema confirmado y del resultado esperado.
+
+## Elegir el camino
+
+### Cambio directo y acotado
+
+Cuando el problema, la solución y el riesgo están claros, se prepara directamente el cambio autorizado. No hace falta un diagnóstico separado ni inventar alternativas.
+
+La inspección técnica necesaria sigue siendo parte del trabajo.
+
+### Diagnóstico read-only
+
+Cuando falta evidencia para entender el comportamiento, el impacto o la viabilidad:
+
+- formular la pregunta que debe resolver;
+- inspeccionar sólo lo pertinente;
+- devolver hallazgos y recomendación;
+- no convertir el diagnóstico en implementación.
+
+### Exploración o rediseño
+
+Cuando el usuario solicita revisar recorridos o apariencia general:
+
+- acordar el objetivo y los comportamientos que deben preservarse;
+- revisar la experiencia como conjunto;
+- mostrar una dirección representativa;
+- implementar por entregas pequeñas.
+
+Una solicitud explícita de rediseño permite revisar varias secciones. No autoriza automáticamente nuevas features o cambios de data model.
+
+## Encargo mínimo
+
+Cada encargo debe dejar claros:
+
+- problema y evidencia;
+- resultado esperado;
+- alcance y exclusiones relevantes;
+- riesgo;
+- verificación necesaria;
+- punto de cierre o autorización pendiente.
+
+Separar:
+
+**Criterio de producto:** por qué se necesita el cambio.  
+**Comportamiento esperado:** qué podrá ver o hacer la persona.  
+**Criterio técnico:** cómo resolverlo, sólo cuando sea necesario fijarlo.
+
+No repetir toda la conversación ni todos los SOPs. Referenciar las secciones pertinentes.
+
+## Autoridad y autorizaciones
+
+Requieren autorización explícita del usuario:
 
 - merge;
 - deploy manual;
-- Supabase write;
-- cleanup destructivo;
+- escritura real en Supabase;
+- limpieza destructiva;
 - migración;
 - cambio de data model;
-- cambio de auth/roles;
-- cualquier ampliación material de scope durante una implementación.
+- cambio de auth o permisos;
+- ampliación material del alcance.
 
-**Regla:** Recomendación del orquestador ≠ autorización operativa.
+Estas reglas gobiernan las operaciones de los agentes. No agregan por sí mismas confirmaciones a cada interacción normal del jugador.
 
-### Caducidad
+La autorización debe referirse a una acción concreta y revisable. Se puede autorizar una secuencia si sus pasos y límites están claros.
 
-Toda autorización se otorga **contra el reporte del STOP**.
+Una respuesta breve como “dale” vale cuando responde inequívocamente a una propuesta concreta. No habilita acciones no mencionadas.
 
-Si algo material cambió entre ese reporte y la ejecución —SHA base, diff, tests, alcance, estado de producción— la autorización **caduca** y se vuelve a STOP con el reporte actualizado.
+La autorización sigue vigente dentro de sus límites. Se revalida si cambia una condición material que afecte alcance, seguridad o resultado. No se pide otra vez por mera repetición del proceso.
 
-### Secuencias
+No incluir credenciales, tokens ni strings de conexión en reportes o documentos. Usar el mecanismo seguro de configuración disponible.
 
-Se puede autorizar una secuencia de pasos, pero **enumerando de antemano qué cubre**.
+## Niveles de riesgo
 
-La secuencia se cancela entera ante la primera sorpresa: un test rojo, un diff mayor al declarado, un diagnóstico que cambió, un estado canónico que no coincide.
+Se clasifica por efectos, no por cantidad de líneas ni nombre de la pantalla.
 
-Autorizar "seguí" o "dale" no es autorizar una secuencia.
+Claude Code propone el nivel y el orquestador lo revisa. Una incertidumbre material se aclara; mientras siga abierta, se usa el nivel más prudente.
 
-### Credenciales
-
-Ninguna key, token o string de conexión aparece en un diff, en un reporte, ni en documentación. Si hace falta una, se pide; no se pega.
-
----
-
-## 5. Roles
-
-### Orquestador
-
-Responsable de:
-
-- traducir feedback real a un problema concreto;
-- declarar la interpretación cuando pueda existir ambigüedad;
-- decidir qué se toca y qué no;
-- definir el PR mínimo;
-- separar decisiones de producto de implementación;
-- evitar scope creep;
-- recomendar avanzar, frenar o mergear;
-- mantener el estado canónico;
-- detectar cuando un PR resuelve el síntoma pero no el problema conceptual.
-
-El orquestador no debe introducir decisiones de producto de contrabando dentro de un PR técnico.
-
-**El orquestador no tiene acceso al repositorio.** Todo su estado es lo que el ejecutor le reportó. Por eso la deriva entre lo que cree y lo que hay es silenciosa, y hay que chequearla activamente (ver _Estado canónico_).
-
-### Ejecutor
-
-Responsable de:
-
-- inspeccionar el código;
-- realizar diagnósticos read-only;
-- implementar sólo el scope aprobado;
-- correr verificaciones proporcionales;
-- hacer smoke cuando corresponda;
-- reportar evidencia;
-- frenar en los STOP definidos;
-- no ampliar scope ni iniciar otro cambio sin autorización;
-- **objetar una vez**, antes de implementar y con fundamento, cuando el scope aprobado le parezca insuficiente, riesgoso o mal planteado.
-
-El ejecutor es el único de los tres que tiene el código adelante. La objeción es un deber, no un permiso. Una vez planteada, implementa lo aprobado o frena, según lo que decida el usuario.
-
----
-
-## 6. Estado canónico
-
-Después de cada merge o cierre de ciclo registrar, como mínimo:
-
-```
-main remoto = <SHA>
-main local = <SHA>
-prod servido = <SHA | no verificado | pendiente>
-PRs abiertos = <n>
-working tree = limpio
-branch actual = main
-próximo PR = no iniciado
-deploy manual = no ejecutado
-```
-
-Nunca asumir:
-
-```
-main = prod
-```
-
-Producción sólo se declara en un SHA cuando fue verificado. Si el auto-deploy todavía está pendiente o no fue comprobado:
-
-```
-prod servido = no verificado
-```
-
-### Quién lo mantiene
-
-El orquestador lo registra; el ejecutor lo provee con evidencia.
-
-**Al iniciar cada ciclo el ejecutor re-deriva el estado real.** Discrepancia con el estado registrado = **STOP**, no corrección silenciosa.
-
-Ésa es la falla más probable de este flujo: el orquestador da una instrucción basada en un main que ya no existe.
-
-### Regla de evidencia
-
-Todo SHA, ruta, conteo de tests o conteo de filas que aparezca en un reporte va **copiado literal de la salida del comando**.
-
-Si no se puede pegar, no se afirma. Un dato recordado se marca como recordado o no se incluye.
-
-Son dos modelos en cadena: un SHA recordado es exactamente donde aparece el error.
-
-### Producción sin verificar
-
-`prod servido = no verificado` no es un estado permanente.
-
-Si se acumulan merges sin verificar producción, cuando aparezca una falla no se va a poder saber cuál la causó.
-
-Verificar producción después de cualquier merge que toque un flujo visible central.
-
----
-
-## 7. Flujo base
-
-```
-diagnóstico read-only si hace falta
-→ interpretación / decisión de producto
-→ scope aprobado
-→ implementación mínima
-→ tests proporcionales
-→ smoke si corresponde
-→ STOP
-→ autorización explícita
-→ merge
-→ actualizar estado canónico
-→ verificar producción si corresponde
-→ smoke post-merge si corresponde
-→ STOP
-```
-
-No todos los cambios necesitan todas las etapas con el mismo nivel de detalle. Primero se evalúa riesgo.
-
----
-
-## 8. Niveles de riesgo
-
-### Clasificación
-
-El ejecutor propone el nivel en el diagnóstico; el orquestador lo confirma.
-
-- **Ante la duda entre dos niveles, se toma el más alto.**
-- Descubrir durante la implementación que el nivel era más alto **es un STOP**: se reporta y se reclasifica antes de seguir.
-
-### Piso mínimo (todos los niveles)
-
-Ningún cambio, por chico que sea, se reporta sin:
-
-- que compile / levante;
-- test o verificación directa del comportamiento tocado;
-- working tree limpio;
-- declaración de qué **NO** se tocó.
-
-"Proporcional" ajusta lo que va **arriba** de este piso. Nunca lo que baja de él.
-
-### Nivel 1 — Cambio chico y localizado
+### Nivel 1 — Localizado
 
 Ejemplos:
 
-- copy menor sin impacto sobre lo que la app afirma;
-- CSS aislado;
-- markup pequeño;
-- helper local;
+- documentación;
+- estilos aislados;
+- copy menor;
 - tests;
-- cambios sin persistencia ni lógica compartida.
+- ajustes sin lógica compartida ni persistencia.
 
-Proceso:
+Requiere objetivo claro, verificación pertinente y STOP antes de merge.
 
-1. Objetivo en una frase.
-2. Qué NO se toca.
-3. Implementación.
-4. Verificación proporcional.
-5. STOP antes de merge.
-
-**Regla:** no convertir un cambio trivial en una investigación. Un smoke visual sólo es necesario si el cambio realmente puede alterar layout, interacción o render.
-
-### Nivel 2 — UX o lógica visible
+### Nivel 2 — Experiencia o lógica visible
 
 Ejemplos:
 
-- jerarquía visual;
+- jerarquía y recorridos;
+- mostrar u ocultar información;
 - render condicional;
-- preview;
-- movimiento de información;
-- comportamiento visible derivado de datos existentes;
-- lógica UI sin nueva persistencia;
-- **cualquier copy sobre pago, deuda, confirmación, cupo o reserva** (ver _Copy honesto_).
+- datos derivados sin persistencia;
+- mensajes sobre guardado, pago, deuda, confirmación, cupo o reserva.
 
-Proceso:
+Requiere criterio de producto, comportamiento esperado y verificación de los estados afectados. Si cambia la interfaz, corresponde smoke visual.
 
-1. Diagnóstico read-only proporcional.
-2. Declarar criterio de producto.
-3. Evaluar alternativas sólo si existe una decisión real entre enfoques.
-4. Elegir el menor cambio completo.
-5. Implementar.
-6. Tests relevantes.
-7. Smoke visual.
-8. STOP antes de merge.
+No exige diagnóstico separado si el encargo ya contiene evidencia suficiente.
 
-No es obligatorio inventar A/B/C cuando la solución es obvia.
+### Nivel 3 — Persistencia, data real o estructura
 
-### Nivel 3 — Datos, producción o comportamiento estructural
+Ejemplos:
 
-Aplica cuando existe riesgo real sobre:
-
-- Supabase writes;
-- datos de producción;
-- cleanup;
+- cambios en writers;
+- operaciones sobre Supabase real;
 - migraciones;
-- persistencia;
-- data model;
-- auth / roles;
-- lógica de pagos o deuda que pueda alterar estado;
-- automatismos que escriben;
-- backend compartido que pueda modificar datos o permisos.
+- cambios de data model;
+- auth o permisos;
+- automatismos que modifican estado;
+- lógica que altera pagos, deuda o sanciones persistidas.
 
-**Excepción acotada:** un cambio dentro de una pantalla de pagos, tarjetas o morosos no es automáticamente Nivel 3 si es puramente visual.
+Distinguir dos trabajos:
 
-Es _puramente visual_ sólo si **no cambia qué afirma un dato en pantalla**. Si cambia el copy, el formato o el encuadre de un número —o sea, lo que el jugador va a creer— no es visual: aplica _Copy honesto_ y es Nivel 2 como mínimo.
+**Cambio de código:** sigue el flujo de PR, con pruebas aisladas y rigor proporcional al riesgo.
 
-Proceso:
+**Operación de data:** sigue el procedimiento de operaciones reales y puede no requerir PR.
 
-1. Read-only con evidencia.
-2. Definir gates explícitos.
-3. Definir **diff esperado**.
-4. Conservar preestado suficiente si la operación es destructiva.
-5. Obtener autorización explícita.
-6. Revalidar el estado inmediatamente antes del write si pudo cambiar.
-7. Ejecutar una operación controlada.
-8. **Verificar el resultado comparando diff real contra diff esperado.** Diferencia no explicada = rollback, no "quedó bien".
-9. STOP.
+Autorizar código o pruebas aisladas no autoriza ejecutar el writer contra producción.
 
-**Preestado suficiente** significa, como mínimo:
+## Verificación
 
-```
-filas afectadas exportadas a archivo
-+ la query que las selecciona
-+ timestamp
-+ conteo de filas
-```
+Todo cambio se verifica sobre lo que efectivamente modifica.
 
-El write procede sólo si el conteo coincide con el diff esperado.
+- Primero comprobar el comportamiento tocado.
+- Después ejecutar verificaciones relacionadas.
+- Ampliar a suites compartidas si existe riesgo transversal.
+- No escribir tests frágiles sólo para cumplir un checklist.
+- No repetir verificaciones sin cambios o dudas nuevas que lo justifiquen.
 
-**Regla:** Si toca datos o producción, "parece bien" no alcanza.
+Levantar la app corresponde cuando aporta evidencia pertinente. No es obligatorio para un cambio puramente documental.
 
----
+En aliases o scripts, comprobar el comando y sus efectos. No ejecutar una escritura real para verificar que un alias está bien definido.
 
-## 9. STOP rules
+Informar honestamente el estado del working tree. No descartar cambios ni crear commits sólo para reportarlo limpio.
 
-STOP obligatorio antes de:
+Un test verde no reemplaza validar que se resolvió el problema correcto.
 
-- mergear;
-- deploy manual;
-- Supabase write;
-- cleanup;
-- migración;
-- cambio de data model;
-- cambio de auth/roles;
-- ampliar scope;
-- reclasificar el nivel de riesgo hacia arriba;
-- iniciar un PR nuevo después de cerrar el actual, salvo que ya exista una secuencia autorizada y enumerada;
-- sustituir o cerrar un PR cuando todavía no está clara la resolución del problema que lo reemplaza;
-- seguir adelante cuando el estado real no coincide con el estado canónico registrado.
+## Mobile y smoke
 
-Al llegar a STOP, el ejecutor reporta de forma compacta:
+Validar cambios visuales con contenido realista, nombres largos y estados parciales.
 
-```
-PR / rama / commit
-qué cambió
-qué NO cambió
-tests
-smoke si aplica
-riesgo o caveat relevante
-estado actual
-```
+Para ajustes normales, revisar 320px y 375px. Ampliar la cobertura cuando el layout o la interacción lo requieran. La emulación no demuestra por sí sola comodidad táctil en un teléfono real.
 
-No agregar campos vacíos ni ceremonias que no aporten información. Los datos duros del reporte van copiados literal (ver _Regla de evidencia_).
+Verificar, según corresponda:
 
----
-
-## 10. Reversión de emergencia
-
-**Revertir a un SHA previamente verificado como bueno está preautorizado.** No requiere STOP previo.
-
-Cualquier otra cosa —fix hacia adelante, cambio de datos, migración inversa, deploy manual a algo que no sea el último bueno conocido— sigue el flujo normal y necesita autorización.
-
-Después de revertir:
-
-```
-STOP → reporte → actualizar estado canónico → recién ahí se diagnostica la causa
-```
-
-Ésta es la única excepción a las STOP rules. Existe porque la alternativa —esperar autorización con producción rota— es peor riesgo que la propia reversión.
-
----
-
-## 11. Feedback real
-
-El feedback real suele llegar en lenguaje natural y no como una spec. Antes de implementar, determinar **qué objeto** está describiendo el feedback.
-
-Por ejemplo:
-
-```
-"poner esto más arriba"
-```
-
-puede referirse a:
-
-- convocatoria;
-- horario;
-- pagos;
-- faltan responder;
-- cancha;
-- estado personal;
-- orientación;
-- decisión;
-- detalle social.
-
-**Regla:** Si una interpretación dudosa puede cambiar el scope o el comportamiento, declararla antes de implementar. No hace falta abrir una investigación cuando la interpretación es obvia y reversible.
-
-**La interpretación declarada se registra en la descripción del PR.** Si vive sólo en la conversación con el orquestador, el PR no deja rastro de por qué se eligió esa lectura, y el que lo lea en tres meses no lo va a poder reconstruir.
-
----
-
-## 12. Criterio de producto vs comportamiento esperado
-
-Cuando un cambio toca lógica visible, separar:
-
-```
-Criterio de producto:
-por qué existe la regla.
-
-Comportamiento esperado:
-qué debe ver o experimentar el usuario.
-
-Criterio técnico:
-cómo se implementa, sólo cuando sea relevante.
-```
-
-Ejemplo abstracto:
-
-```
-Criterio de producto:
-una señal sólo debe mostrarse mientras ayuda a decidir.
-
-Comportamiento esperado:
-antes de la decisión → visible
-después de la decisión → oculta
-
-Criterio técnico:
-derivar el estado usando los datos existentes.
-```
-
-Esto evita convertir una decisión de producto en una casualidad de implementación.
-
----
-
-## 13. Layout visual vs concepto
-
-No todo problema visual se resuelve con CSS. Antes de compactar, mover o agregar columnas, preguntar:
-
-```
-¿El problema es altura?
-¿Contraste?
-¿Jerarquía?
-¿Orden?
-¿El bloque conceptual está mal?
-¿La información correcta está en el lugar equivocado?
-```
-
-**Regla:** Si el frame conceptual está mal, no parchear solamente la presentación.
-
-**El orden importa:** primero se descarta que el problema sea conceptual; recién ahí aplica buscar la solución mínima de layout. Al revés, el "mínimo CSS" saltea esta pregunta entera.
-
----
-
-## 14. Mobile real
-
-ASP es mobile-first. La validación visual debe priorizar:
-
-- contenido real;
-- nombres reales;
-- textos largos;
-- estados parciales;
-- pantallas angostas.
-
-**Regla:** Mobile real con datos reales manda sobre el mock.
-
-Para un cambio visual normal alcanza con probar **320px y 375px** con nombres reales largos. Usar una matriz más grande de widths sólo cuando el cambio sea especialmente sensible al layout.
-
----
-
-## 15. Tests
-
-Los tests deben ser proporcionales al riesgo, por encima del piso mínimo.
-
-Prioridad:
-
-1. cubrir directamente el comportamiento modificado;
-2. correr tests relacionados;
-3. ampliar a suite compartida cuando el cambio toca lógica común o existe riesgo de regresión transversal.
-
-No agregar tests frágiles únicamente para satisfacer un checklist. Un suite verde no reemplaza comprobar que el comportamiento nuevo realmente está cubierto.
-
----
-
-## 16. Smokes
-
-### Smoke requerido
-
-Hacer smoke cuando el cambio pueda afectar:
-
-- layout;
-- render;
+- comportamiento;
+- render y legibilidad;
 - interacción;
-- lógica visible;
-- editor que modifica UI visible;
-- comportamiento central del jugador;
-- producción servida.
+- guardado, pendiente y error;
+- consola;
+- ausencia de escrituras reales inesperadas.
 
-Verificar según corresponda:
+Para pruebas aisladas, usar fixtures, harness o stub.
 
-```
-commit esperado
-DOM / comportamiento esperado
-casos principales
-mobile real
-consola limpia
-ausencia de writes inesperados
-```
+No abrir un flujo live que pueda ejecutar writers automáticos sólo para observarlo.
 
-Si se usa harness o stub para evitar producción:
+## Operaciones de data real
 
-```
-0 requests reales de escritura a Supabase
-```
+1. Identificar entorno, registro y objetivo.
+2. Leer el estado fresco.
+3. Producir dry-run y diff esperado.
+4. Conservar de forma segura el preestado necesario para comparar y recuperar.
+5. Explicar el riesgo de concurrencia y cómo se controla.
+6. Obtener autorización para la operación concreta.
+7. Revalidar sus condiciones inmediatamente antes del write.
+8. Ejecutar la operación autorizada.
+9. Releer y comparar el resultado con el diff esperado, incluidas las partes que debían preservarse.
+10. Registrar evidencia y detenerse.
 
-### Smoke post-merge
+Para un blob JSON compartido, una relectura previa no garantiza ausencia de escrituras concurrentes.
 
-Hacerlo cuando:
+Claude Code debe explicar cómo evita sobrescribir cambios ajenos o declarar la limitación antes de solicitar autorización. Si cambia una condición relevante del dry-run, se recalcula antes de escribir.
 
-- importa verificar exactamente lo servido en `main`;
-- el cambio afecta un flujo visible central;
-- existe diferencia posible entre branch y producción;
-- hubo refactor de lógica compartida.
+Ante una diferencia inesperada:
 
-Antes de afirmar éxito en producción, verificar qué SHA está servido.
+- detener nuevas escrituras;
+- preservar evidencia;
+- evaluar recuperación;
+- no restaurar automáticamente el blob completo.
 
-### Smoke opcional
+Una restauración puede borrar cambios legítimos posteriores. La recuperación requiere autorización específica o estar expresamente incluida en la autorización original, con condiciones todavía válidas.
 
-Normalmente no es necesario para:
+La verificación de data real es inmediata. Si el cambio debe aparecer en la app, comprobar su presentación mediante un camino sin escrituras adicionales.
 
-- docs-only;
-- test-only;
-- copy menor sin impacto de layout ni sobre lo que la app afirma;
-- cambios completamente cubiertos por verificación estática y tests suficientes.
+## Código, despliegue y estado canónico
 
----
+Registrar por separado:
 
-## 17. Supabase y producción
+### Código
 
-**Regla fuerte:** No abrir o ejecutar un flujo live que pueda disparar writers automáticos sólo para "mirar".
+- main remoto y local observados;
+- rama y estado del árbol;
+- PRs relevantes;
+- último SHA de producción verificado y fecha;
+- estado de la verificación actual;
+- deploy manual, si ocurrió.
 
-Preferir, según el caso:
+### Data
 
-```
-leer estado
-→ verificar HTML / commit servido
-→ usar harness local o stub
-→ realizar smoke sin writes
-```
+- entorno y registro;
+- timestamp observado;
+- operación autorizada;
+- resultado comprobado;
+- referencia segura al preestado y evidencia.
 
-Para una escritura real:
+No asumir que main equivale a producción ni que una operación de data cambia el código servido.
 
-```
-read-only
-→ gates
-→ diff esperado
-→ conservar preestado si es destructiva
-→ autorización explícita
-→ revalidar preestado si pudo cambiar
-→ write controlado
-→ verificar resultado contra diff esperado
-→ STOP
-```
+Los SHAs, timestamps y conteos provienen de evidencia disponible. Si algo es recordado, reportado o no verificado, se indica.
 
-No inventar nueva arquitectura para obtener seguridad si una comprobación puntual alcanza.
+Al empezar una tarea técnica, Claude Code comprueba el estado del que depende el encargo. Una discrepancia material detiene las acciones dependientes; permite seguir investigando en read-only.
 
-### Deploy
+Verificar producción después de cambios en flujos visibles centrales. Para docs o aliases sin efecto en build, despliegue o runtime, no se exige smoke de la app en producción.
 
-Si existe auto-deploy, ése es el camino por defecto. No ejecutar deploy manual simplemente porque sí.
+Si existe auto-deploy, es el camino habitual. El deploy manual requiere necesidad concreta y autorización.
 
-Un deploy manual puede hacerse cuando existe una necesidad concreta —por ejemplo, fallo o ausencia del auto-deploy— y fue autorizado explícitamente. La excepción está en _Reversión de emergencia_.
+## STOP
 
----
+Detenerse antes de las operaciones que requieren autorización y cuando:
 
-## 18. PRs supersedidos y trabajo concurrente
+- cambia materialmente el alcance o el riesgo;
+- la evidencia contradice el problema supuesto;
+- falla una condición de una secuencia autorizada;
+- aparece una discrepancia material de estado;
+- un write produce un resultado inesperado;
+- termina el trabajo acordado y no hay continuación autorizada.
 
-Un PR puede quedar temporalmente abierto como fallback mientras se valida una solución mejor.
+Un STOP detiene acciones dependientes. No impide inspecciones seguras necesarias para explicar lo ocurrido.
 
-Reglas:
+El reporte incluye sólo lo pertinente:
 
-1. No mergear un PR que ya se sabe conceptualmente insuficiente.
-2. Mantenerlo como fallback sólo mientras tenga utilidad concreta.
-3. Si otro PR lo absorbe, cerrar el anterior sin merge.
-4. Registrar brevemente el motivo.
-5. **Un fallback caduca si main se movió**: o se rebasa, o deja de ser fallback. Un fallback viejo mergeado con apuro es una forma conocida de romper producción.
+- resultado;
+- evidencia;
+- estado actual;
+- riesgo o limitación;
+- decisión pendiente.
 
-**Default operativo:** Un problema humano activo → un PR activo.
+Si hace falta autorización, la pregunta se refiere a una acción concreta. No se solicitan aprobaciones sobre propuestas todavía indefinidas.
 
-Se pueden mantener trabajos paralelos sólo cuando sean realmente independientes y su estado esté explícitamente registrado.
+## PR equivocado, parqueado o reemplazado
 
----
+Si una aclaración demuestra que un PR resuelve otro problema, se detiene y queda excluido de merge.
 
-## 19. Copy honesto
+La recomendación por defecto es cerrarlo. No hace falta diseñar su reemplazo para reconocer que no corresponde.
 
-_Éste es el hogar canónico de esta regla. Los demás documentos la referencian, no la reescriben._
+Conservarlo exige una necesidad independiente confirmada y una condición para retomarlo. “Podría servir” no alcanza.
 
-El copy no debe afirmar más de lo que ASP sabe.
+Un follow-up registra una necesidad; no compromete a reutilizar la implementación anterior.
 
-**Regla:** Si el sistema no puede conocer o derivar confiablemente un hecho, no afirmarlo como verdadero.
+Un fallback es una alternativa válida al mismo problema. Antes de retomarlo, revisar compatibilidad con main.
 
-Aplica especialmente a:
+El cierre se ejecuta con autorización contextual o explícita. No incluye borrar ramas o descartar cambios salvo que eso también esté cubierto.
 
-- reservado;
-- confirmado;
-- ganador;
-- se juega a X;
-- cupo / cupo lleno;
-- deuda saldada;
-- cancha confirmada.
+Default: un problema humano activo → un PR activo.
 
-Formas que reflejan una señal en vez de un hecho: `apuntamos a`, `pueden jugar a las`, `N todavía no respondieron`.
+## Recuperación de emergencia
 
-Sí se pueden mostrar valores calculados si derivan inequívocamente de datos existentes. No confundir una señal, estimación o preferencia con una decisión real.
+La recuperación de código al último estado bueno verificado puede estar preautorizada mediante este SOP aprobado, únicamente ante una falla real de producción.
 
-**Autodeclarado no es verificado.** En pagos, morosos y tarjetas, el copy deja explícito que el dato lo marcó el propio jugador (`Ya pagué`), nunca un tercero que lo verificó. No se redacta como confirmación oficial de cobro.
+Antes de actuar, confirmar:
 
-Cualquier cambio de copy sobre estos conceptos es **Nivel 2 como mínimo**, aunque el diff sea una línea.
+- cuál es el estado bueno;
+- que sigue siendo compatible con los datos actuales;
+- que la recuperación no requiere cambios de data.
 
----
+Si esas condiciones no se pueden comprobar, detenerse y solicitar decisión.
 
-## 20. Principios operativos
+Esta excepción no autoriza restauraciones de data ni migraciones inversas.
 
-1. Un PR resuelve un problema humano.
-2. Feedback real manda, pero primero se interpreta.
-3. Diagnóstico proporcional al riesgo, nunca por debajo del piso mínimo.
-4. PR mínimo significa solución mínima completa.
-5. Datos y producción requieren gates.
-6. Ningún agente se autoautoriza un write o merge.
-7. No mezclar UX menor con cambios estructurales.
-8. No crear modelo nuevo para resolver un problema que los datos actuales ya permiten resolver.
-9. No afirmar en copy algo que ASP no sabe.
-10. Mobile real con datos reales manda.
-11. Si una señal sólo sirve antes de decidir, ocultarla después.
-12. Mantener estado canónico después de cada ciclo, y re-derivarlo antes del siguiente.
-13. Test y smoke proporcionales.
-14. No hacer deploy manual sin necesidad.
-15. Si un PR queda absorbido, cerrarlo sin merge.
-16. No transformar ASP en un sistema más grande que el problema que resuelve.
-17. Ante la duda entre dos niveles de riesgo, subís.
-18. Evidencia copiada, no recordada.
-19. Una regla vive en un solo documento.
+Después de recuperar: reportar, actualizar estado y detenerse antes de emprender otra solución.
 
----
+## Copy honesto
 
-## 21. Patrón de PR mínimo
+ASP no afirma más de lo que sabe.
 
-Antes de implementar debería poder responderse:
+Distinguir:
 
-```
-¿Qué problema humano resuelve?
-¿Qué criterio de producto aplica?
-¿Qué comportamiento esperado tiene?
-¿Qué toca?
-¿Qué NO toca?
-¿Qué deja de verse o de poder hacerse fácil si esto se aprueba?
-¿Qué riesgo tiene? ¿Qué nivel?
-¿Qué verificación necesita?
-¿Toca datos o producción?
-```
+- autodeclaración;
+- cálculo;
+- preferencia;
+- decisión;
+- hecho verificado.
 
-Preguntas adicionales sólo cuando sean relevantes:
+“Ya pagué” puede ser la acción del jugador. “Marcó que pagó” expresa su declaración ante el grupo. Ninguna de las dos prueba recepción del dinero.
 
-```
-¿Necesita smoke?
-¿Necesita smoke post-merge?
-¿Necesita Supabase?
-¿Necesita data model?
-¿Necesita rollback o captura de preestado?
-```
+Los valores calculados son válidos si su significado y origen son claros.
 
-Si una respuesta material sigue siendo desconocida, falta diagnóstico.
+La vista Organizador no constituye autorización ni identidad verificada. El copy no sustituye controles de acceso.
 
----
+Todo cambio de significado sobre pago, deuda, cupo, reserva o confirmación es Nivel 2 como mínimo.
 
-## 22. Documentación viva y enmienda de este SOP
+## Comunicación y mantenimiento
 
-El SOP describe cómo trabajamos. No debe convertirse en:
+El orquestador usa respuestas breves, lenguaje cotidiano y preguntas concretas. En respuestas largas, deja al final la decisión pendiente y la próxima acción.
 
-- backlog;
-- changelog;
-- listado de PRs recientes;
-- documentación detallada de una feature;
-- snapshot del estado actual de la UI.
+Una decisión importante se registra con su motivo y la evidencia que permitiría revisarla. No hace falta documentar cada microajuste.
 
-Esos elementos viven en la documentación separada listada en _Set de documentos y precedencia_.
+El usuario aprueba cambios al proceso. Claude Code puede aplicarlos como tarea documental autorizada.
 
-Un cambio de comportamiento de ASP no exige una nueva versión del SOP salvo que cambie también la forma de trabajo.
+Detectar una mejora durante un PR permite proponerla; no autoriza cambiar los SOPs dentro de ese trabajo.
 
-### Enmienda
-
-Sólo el usuario modifica este documento.
-
-Un agente puede **proponer** un cambio en un STOP; no lo aplica dentro del PR que lo motivó. Proponer cambios al proceso a mitad de una tarea es scope creep sobre el proceso mismo.
-
----
-
-## 23. Frase guía
-
-> ASP no necesita más sistema del necesario. Necesita que cada jugador entienda rápido qué tiene que hacer.
-
-Y para el proceso:
-
-> Menos épica, más PR mínimo.
+**Frase guía:** cada jugador debe entender rápido qué puede hacer y qué ocurrió después.
