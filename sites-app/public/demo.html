@@ -635,6 +635,24 @@
   }
   .lista-morosos-item .lm-saldar:disabled{opacity:.5; cursor:progress;}
   .lista-morosos-rules{margin:0; font-size:11px; line-height:1.5; color:var(--muted);}
+  .lista-morosos-edit-row{margin:0;}
+  .lista-morosos-edit-row button[hidden]{display:none;}
+  /* Filas del modal "Editar lista de morosos": mismo lenguaje que .lista-morosos-item, con
+     el botón de corrección al estilo de .lm-saldar. */
+  .morosos-manage-row{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px;
+    background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px;
+    padding:9px 10px; font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);
+  }
+  .morosos-manage-row .mm-name{flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
+  .morosos-manage-row .mm-marks{flex:0 0 auto; white-space:nowrap; color:var(--muted); font-weight:700;}
+  .morosos-manage-row .mm-sacar{
+    flex:0 0 auto; margin-left:auto; cursor:pointer; white-space:nowrap;
+    border:1px solid var(--card-border); border-radius:8px; background:var(--white);
+    color:var(--navy); padding:6px 10px; font:700 10px 'Inter',sans-serif;
+    letter-spacing:.03em; text-transform:uppercase;
+  }
+  .morosos-manage-row .mm-sacar:disabled{opacity:.5; cursor:progress;}
 
   /* VISTAS PRINCIPALES */
   .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:13px;}
@@ -962,6 +980,7 @@
       Si no figurás pago antes del inicio del partido, sumás 🟨.<br>
       Cada 2 amarillas, debés una birra para la banda 🍺.
     </p>
+    <p class="lista-morosos-edit-row"><button type="button" class="link-btn" id="open-manage-morosos-btn" hidden>✏️ Editar lista</button></p>
   </section>
 
   </div>
@@ -1125,6 +1144,17 @@
     <div class="modal-actions">
       <button class="btn-cancel" id="m-cancel">Cancelar</button>
       <button class="btn-save" id="m-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-morosos-overlay">
+  <div class="modal">
+    <h2>Editar lista de morosos</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Sacá la amarilla sólo si la persona pagó y no llegó a marcarlo antes del inicio. La birra que ya se debe no se toca acá.</p>
+    <ul class="manage-list" id="morosos-manage-list"></ul>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-morosos-close">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1629,7 +1659,7 @@ function reconciliarPlayers(freshPlayers){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay','manage-split-expenses-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay','manage-split-expenses-overlay','manage-morosos-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
   if(anyModalOpen || editingHistory || saving) return;
@@ -2837,6 +2867,40 @@ document.getElementById('lista-morosos-list').addEventListener('click', async (e
   }
   renderListaMorosos();
   showToast('Birra saldada.');
+});
+
+/* ---------- LISTA DE MOROSOS — modal "Editar lista" / sacar la amarilla ---------- */
+// Corrección manual de una 🟨 pendiente (pagó y no quedó registrado a tiempo). El modal
+// reusa morososDeCards; el writer corregirAmarilla es gemelo de saldarBirra. Mismo patrón
+// de modal que "Canchas guardadas": link-btn que abre, botón "Cerrar" que cierra, el
+// sondeo se pausa mientras está open (id en anyModalOpen).
+document.getElementById('open-manage-morosos-btn').onclick = ()=>{
+  renderMorososManageList();
+  document.getElementById('manage-morosos-overlay').classList.add('open');
+};
+document.getElementById('manage-morosos-close').onclick = ()=>{
+  document.getElementById('manage-morosos-overlay').classList.remove('open');
+};
+// Delegación sobre el <ul> estático del modal: renderMorososManageList reescribe su
+// innerHTML, así que un listener por botón se perdería. Confirmación obligatoria antes de
+// escribir; el botón se deshabilita mientras persiste, y corregirAmarilla revalida
+// yellows>0 contra el estado fresco.
+document.getElementById('morosos-manage-list').addEventListener('click', async (ev)=>{
+  const boton = ev.target.closest('[data-sacar-amarilla]');
+  if(!boton) return;
+  const nombre = boton.dataset.sacarAmarilla || '';
+  if(!nombre) return;
+  if(!window.confirm(`¿Sacar la amarilla de ${nombre}? Es para cuando pagó y no quedó registrado a tiempo, no para perdonar.`)) return;
+  boton.disabled = true;
+  const ok = await corregirAmarilla(nombre);
+  boton.disabled = false;
+  if(!ok){
+    showToast('No se pudo corregir la lista. Revisá la conexión e intentá otra vez.');
+    return;
+  }
+  renderListaMorosos();
+  renderMorososManageList();
+  showToast('Amarilla sacada.');
 });
 
 /* ---------- FORMACIONES DEL ORGANIZADOR ---------- */
@@ -4389,6 +4453,10 @@ function renderListaMorosos(){
   const vacio = document.getElementById('lista-morosos-empty');
   if(!lista || !vacio) return;
   const filas = morososDeCards(state && state.cards);
+  // El disparador "Editar lista" (modal de corrección) sólo aparece si hay algo para
+  // corregir. Es presentación: no lee ni escribe cards.
+  const editBtn = document.getElementById('open-manage-morosos-btn');
+  if(editBtn) editBtn.hidden = filas.length === 0;
   if(filas.length === 0){
     vacio.hidden = false;
     lista.hidden = true;
@@ -4408,6 +4476,32 @@ function renderListaMorosos(){
     return '<li class="lista-morosos-item">' +
       '<span class="lm-name">' + nombre + '</span>' +
       '<span class="lm-marks">' + escapeHtml(marcasDeMoroso(fila)) + '</span>' +
+      boton +
+    '</li>';
+  }).join('');
+}
+
+// Modal "Editar lista de morosos" (disparado por #open-manage-morosos-btn). Lista los
+// mismos sancionados que renderListaMorosos (misma fuente pura: morososDeCards). Cada fila
+// con yellows>0 lleva el botón "Sacar la amarilla"; la birra se sigue saldando desde su
+// propio botón en la lista principal, no acá. Read-only salvo ese botón: no escribe.
+function renderMorososManageList(){
+  const ul = document.getElementById('morosos-manage-list');
+  if(!ul) return;
+  const filas = morososDeCards(state && state.cards);
+  if(filas.length === 0){
+    ul.innerHTML = '<li class="empty-state">No hay sanciones para corregir.</li>';
+    return;
+  }
+  ul.innerHTML = filas.map(fila=>{
+    const nombre = escapeHtml(fila.nombre);
+    const boton = fila.yellows > 0
+      ? '<button type="button" class="mm-sacar" data-sacar-amarilla="' + nombre +
+        '" aria-label="Sacar la amarilla de ' + nombre + '">Sacar la amarilla</button>'
+      : '';
+    return '<li class="morosos-manage-row">' +
+      '<span class="mm-name">' + nombre + '</span>' +
+      '<span class="mm-marks">' + escapeHtml(marcasDeMoroso(fila)) + '</span>' +
       boton +
     '</li>';
   }).join('');
@@ -4439,6 +4533,42 @@ async function saldarBirra(playerName){
     });
   }catch(e){
     console.error('No se pudo saldar la birra', e);
+    return false;
+  }
+}
+
+// "Sacar la amarilla": corrección manual de una 🟨 PENDIENTE en la Lista de morosos, para
+// cuando alguien pagó y no quedó registrado antes del inicio del partido. Gemela de
+// saldarBirra: escritura focalizada e independiente sobre state.cards, no llama a
+// computeCards ni al writer automático.
+//  - Baja yellows a 0 SÓLO si yellows>0. NO toca reds, beers ni evaluated: si se limpiara
+//    evaluated, evaluarTarjetasSiCorresponde re-aplicaría la misma amarilla en el próximo
+//    sondeo. La birra que ya se debe se salda por su propio botón, no acá.
+//  - Muta byPlayer[identidad] in situ sobre el estado FRESCO; persistFocalizado escribe el
+//    resto del blob intacto. No borra la clave de byPlayer (queda {yellows:0, reds, beers}).
+//  - Agrega una entrada compensatoria a cards.log (append-only, no borra historial). El
+//    motor de tarjetas ignora `card` desconocidos, así que 'correccion' es inerte para él.
+//
+// Anti-doble-corrección: yellows>0 se revalida DENTRO de aplicar(fresh). Dos toques
+// seguidos -> el segundo ve yellows ya en 0 y aborta sin escribir.
+async function corregirAmarilla(identidad){
+  const nombre = String(identidad == null ? '' : identidad);
+  if(!nombre) return false;
+  try{
+    return await persistFocalizado(fresh=>{
+      const byPlayer = (fresh && fresh.cards && fresh.cards.byPlayer && typeof fresh.cards.byPlayer === 'object')
+        ? fresh.cards.byPlayer : null;
+      const rec = byPlayer ? byPlayer[nombre] : null;
+      if(!rec || typeof rec !== 'object') return false;
+      if((Number(rec.yellows) || 0) <= 0) return false;
+      rec.yellows = 0;
+      if(Array.isArray(fresh.cards.log)){
+        fresh.cards.log.push({ player:nombre, card:'correccion', reason:'amarilla-sacada-manualmente', at:new Date().toISOString() });
+      }
+      return true;
+    });
+  }catch(e){
+    console.error('No se pudo corregir la amarilla', e);
     return false;
   }
 }
