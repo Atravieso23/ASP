@@ -79,8 +79,8 @@ test("4. render() sigue apuntando a #faltan-pagar y su lógica no cambió", () =
 
 /* ---------- 5. CSS del nodo intacto (estado vacío + all-paid) ---------- */
 
-test("5. las reglas .faltan-pagar (:empty y .all-paid) siguen igual", () => {
+test("5. las reglas .faltan-pagar (:empty y .all-paid) siguen ahí (colores de la paleta clara)", () => {
   assert.match(demo, /\.faltan-pagar:empty\{display:none;\}/);
-  assert.match(demo, /\.faltan-pagar\.all-paid\{color:#76B99A;/);
-  assert.match(demo, /\.faltan-pagar b\{color:#C76C5E;/);
+  assert.match(demo, /\.faltan-pagar\.all-paid\{color:var\(--ok\);/);
+  assert.match(demo, /\.faltan-pagar b\{color:var\(--danger\);/);
 });

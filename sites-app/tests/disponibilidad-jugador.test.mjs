@@ -240,7 +240,7 @@ test("15b. CSS: filas compactas muted, heading tipo eyebrow diferenciado, sin ba
   assert.match(css, /\.proximo-partido-horarios:empty\{display:none;\}/);
   // PR #52/#53 — el heading dejó de ser una fila más: eyebrow compacto (Oswald 10px,
   // uppercase, muted), distinto de las filas "HH:MM · N pueden" (12px sentence-case).
-  assert.match(css, /\.proximo-partido-horarios-eyebrow\{[^}]*font:700 10px 'Oswald'[^}]*text-transform:uppercase[^}]*color:var\(--muted\)/);
+  assert.match(css, /\.proximo-partido-horarios-eyebrow\{[^}]*font:700 12px 'Oswald'[^}]*text-transform:uppercase[^}]*color:var\(--muted\)/);
   assert.match(css, /\.proximo-partido-horarios-row\{[^}]*font-size:12px[^}]*color:var\(--muted\)/);
   // separador hairline permitido (border-top 1px), pero sin fondo propio ni caja de card.
   assert.doesNotMatch(css, /\.proximo-partido-horarios[^{]*\{[^}]*background/);

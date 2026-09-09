@@ -228,9 +228,9 @@ test("17. renderLocalOrganizer y su chart no cambiaron", () => {
 
 /* ============ scrim / contraste ============ */
 
-test("18. CSS: el bloque tiene scrim de fondo y prohíbe box-shadow", () => {
+test("18. CSS: el bloque tiene fondo propio (paleta clara) y prohíbe box-shadow", () => {
   const css = demo.slice(demo.indexOf(".proximo-partido{"), demo.indexOf("/* MI ESTADO"));
-  assert.match(css, /\.proximo-partido\{[^}]*background:rgba\(8,20,32,\.6\)/);
+  assert.match(css, /\.proximo-partido\{[^}]*background:var\(--surface-2\)/);
   assert.match(css, /\.proximo-partido\{[^}]*border-radius:12px/);
   assert.doesNotMatch(css, /\.proximo-partido\{[^}]*box-shadow/);
   // main/eyebrow/hint/sub vacíos no dejan hueco

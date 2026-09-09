@@ -1031,11 +1031,11 @@ test("Mi estado: el control de cambiar jugador dice 'Cambiar jugador' (texto, no
   );
   assert.match(changeHandler, /setRegisteredPlayerNameMode\(true\);/);
   assert.match(changeHandler, /renderRecurrentPlayerMenu\(\);/);
-  // Botón de texto compacto con área táctil cómoda: min-height 40px, sin forzar ancho.
+  // Botón de texto compacto con área táctil cómoda (piso --tap = 44px), sin forzar ancho.
   const rule = sliceBetween(demo, ".change-player-btn{", "}", "la regla del botón de cambiar jugador");
-  assert.match(rule, /min-height:40px/);
+  assert.match(rule, /min-height:var\(--tap\)/);
   assert.match(rule, /white-space:nowrap/);
-  assert.match(rule, /font:700 11px 'Inter'/);
+  assert.match(rule, /font:700 var\(--fs-help\) 'Inter'/);
   assert.doesNotMatch(rule, /width:\s*36px/);
   assert.doesNotMatch(demo, /\.change-player-btn::after/, 'el hack de área táctil del ícono ya no hace falta');
 });
