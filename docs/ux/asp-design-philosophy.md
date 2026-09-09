@@ -1,244 +1,154 @@
-# ASP Design Philosophy
+# ASP — Design Philosophy
+
+**Estado:** vigente — aprobado por el usuario el 2026-09-09.
 
 ## Tesis
 
-**Claridad para la acción. Personalidad para la identidad. Compacto por defecto. Explícito cuando importa.**
+**Claridad para la acción. Personalidad para la identidad. Espacio con intención. Confianza cuando importa.**
 
-ASP es una web mobile-first para organizar partidos de fútbol entre amigos. No es una SaaS corporativa, una app genérica de eventos ni un formulario administrativo.
+ASP es una web mobile-first para organizar partidos de fútbol entre amigos.
 
-ASP debe sentirse como una cancha digital mínima: un lugar donde el grupo confirma, se carga un poco, paga, suma invitados y llega al partido sin quilombo.
+Debe sentirse como un lugar del grupo: entrar, entender qué pasa, hacer lo necesario y llegar al partido sin quilombo.
 
-La interfaz debe ser clara, pero no neutra; compacta, pero no seca; futbolera, pero no críptica.
+La interfaz es clara sin ser impersonal, futbolera sin ser críptica y simple sin verse descuidada.
 
-## Qué es ASP
+## Para quién diseñamos
 
-ASP existe para resolver una situación concreta y repetida:
+La persona suele llegar desde el celular para resolver algo concreto:
 
-- saber quién juega, quién está en duda y quién es baja;
-- saber a qué hora puede cada uno;
-- saber quién pagó;
-- sumar invitados;
-- organizar el partido con la menor fricción posible.
+- responder si juega;
+- consultar el partido;
+- indicar disponibilidad;
+- declarar un pago;
+- sumar un invitado;
+- organizar o corregir algo;
+- consultar gastos, balances o sanciones.
 
-El usuario típico no entra a explorar la app. Entra rápido, muchas veces desde el celular y probablemente desde WhatsApp, para hacer una acción puntual.
+El diseño ayuda a completar esa tarea y a entender qué ocurrió después.
 
-Por eso ASP prioriza:
+No supone que la persona conoce el funcionamiento interno de ASP.
 
-1. velocidad;
-2. claridad;
-3. poco scroll;
-4. estados visibles;
-5. personalidad de grupo.
+## Claridad en acciones importantes
 
-## 1. Mobile-first real
+Las acciones que cambian datos o decisiones llevan texto visible y comprensible.
 
-Mobile-first no significa achicar una interfaz de escritorio. Significa diseñar para el uso real: una mano, pantalla angosta, poco tiempo, contexto social y necesidad de confirmar rápido.
+Los símbolos y emojis pueden acompañar, pero no reemplazar su significado.
 
-La pantalla muestra primero lo que cambia el partido, en este orden:
+Ejemplos:
 
-1. identidad del jugador;
-2. estado personal: Estoy / En duda / Soy baja;
-3. disponibilidad, sólo si aplica;
-4. pago personal;
-5. invitados;
-6. contexto grupal;
-7. detalles administrativos.
+- Cambiar jugador.
+- Estoy.
+- En duda.
+- Soy baja.
+- Ya pagué.
+- Agregar invitado.
+- Guardar cambios.
+- Sacar la amarilla.
 
-## 2. Claridad en acciones críticas
+La etiqueta debe explicar la acción sobre el elemento correcto. El significado veraz de pagos, confirmaciones y otros estados se rige por Copy honesto, en el SOP.
 
-Toda acción que cambie datos importantes debe ser entendible sin explicación externa. Esto incluye cambiar jugador, marcar el estado personal o de pago, agregar invitados, guardar cambios y saldar pagos.
+## Personalidad de grupo
 
-En estos casos ASP no depende sólo de símbolos, iconos o emojis.
+La voz es futbolera, sobria y cercana.
 
-Ejemplos correctos:
+La personalidad aparece especialmente en nombres de secciones, estados secundarios, mensajes de grupo y pequeños momentos de celebración.
 
-- Cambiar jugador
-- Estoy
-- En duda
-- Soy baja
-- Ya pagué
-- Debo
-- Agregar
-- Saldar birra
+El humor acompaña; no obliga a descifrar qué hace un botón ni qué significa una deuda.
 
-Ejemplos a evitar como etiqueta única:
+Una expresión interna del grupo es útil cuando se entiende en contexto. No se agrega jerga para demostrar personalidad.
 
-- ⇄
-- +
-- OK
-- …
-- ⚽
+## Identidad visual
 
-**Regla:** lo que se toca para cambiar datos debe ser claro.
+La personalidad también vive en:
 
-## 3. Personalidad en estados y contexto
+- tipografía;
+- color;
+- espaciado;
+- composición;
+- tratamiento de controles;
+- consistencia entre pantallas.
 
-ASP no debe sonar neutral. Su personalidad vive especialmente en chips, badges, estados vacíos, mensajes secundarios, nombres de secciones, confirmaciones y momentos de grupo.
+Agregar emojis o frases futboleras a una interfaz genérica no alcanza para darle identidad.
 
-Ejemplos de tono válido:
+ASP puede tener una apariencia cuidada con pocos recursos visuales bien elegidos.
 
-- Siempre para la pelota
-- Nombre en la casaca
-- Saldar birra
-- Lista de morosos
-- Sin invitados
-- Todo fulvo
-- Baja sensible
-- Te esperamos
-- Falta la banda
+La dirección concreta y los patrones de composición viven en UX Working Agreement.
 
-La voz es futbolera, sobria y de grupo: más vestuario que dashboard corporativo.
+## Espacio con intención
 
-**Regla:** lo que acompaña, resume o celebra puede ser futbolero, siempre que no vuelva misteriosa una acción importante.
+ASP evita títulos, cajas y explicaciones que no aportan.
 
-## 4. Compacto por defecto, explícito cuando importa
+También conserva el espacio que permite leer, tocar y entender agrupaciones.
 
-ASP evita ocupar espacio vertical innecesario. No todo necesita una tarjeta, un título o una explicación permanente.
+Compactar es un recurso, no un objetivo por encima de la comprensión o la comodidad.
 
-La interfaz puede ser compacta cuando el estado es normal y más explícita cuando algo:
+El texto se extiende cuando aporta orientación, confirmación o seguridad. Se recorta cuando sólo ocupa espacio.
 
-- está activo;
-- cambió;
-- requiere atención;
-- puede generar un error;
-- necesita una confirmación visible.
+## Emojis como acento
 
-Los chips pueden ser compactos en reposo y expresivos cuando representan un estado activo.
+Los emojis pueden aportar tono y reconocimiento.
 
-El chip de día completo es hoy una excepción a este patrón: usa un copy único (`Siempre para la pelota ⚽❤️`), sin variante en reposo. Ver "Decisiones ya alineadas" y "Deudas abiertas → Chip full-day".
+El texto debe alcanzar para entender la acción o el estado aunque se ignoren los emojis.
 
-**Regla:** el texto largo aparece cuando aporta confirmación, emoción o seguridad, no como relleno permanente.
+No se agrega un emoji a cada control por consistencia decorativa.
 
-## 5. Progressive disclosure
+La repetición se evalúa por su utilidad y por el ruido que produce.
 
-Si algo no aplica, se oculta, se resume o se repliega.
+## Confianza antes que chiste
 
-Cuando el jugador marca `Soy baja`, el bloque Disponibilidad se oculta porque una baja no necesita indicar horarios. Mostrarlo agregaría ruido y ocuparía espacio sin aportar valor.
+En errores, guardado, identidad, pagos, pérdida de información y acciones sensibles, el tono es directo.
 
-**Regla:** no mostrar controles por las dudas; mostrarlos cuando sirven.
+Ejemplos:
 
-## 6. Emojis como acento
-
-Los emojis forman parte del tono de ASP, pero no reemplazan significado crítico.
-
-Correcto:
-
-- Siempre para la pelota ⚽❤️
-- Pagado ✅
-- Debo 🍺
-- Listo ⚽
-
-Incorrecto:
-
-- ⚽❤️ como única etiqueta de un chip;
-- ⇄ como único contenido de un botón;
-- ✅ sin texto para un estado de pago;
-- iconos sin texto en acciones críticas.
-
-**Regla:** el texto visible debe alcanzar para entender la acción o el estado aunque se ignoren los emojis.
-
-## 7. Microinteracciones con intención
-
-ASP no necesita animaciones decorativas. Una microinteracción debe cumplir al menos una función:
-
-1. confirmar una acción;
-2. mostrar que algo se guardó;
-3. revelar u ocultar contexto;
-4. reducir ruido;
-5. hacer sentir viva la interacción grupal.
-
-Ejemplos válidos:
-
-- al marcar `Soy baja`, Disponibilidad se repliega;
-- al activar el chip de día completo (`Siempre para la pelota ⚽❤️`), los selectores se ocultan visualmente;
-- al guardar, aparece un estado claro de guardado;
-- si hay cambios sin guardar, aparece una señal sobria;
-- al marcar un pago, el estado cambia de forma evidente;
-- si faltan confirmaciones, se muestra una presión social liviana.
-
-**Regla:** nada de fuegos artificiales; feedback útil, rápido y con tono.
-
-## 8. Confianza antes que chiste
-
-ASP prioriza claridad absoluta ante cambios sin guardar, errores de guardado, conflictos de identidad, invitados duplicados, datos inconsistentes, pagos y acciones destructivas.
-
-En estos casos el tono puede ser humano, pero no ambiguo:
-
-- Cambios sin guardar
 - Guardando…
-- Guardado
-- No se pudo guardar
-- Ese nombre ya está ocupado
-- Revisá antes de seguir
+- Guardado.
+- No se pudo guardar.
+- Revisá antes de seguir.
 
-**Regla:** cuando hay riesgo de pérdida, error o confusión, la interfaz baja el nivel de chiste.
+La personalidad nunca debe ocultar una consecuencia importante ni afirmar algo que la app no sabe.
 
-## 9. No generalizar antes de tiempo
+## Movimiento con propósito
 
-ASP evita crecer por ansiedad de producto. No se agregan estructuras, secciones ni modelos mentales nuevos sin una necesidad real del grupo.
+Las microinteracciones pueden:
 
-La disponibilidad segmentada, por ejemplo, sólo debería avanzar si la disponibilidad simple deja de alcanzar.
+- confirmar una acción;
+- mostrar progreso;
+- revelar contexto;
+- ayudar a reconocer un cambio;
+- acompañar un momento del grupo.
 
-**Regla:** simple primero; general sólo con evidencia.
+No deben demorar la tarea, distraer de un error ni sugerir éxito antes de que corresponda.
 
-## Reglas prácticas de UI
+ASP no necesita animaciones decorativas para sentirse viva.
 
-1. Las acciones críticas llevan texto visible.
-2. Los símbolos pueden acompañar, no reemplazar.
-3. Los emojis son acento, no interfaz principal.
-4. Los chips pueden ser compactos en reposo y expresivos cuando están activos (el chip de día completo es hoy una excepción documentada: copy único — ver Deudas abiertas).
-5. Si una sección no aplica al estado actual, se oculta o se resume.
-6. Los estados de guardado y error son explícitos y sobrios.
-7. El microcopy futbolero vive mejor en estados secundarios, estados vacíos y confirmaciones.
-8. Mobile-first significa menos superficie visible, no simplemente texto más chico.
-9. No se crean tarjetas o filas si una composición más directa alcanza.
-10. Se priorizan la lectura rápida y las acciones con una mano.
-11. No se agrega complejidad sin evidencia de uso real.
-12. La interfaz debe sentirse de grupo, no de oficina.
+## Evolución sin crecimiento innecesario
 
-## Decisiones ya alineadas
+No se agregan estructuras, secciones o modelos mentales sin una necesidad concreta.
 
-- `Soy baja` oculta Disponibilidad: si el jugador no juega, los horarios no aplican.
-- `Cambiar jugador` reemplaza a `⇄`: cambiar identidad es crítico y no debe ser críptico.
-- `Siempre para la pelota ⚽❤️` es el copy único vigente del chip de día completo desde PR #22: un solo estado expresivo, sin variante en reposo. El chip colapsa los selectores de horario al activarse. El patrón "compacto en reposo / expresivo al activarse" para este chip queda como alternativa futura no aprobada (ver Deudas abiertas).
+Mejorar la apariencia y la coherencia es un objetivo válido cuando el usuario lo solicita. No exige inventar nuevas funcionalidades.
 
-## Deudas abiertas
+Las decisiones anteriores pueden revisarse ante feedback nuevo. Se conserva su motivo y se explica qué cambió.
 
-Estas cuestiones quedan documentadas para decisiones futuras. Este documento no las implementa ni define su solución final.
+Los tests verifican el comportamiento acordado; no convierten una decisión visual en permanente.
 
-### Identidad / Nombre en la casaca
+## Cómo se usa este documento
 
-Evitar duplicar la identidad ya resuelta por el selector. Evaluar si el nombre visible sólo debe aparecer cuando haga falta corregirlo o diferenciarlo.
+Ante una decisión de diseño, comprobar:
 
-### Faltan pagar
+- ¿Se entiende qué se puede hacer?
+- ¿La personalidad ayuda sin confundir?
+- ¿La composición se siente cuidada y coherente?
+- ¿El espacio y el movimiento tienen una función?
+- ¿Se está agregando complejidad con un propósito concreto?
 
-Mantener primero el estado de pago personal y evaluar debajo un contexto grupal compacto. No confundir mi pago con la deuda del grupo.
+Estas preguntas guían el criterio. No crean una aprobación adicional ni un cuestionario obligatorio para cada ajuste.
 
-### Cambios sin guardar
+## Mantenimiento
 
-Agregar en un PR futuro una señal clara, sobria y persistente mientras exista riesgo de pérdida.
+Este documento conserva principios duraderos.
 
-### Disponibilidad segmentada
+El orden de pantalla, los patrones de interacción y la validación viven en UX Working Agreement.
 
-No avanzar sin evidencia de que la disponibilidad simple dejó de alcanzar.
+Los PRs, textos vigentes de componentes, nombres de tests, decisiones históricas y propuestas pendientes viven en Estado y decisiones.
 
-### Chip full-day
-
-- **Estado vigente:** copy único `Siempre para la pelota ⚽❤️` (PR #22). Un solo estado expresivo, sin texto en reposo. Blindado por tests (`colapsar-selects-full-day.test.mjs`, `rendered-html.test.mjs`), que además prohíben la cadena `Todo el día`.
-- **Alternativa futura, no aprobada:** reposo `Todo el día` / activo `Siempre para la pelota ⚽❤️`.
-- Cambiar al patrón reposo/activo requeriría un PR de UI explícito que:
-  1. declare que revierte conscientemente la decisión de copy único de PR #22;
-  2. actualice los tests que hoy fijan el markup del chip y prohíben `Todo el día`;
-  3. responda las 5 preguntas del criterio de diseño, en particular la 2 (claridad de la acción) y la 5 (evidencia de uso real).
-
-## Criterio para próximos PRs
-
-Cada cambio futuro de UX/UI debe poder responder:
-
-1. ¿Qué fricción real reduce?
-2. ¿La acción crítica sigue siendo clara?
-3. ¿Conserva o mejora la personalidad futbolera?
-4. ¿Es compacto en mobile?
-5. ¿Agrega complejidad sólo donde existe evidencia?
-
-Si no puede responder esas preguntas, el cambio todavía no está listo.
+El usuario aprueba cambios a la filosofía. Claude Code puede aplicarlos mediante una tarea documental autorizada.
