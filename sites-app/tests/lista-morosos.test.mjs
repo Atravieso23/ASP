@@ -97,12 +97,18 @@ test("5. no aparece 'Birras para la banda: X' (contador agregado)", () => {
   assert.doesNotMatch(demo, /Birras para la banda\s*:/i);
 });
 
-test("11. el <section> estático no trae ningún <button>: 'Saldar birra' lo inyecta el JS", () => {
+test("11. el <section> estático sólo trae el disparador 'Editar lista'; 'Saldar birra' lo inyecta el JS", () => {
   const bloque = demo.slice(
     demo.indexOf('<section class="lista-morosos"'),
     demo.indexOf("</section>", demo.indexOf('<section class="lista-morosos"')),
   );
-  assert.doesNotMatch(bloque, /<button/i);
+  const botones = bloque.match(/<button[^>]*>/gi) || [];
+  assert.equal(botones.length, 1, "un único <button> estático");
+  assert.match(botones[0], /id="open-manage-morosos-btn"/);
+  // El botón per-fila "Saldar birra" sigue inyectándose por renderListaMorosos, no horneado.
+  assert.doesNotMatch(bloque, /Saldar birra|lm-saldar/);
+  const ul = bloque.slice(bloque.indexOf("<ul"), bloque.indexOf("</ul>") + 5);
+  assert.doesNotMatch(ul, /<button/i, "el <ul> dinámico no trae botones estáticos");
 });
 
 /* ---------- botón "Saldar birra" (PR #19) ---------- */
