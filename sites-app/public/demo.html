@@ -741,7 +741,8 @@
   .organizer-player-static{display:block;font-weight:600;text-align:center;word-break:normal;overflow-wrap:break-word;hyphens:auto;}
   .team-choice-group{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;width:100%;}
   .team-choice{
-    flex:1;border-radius:8px;padding:7px 8px;font:700 10px 'Inter',sans-serif;cursor:pointer;
+    flex:1;border-radius:8px;padding:7px 8px;font:700 12px 'Inter',sans-serif;cursor:pointer;
+    min-height:var(--tap);display:flex;align-items:center;justify-content:center;text-align:center;
     opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s ease;
   }
   .team-choice.negro{background:#050506;border:1px solid #34343A;color:#fff;}
@@ -765,8 +766,11 @@
        justo a 8.5px (margen ~1-3px) sin necesitar ningún corte forzado. El
        hyphens/overflow-wrap de .organizer-player-static queda de red para el resto. */
     .organizer-player-static{font-size:8.5px;}
-    .team-choice-group{flex-direction:column;gap:3px;}
-    .team-choice{width:100%;padding:5px 2px;font-size:8px;}
+    .team-choice-group{flex-direction:column;gap:4px;}
+    /* A 320px la columna de equipo (28%, ~66px) no da para los dos botones en fila:
+       quedan apilados. Piso de 12px y min-height:var(--tap) heredados de la regla
+       base — "Negro"/"Blanco" a 12px entran en ~66px sin corte. */
+    .team-choice{width:100%;padding:6px 4px;font-size:12px;}
     .status-pill{padding:3px 4px;font-size:9px;}
   }
 
