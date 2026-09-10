@@ -176,11 +176,11 @@ test("11. fecha+hora sin cancha: sub queda sólo con el countdown", () => {
 
 /* ---------- 8. CSS: scrim sutil, no una card pesada ---------- */
 
-test("12. CSS: el bloque tiene scrim de fondo pero NO sombra ni borde de card", () => {
+test("12. CSS: el bloque tiene fondo propio pero NO sombra ni borde de card (PR 1a: paleta clara)", () => {
   const css = demo.slice(demo.indexOf(".proximo-partido{"), demo.indexOf("/* MI ESTADO"));
-  // PR #53 — scrim oscuro para recuperar contraste sobre el glow del body.
-  assert.match(css, /\.proximo-partido\{[^}]*background:rgba\(8,20,32,\.6\)/);
-  // pero sigue sin ser card: nada de box-shadow ni borde grueso.
+  // PR 1a — fondo claro de la paleta (surface-2), sin scrim oscuro.
+  assert.match(css, /\.proximo-partido\{[^}]*background:var\(--surface-2\)/);
+  // sigue sin ser card: nada de box-shadow ni borde grueso.
   assert.doesNotMatch(css, /\.proximo-partido\{[^}]*box-shadow/);
   assert.doesNotMatch(css, /\.proximo-partido\{[^}]*border:/);
   assert.match(css, /\.proximo-partido-sub:empty\{display:none;\}/);

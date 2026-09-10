@@ -8,60 +8,73 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --celeste:#4D8FAF;
-    --celeste-deep:#65A2C2;
-    --navy:#EAF4FB;
-    --bg-top:#0B1F30;
-    --bg-bottom:#0E2739;
-    --page-bg:#0A1A28;
-    --white:#122E42;
-    --card-border:#1F4258;
-    --muted:#8CA9BB;
-    --roca:#050506;
-    --lacole:#DEDCD4;
-    --lacole-border:#ECEAE3;
-    --danger:#E4634B;
-    --ok:#3FAE7A;
-    --duda:#E0A33E;
+    /* Cancha clara — paleta clara y cálida. Los nombres legacy (celeste, navy, white,
+       bg-bottom, card-border) se conservan como alias para no reescribir ~200 usos;
+       sus valores ahora son de la paleta clara. */
+    --page-bg:#F2EEE1;          /* crema tiza: fondo de página */
+    --surface:#FBF8F0;          /* blanco cálido: superficie de bloques */
+    --surface-2:#EBE5D5;        /* crema más profundo: inputs, chips, insets */
+    --text:#202C24;             /* carbón verdoso: texto principal */
+    --muted:#57665B;            /* verde-grisáceo legible sobre --surface (~5:1) */
+    --border:#DCD5C2;           /* borde cálido suave */
+    --primary:#1F7A4C;          /* verde profundo (cancha) */
+    --primary-deep:#155C39;     /* verde más oscuro: texto/acento sobre claro */
+    --active-soft:#D9ECDD;      /* verde suave: fondo de estados activos suaves */
+
+    --celeste:var(--primary);
+    --celeste-deep:var(--primary-deep);
+    --navy:var(--text);
+    --bg-top:var(--page-bg);
+    --bg-bottom:var(--surface-2);
+    --white:var(--surface);
+    --card-border:var(--border);
+    --roca:#1C221E;             /* equipo negro: verde-carbón muy oscuro */
+    --lacole:#D4DBE0;           /* equipo blanco: gris claro frío — se separa del crema cálido de la página */
+    --lacole-border:#9CA8AF;
+    --danger:#B23B2B;           /* rojo tuneado para fondo claro (~4.8:1) */
+    --ok:#1F7A4C;               /* verde profundo (mismo que --primary) */
+    --duda:#8C6212;             /* ámbar tuneado para fondo claro (~4.7:1) */
+
+    /* escala compartida */
+    --radius:14px;              /* radio único de los bloques/cards */
+    --radius-control:10px;      /* radio de inputs, botones y chips */
+    --fs-body:14px;             /* piso de contenido */
+    --fs-help:12px;             /* piso de ayudas */
+    --fs-label:13px;            /* labels legibles, sentence case */
+    --tap:44px;                 /* área táctil mínima */
+    --shadow-card:0 6px 20px -12px rgba(28,45,32,.16);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
-    background:
-      radial-gradient(ellipse at top left, rgba(255,255,255,0.5), transparent 55%),
-      linear-gradient(180deg, var(--bg-top) 0%, var(--page-bg) 100%);
-    color:var(--navy);
+    background:var(--page-bg);
+    color:var(--text);
     font-family:'Inter', sans-serif;
+    font-size:var(--fs-body);
     min-height:100vh;
     padding:0 0 60px 0;
-    transition:background 0.25s ease, color 0.25s ease;
+    -webkit-font-smoothing:antialiased;
   }
   .wrap{max-width:720px;margin:0 auto;padding:22px 16px 0;}
 
   /* TABS */
   .tabs{display:flex; gap:8px; margin-bottom:18px;}
   .tab-btn{
-    flex:1; padding:11px; border-radius:10px; border:1px solid var(--card-border);
-    background:var(--white); color:var(--muted); font-weight:700; font-family:'Oswald',sans-serif;
-    text-transform:uppercase; font-size:13px; letter-spacing:.08em; cursor:pointer;
+    flex:1; min-height:var(--tap); padding:11px; border-radius:var(--radius-control); border:1px solid var(--card-border);
+    background:var(--surface); color:var(--muted); font-weight:700; font-family:'Oswald',sans-serif;
+    text-transform:uppercase; font-size:13px; letter-spacing:.06em; cursor:pointer;
   }
-  .tab-btn.active{background:var(--celeste-deep); color:#fff; border-color:transparent;}
+  .tab-btn.active{background:var(--primary); color:#fff; border-color:transparent;}
 
-  /* HERO TICKET */
+  /* HERO TICKET — PR 1b lo reemplaza por el encabezado único. Acá sólo paleta clara. */
   .ticket{
     position:relative;
-    background:var(--white);
+    background:var(--surface);
     border:1px solid var(--card-border);
-    border-radius:18px;
-    padding:26px 24px 22px;
+    border-radius:var(--radius);
+    padding:22px 20px 20px;
     overflow:hidden;
-    box-shadow:0 20px 45px -22px rgba(29,111,165,0.35);
-  }
-  .ticket::before{
-    content:"";
-    position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(79,166,222,0.06), transparent 60%);
-    pointer-events:none;
+    box-shadow:var(--shadow-card);
   }
   .ticket-notch{
     position:absolute; top:50%; width:22px; height:22px; border-radius:50%;
@@ -119,13 +132,13 @@
   }
   .sb-value.empty{color:var(--muted); font-weight:400; font-style:italic; font-size:13px;}
   .edit-btn{
-    margin-top:16px;
+    margin-top:16px; min-height:var(--tap);
     background:transparent; border:1px solid var(--card-border);
-    color:var(--celeste-deep); font-family:'Inter',sans-serif; font-weight:700;
-    font-size:13px; padding:9px 14px; border-radius:8px; cursor:pointer;
+    color:var(--primary-deep); font-family:'Inter',sans-serif; font-weight:700;
+    font-size:13px; padding:10px 14px; border-radius:var(--radius-control); cursor:pointer;
     display:inline-flex; align-items:center; gap:6px;
   }
-  .edit-btn:hover{border-color:var(--celeste-deep); background:var(--bg-bottom);}
+  .edit-btn:hover{border-color:var(--primary); background:var(--surface-2);}
   /* Edita datos compartidos del partido: en angosto se abrevia, nunca se saca el texto
      del todo (ver docs/ux/asp-ux-working-agreement.md, "el texto visible debe alcanzar
      para entender la acción aunque se ignoren los emojis/íconos"). */
@@ -135,16 +148,16 @@
   .section{margin-top:26px;}
   .section-title{
     font-family:'Oswald', sans-serif; text-transform:uppercase;
-    font-size:14px; letter-spacing:.14em; color:var(--celeste-deep);
+    font-size:14px; letter-spacing:.1em; color:var(--primary-deep);
     display:flex; align-items:center; gap:10px; margin-bottom:12px;
   }
   .section-title .count{
-    background:var(--celeste); color:#fff; font-family:'JetBrains Mono',monospace;
+    background:var(--primary); color:#fff; font-family:'JetBrains Mono',monospace;
     font-weight:700; font-size:12px; padding:2px 8px; border-radius:999px;
   }
   .section-title::after{content:""; flex:1; height:1px; background:var(--card-border);}
 
-  .hint{font-size:12px; color:var(--muted); margin:8px 2px 0;}
+  .hint{font-size:var(--fs-help); color:var(--muted); margin:8px 2px 0;}
 
   .jersey-input{
     width:28px; text-align:center; border:1px solid var(--card-border); border-radius:6px;
@@ -258,10 +271,10 @@
     padding:16px; text-align:center;
   }
   .finalize-btn{
-    background:#315F78; color:#fff; border:none; border-radius:10px;
-    padding:12px 20px; font-weight:700; font-size:14px; cursor:pointer; font-family:'Inter',sans-serif;
+    background:var(--primary-deep); color:#fff; border:none; border-radius:var(--radius-control);
+    min-height:var(--tap); padding:12px 20px; font-weight:700; font-size:14px; cursor:pointer; font-family:'Inter',sans-serif;
   }
-  .finalize-hint{font-size:12px; color:var(--muted); margin-top:8px;}
+  .finalize-hint{font-size:var(--fs-help); color:var(--muted); margin-top:8px;}
 
   .history-item{
     background:var(--white); border:1px solid var(--card-border); border-radius:10px;
@@ -340,15 +353,15 @@
   .btn-cancel{background:transparent; border:1px solid var(--card-border) !important; color:var(--navy);}
   .btn-save{background:var(--celeste-deep); color:#fff;}
   .btn-confirm-danger{background:var(--danger); color:#fff;}
-  .link-btn{background:none; border:none; color:var(--celeste-deep); font-size:12px; font-weight:700; cursor:pointer; text-decoration:underline; padding:0; font-family:'Inter',sans-serif;}
+  .link-btn{background:none; border:none; color:var(--primary-deep); font-size:var(--fs-help); font-weight:700; cursor:pointer; text-decoration:underline; padding:6px 0; font-family:'Inter',sans-serif;}
 
-  .footer-note{text-align:center; color:var(--muted); font-size:11.5px; margin-top:34px; line-height:1.6;}
+  .footer-note{text-align:center; color:var(--muted); font-size:var(--fs-help); margin-top:34px; line-height:1.6;}
 
   .toast{
     position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
-    background:var(--navy); color:#fff; padding:10px 18px; border-radius:999px;
+    background:var(--text); color:var(--surface); padding:12px 18px; border-radius:999px;
     font-size:13px; font-weight:600; opacity:0; pointer-events:none; z-index:60;
-    transition:opacity 0.25s ease, transform 0.25s ease; box-shadow:0 10px 30px -10px rgba(0,0,0,0.4);
+    transition:opacity 0.25s ease, transform 0.25s ease; box-shadow:0 12px 30px -12px rgba(28,45,32,.4);
     max-width:88vw; text-align:center;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
@@ -365,49 +378,46 @@
     .countdown-badge{font-size:9px; padding:2px 5px; margin-left:2px;}
     .ticket-type-badge{padding:3px 6px;}
     .money-summary{gap:5px;padding:12px 0 0;}
-    .money-summary .edit-btn{padding:8px 10px; min-height:40px;}
+    .money-summary .edit-btn{padding:8px 10px; min-height:var(--tap);}
     .money-summary .edit-label-full{display:none;}
     .money-summary .edit-label-short{display:inline;}
   }
   .alias-row, .loc-row{display:flex; align-items:center; justify-content:center; gap:6px;}
   .copy-alias-btn{
-    background:transparent; border:1px solid var(--card-border); color:var(--celeste-deep);
-    border-radius:6px; width:24px; height:24px; font-size:12px; cursor:pointer; flex-shrink:0;
+    background:transparent; border:1px solid var(--card-border); color:var(--primary-deep);
+    border-radius:var(--radius-control); width:26px; height:26px; font-size:13px; cursor:pointer; flex-shrink:0;
     display:flex; align-items:center; justify-content:center; position:relative;
   }
-  /* Amplía el área tocable a ~42px sin agrandar el botón ni mover el diseño. */
+  /* Amplía el área tocable a 44px sin agrandar el botón ni mover el diseño. */
   .copy-alias-btn::after{content:''; position:absolute; inset:-9px;}
   .faltan-pagar{
-    font:600 11.5px/1.45 'Inter',sans-serif;color:#B85B4D;margin:10px 0 0;padding:7px 9px;
-    background:rgba(42,23,24,.72);border:0;border-radius:6px;
+    font:600 var(--fs-help)/1.45 'Inter',sans-serif;color:var(--danger);margin:10px 0 0;padding:9px 11px;
+    background:#F6E4E0;border:1px solid #E7C7C0;border-radius:var(--radius-control);
   }
   .faltan-pagar:empty{display:none;}
-  .faltan-pagar b{color:#C76C5E;font-weight:700;}
-  .faltan-pagar.all-paid{color:#76B99A;background:rgba(63,174,122,.06);border-color:rgba(63,174,122,.18);}
+  .faltan-pagar b{color:var(--danger);font-weight:700;}
+  .faltan-pagar.all-paid{color:var(--ok);background:var(--active-soft);border-color:var(--primary);}
   .undo-btn{
     margin-top:8px; background:transparent; border:1px solid var(--card-border);
-    color:var(--celeste-deep); font-size:12px; font-weight:700; padding:6px 10px;
-    border-radius:7px; cursor:pointer; font-family:'Inter',sans-serif;
+    color:var(--primary-deep); font-size:var(--fs-help); font-weight:700; padding:8px 12px;
+    border-radius:var(--radius-control); cursor:pointer; font-family:'Inter',sans-serif; min-height:var(--tap);
   }
   .new-loc-field{margin-top:8px;}
 
-  /* PRÓXIMO PARTIDO / quick glance — arriba de "Mi estado". Scrim oscuro sutil
-     (rgba(8,20,32,.6)): el bloque no tiene fondo propio y su texto muted caía
-     sobre el glow blanco superior-izq del body -> se lavaba (contraste ~2.5:1).
-     El scrim devuelve el fondo hacia navy (contraste ~5:1) sin volverlo card
-     (sin box-shadow, sin borde grueso). No compite con el ticket. */
+  /* PRÓXIMO PARTIDO / quick glance — arriba de "Mi estado".
+     PR 1a: sólo se lo lleva a la paleta clara (fondo). PR 1b reemplaza este bloque +
+     el ticket por un encabezado único, así que acá el cambio es mínimo. */
   .proximo-partido{
     margin:0 2px 16px; padding:10px 12px; border-radius:12px;
-    background:rgba(8,20,32,.6);
+    background:var(--surface-2);
   }
   .proximo-partido-eyebrow{
     display:flex; align-items:center; gap:7px; margin:0 0 3px;
-    font:700 11px 'Oswald',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+    font:700 12px 'Oswald',sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
   }
   .proximo-partido-eyebrow:empty{display:none;}
   .proximo-partido-eyebrow::before{
-    content:""; flex:none; width:7px; height:7px; border-radius:50%; background:var(--celeste);
-    box-shadow:0 0 0 3px rgba(79,166,222,.14);
+    content:""; flex:none; width:7px; height:7px; border-radius:50%; background:var(--primary);
   }
   .proximo-partido-main{
     margin:0; font:700 clamp(15px,4.4vw,19px) 'Oswald',sans-serif;
@@ -441,20 +451,20 @@
   .proximo-partido-horarios{margin:6px 0 0; padding-top:6px; border-top:1px solid var(--card-border);}
   .proximo-partido-horarios:empty{display:none;}
   .proximo-partido-horarios-eyebrow{
-    margin:0 0 2px; font:700 10px 'Oswald',sans-serif;
-    letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+    margin:0 0 2px; font:700 12px 'Oswald',sans-serif;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
   }
   .proximo-partido-horarios-row{margin:0; font-size:12px; line-height:1.4; color:var(--muted); font-variant-numeric:tabular-nums;}
 
   /* MI ESTADO (maqueta local, sin persistencia) */
   .my-status-card{
-    background:var(--white); border:1px solid var(--card-border); border-radius:16px;
-    padding:14px; margin-bottom:16px; box-shadow:0 14px 30px -24px rgba(14,42,61,0.45);
+    background:var(--surface); border:1px solid var(--card-border); border-radius:var(--radius);
+    padding:16px; margin-bottom:16px; box-shadow:var(--shadow-card);
   }
   .my-status-heading{
     display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin:0 0 4px;
-    font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:.12em;
-    text-transform:uppercase; color:var(--muted);
+    font-family:'Oswald',sans-serif; font-size:var(--fs-label); letter-spacing:.01em;
+    text-transform:none; color:var(--muted);
   }
   .my-status-heading::before{
     content:""; flex:none; width:7px; height:7px; border-radius:50%; background:var(--celeste);
@@ -470,16 +480,16 @@
   }
   .my-status-field{margin-bottom:4px;}
   .my-status-field label, .my-status-label{
-    display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.1em;
-    color:var(--muted); margin:11px 0 5px; font-weight:700;
+    display:block; font-size:var(--fs-label); text-transform:none; letter-spacing:.01em;
+    color:var(--muted); margin:12px 0 6px; font-weight:600;
   }
   .my-status-field label{margin-top:0;}
   .my-status-field select, .my-status-field input{
-    width:100%; background:var(--bg-bottom); border:1px solid var(--card-border);
-    color:var(--navy); border-radius:9px; padding:10px 12px; font:14px 'Inter',sans-serif;
+    width:100%; background:var(--surface-2); border:1px solid var(--card-border);
+    color:var(--text); border-radius:var(--radius-control); padding:11px 12px; font:var(--fs-body) 'Inter',sans-serif;
   }
   .recurrent-player-field{position:relative;}
-  .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
+  .player-picker-help{margin:6px 2px 0;color:var(--muted);font-size:var(--fs-help);line-height:1.45;}
   .player-picker-help[hidden]{display:none;}
   /* Casaca + N° = una unidad de presentación del jugador. Fila responsive: la casaca
      crece, el número queda compacto. Con el campo de N° hidden (Registro / "Cambiar
@@ -492,39 +502,39 @@
   .my-status-number-field input{width:100%; -moz-appearance:textfield;}
   .my-status-number-field input::-webkit-outer-spin-button,
   .my-status-number-field input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
-  .my-status-number-help{margin:6px 2px 0;color:var(--muted);font-size:10.5px;line-height:1.4;}
+  .my-status-number-help{margin:6px 2px 0;color:var(--muted);font-size:var(--fs-help);line-height:1.45;}
   /* Preview vivo de "Nombre en la casaca": refleja lo que hay en el input (aún sin
      guardar), para que se note que ese campo cambia cómo te ve el grupo. */
-  .casaca-preview{margin:7px 2px 0;font-size:11.5px;line-height:1.4;color:var(--navy);}
+  .casaca-preview{margin:7px 2px 0;font-size:var(--fs-help);line-height:1.45;color:var(--text);}
   .casaca-preview[hidden]{display:none;}
   .casaca-preview b{color:var(--celeste-deep);font-weight:700;}
-  .player-name-feedback{margin:9px 0 0;padding:10px 11px;border-radius:9px;font-size:11.5px;line-height:1.45;}
+  .player-name-feedback{margin:9px 0 0;padding:10px 11px;border-radius:var(--radius-control);font-size:var(--fs-help);line-height:1.45;}
   .player-name-feedback[hidden]{display:none;}
-  .player-name-feedback.info{background:rgba(25,126,168,.09);border:1px solid rgba(25,126,168,.25);color:var(--navy);}
-  .player-name-feedback.error{background:rgba(193,67,42,.08);border:1px solid rgba(193,67,42,.3);color:#8f2f20;}
+  .player-name-feedback.info{background:var(--active-soft);border:1px solid var(--primary);color:var(--primary-deep);}
+  .player-name-feedback.error{background:#F6E4E0;border:1px solid var(--danger);color:#8A2A1D;}
   .player-name-feedback strong{display:block;margin-bottom:2px;}
-  .change-player-btn{flex:none;display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:1px solid var(--card-border);border-radius:9px;background:var(--bg-bottom);color:var(--celeste-deep);font:700 11px 'Inter',sans-serif;line-height:1;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
-  .change-player-btn:hover{background:var(--white);border-color:var(--celeste-deep);}
+  .change-player-btn{flex:none;display:inline-flex;align-items:center;min-height:var(--tap);padding:0 14px;border:1px solid var(--card-border);border-radius:var(--radius-control);background:var(--surface-2);color:var(--primary-deep);font:700 var(--fs-help) 'Inter',sans-serif;line-height:1;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+  .change-player-btn:hover{background:var(--surface);border-color:var(--primary);}
   .change-player-btn[hidden]{display:none;}
-  .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:300px;overflow-y:auto;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:10px;box-shadow:0 16px 34px -18px rgba(0,0,0,.8);}
+  .recurrent-player-menu{position:absolute;z-index:35;left:0;right:0;top:68px;max-height:300px;overflow-y:auto;padding:5px;background:var(--surface);border:1px solid var(--card-border);border-radius:var(--radius-control);box-shadow:0 16px 34px -18px rgba(28,45,32,.35);}
   .recurrent-player-menu[hidden]{display:none;}
-  .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;padding:4px;border-radius:8px;}
-  .recurrent-player-option:hover{background:var(--bg-bottom);}
-  .recurrent-player-select{min-width:0;border:0;background:transparent;color:var(--navy);padding:7px 8px;text-align:left;font:600 12px 'Inter',sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .recurrent-player-empty{margin:0;padding:9px;color:var(--muted);font-size:11px;text-align:center;}
+  .recurrent-player-option{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;padding:2px;border-radius:8px;}
+  .recurrent-player-option:hover{background:var(--surface-2);}
+  .recurrent-player-select{min-width:0;border:0;background:transparent;color:var(--text);padding:11px 10px;text-align:left;font:600 var(--fs-body) 'Inter',sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .recurrent-player-empty{margin:0;padding:11px;color:var(--muted);font-size:var(--fs-help);text-align:center;}
   .my-status-choice{display:flex; gap:7px;}
   .my-status-choice button{
-    flex:1; border:1px solid var(--card-border); border-radius:9px; background:transparent;
-    color:var(--muted); padding:9px 6px; font:700 12.5px 'Inter',sans-serif; cursor:pointer;
-    min-height:40px; transition:background .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
+    flex:1; border:1px solid var(--card-border); border-radius:var(--radius-control); background:transparent;
+    color:var(--muted); padding:11px 6px; font:700 var(--fs-body) 'Inter',sans-serif; cursor:pointer;
+    min-height:var(--tap); transition:background .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
   }
   /* Activo (PR #39): color por estado + "✓" decorativo + halo. La 2ª señal evita depender
      sólo del hue —sol en mobile, daltonismo entre "Estoy" verde y "Soy baja" rojo—; los
      inactivos quedan como chips outline livianos para que el elegido domine. */
-  .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff; box-shadow:0 0 0 2px rgba(63,174,122,.22), 0 2px 9px -4px rgba(0,0,0,.4);}
+  .my-status-choice button.active{background:var(--ok); border-color:var(--ok); color:#fff; box-shadow:0 0 0 2px rgba(31,122,76,.22), var(--shadow-card);}
   .my-status-choice button.active::before{content:'✓ ';}
-  .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#2C1B02; box-shadow:0 0 0 2px rgba(224,163,62,.24), 0 2px 9px -4px rgba(0,0,0,.4);}
-  .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger); color:#fff; box-shadow:0 0 0 2px rgba(228,99,75,.24), 0 2px 9px -4px rgba(0,0,0,.4);}
+  .my-status-choice button[data-value="duda"].active{background:var(--duda); border-color:var(--duda); color:#fff; box-shadow:0 0 0 2px rgba(140,98,18,.22), var(--shadow-card);}
+  .my-status-choice button[data-value="out"].active{background:var(--danger); border-color:var(--danger); color:#fff; box-shadow:0 0 0 2px rgba(178,59,43,.22), var(--shadow-card);}
   .my-status-availability[hidden]{display:none;}
   .my-status-times{display:flex; flex-wrap:wrap; align-items:center; gap:7px 8px; margin-top:0;}
   .my-status-time-pair{display:flex; align-items:center; min-width:0;}
@@ -533,28 +543,31 @@
     clip:rect(0,0,0,0); white-space:nowrap; border:0;
   }
   .my-status-time-pair select{
-    min-width:0; background:var(--bg-bottom); border:1px solid var(--card-border);
-    color:var(--navy); border-radius:9px; padding:9px 10px; font:14px 'Inter',sans-serif; min-height:40px;
+    min-width:0; background:var(--surface-2); border:1px solid var(--card-border);
+    color:var(--text); border-radius:var(--radius-control); padding:11px 10px; font:var(--fs-body) 'Inter',sans-serif; min-height:var(--tap);
   }
   .my-status-time-pair select:disabled{cursor:not-allowed;}
   /* El chip fluye a la izquierda, pegado a los selects (o en su propia fila si no
      entra). Sin margin-left:auto: con el copy largo dejaba una banda vacía al envolver. */
   .my-status-fullday{
-    display:inline-flex; align-items:center; gap:7px; min-height:40px;
-    padding:6px 12px; border:1px solid var(--celeste-deep); border-radius:999px;
-    background:rgba(25,126,168,.08); color:var(--celeste-deep);
-    font:700 12px 'Inter',sans-serif; cursor:pointer; white-space:nowrap; user-select:none;
+    display:inline-flex; align-items:center; gap:7px; min-height:var(--tap);
+    padding:6px 14px; border:1px solid var(--primary); border-radius:999px;
+    background:var(--active-soft); color:var(--primary-deep);
+    font:700 var(--fs-help) 'Inter',sans-serif; cursor:pointer; white-space:nowrap; user-select:none;
   }
-  .my-status-fullday input{width:16px; height:16px; margin:0; accent-color:var(--celeste-deep); cursor:pointer;}
-  .my-status-times.is-full-day .my-status-fullday{background:var(--celeste-deep); color:#fff;}
+  .my-status-fullday input{width:16px; height:16px; margin:0; accent-color:var(--primary); cursor:pointer;}
+  .my-status-times.is-full-day .my-status-fullday{background:var(--primary); color:#fff;}
+  .my-status-times.is-full-day .my-status-fullday input{accent-color:#fff;}
   /* Con el chip activo los selects no aportan nada (from/to quedan 09:00–22:00): se
      ocultan y queda sólo el chip. Los nodos siguen en el DOM. */
   .my-status-times.is-full-day .my-status-time-pair{display:none;}
   .my-status-confirm{
-    width:100%; border:0; border-radius:9px; padding:12px; margin-top:13px;
-    background:var(--celeste-deep); color:#fff; font:700 14px 'Inter',sans-serif; cursor:pointer;
+    width:100%; border:0; border-radius:var(--radius-control); padding:14px; margin-top:14px;
+    background:var(--primary); color:#fff; font:700 var(--fs-body) 'Inter',sans-serif; cursor:pointer;
+    min-height:var(--tap);
   }
-  .my-status-save-feedback{margin:9px 2px 0; font:700 12px 'Inter',sans-serif; line-height:1.4;}
+  .my-status-confirm:hover{background:var(--primary-deep);}
+  .my-status-save-feedback{margin:9px 2px 0; font:700 var(--fs-help) 'Inter',sans-serif; line-height:1.4;}
   .my-status-save-feedback[hidden]{display:none;}
   .my-status-save-feedback.ok{color:var(--ok);}
   .my-status-save-feedback.error{color:var(--danger);}
@@ -564,14 +577,14 @@
   .my-status-payment .my-status-label{display:block;margin-bottom:6px;}
   /* Pago = un tick opcional (PR #38): sin marcar = pendiente por defecto. "Debo" ya
      vive en Lista de morosos / "Faltan pagar", no hace falta como botón acá. */
-  .my-status-paid-check{display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:6px 12px; border:1px solid var(--card-border); border-radius:999px; background:var(--bg-bottom); color:var(--navy); font:700 12px 'Inter',sans-serif; cursor:pointer; user-select:none;}
+  .my-status-paid-check{display:inline-flex; align-items:center; gap:8px; min-height:var(--tap); padding:6px 14px; border:1px solid var(--card-border); border-radius:999px; background:var(--surface-2); color:var(--text); font:700 var(--fs-help) 'Inter',sans-serif; cursor:pointer; user-select:none;}
   .my-status-paid-check input{width:16px; height:16px; margin:0; accent-color:var(--ok); cursor:pointer;}
   .my-status-paid-check input:checked ~ span{color:var(--ok);}
-  .my-status-paid-help{margin:6px 2px 0; font-size:11px; line-height:1.4; color:var(--muted);}
+  .my-status-paid-help{margin:6px 2px 0; font-size:var(--fs-help); line-height:1.45; color:var(--muted);}
   .guest-manager-bar{display:block;margin-top:13px;padding-top:12px;border-top:1px dashed var(--card-border);}
   .guest-manager-bar[hidden]{display:none;}
   .guest-manager-bar .my-status-label{margin-top:0;}
-  .guest-manager-toggle{width:100%;border:1px solid var(--card-border);border-radius:9px;background:var(--bg-bottom);color:var(--celeste-deep);padding:10px 12px;font:700 12px 'Inter',sans-serif;cursor:pointer;text-align:left;}
+  .guest-manager-toggle{width:100%;min-height:var(--tap);border:1px solid var(--card-border);border-radius:var(--radius-control);background:var(--surface-2);color:var(--primary-deep);padding:11px 12px;font:700 var(--fs-help) 'Inter',sans-serif;cursor:pointer;text-align:left;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
   .guest-manager{margin-top:10px;}
   .guest-manager[hidden]{display:none;}
@@ -581,83 +594,86 @@
   .guest-add-row input{min-width:0;background:var(--bg-bottom);border:1px solid var(--card-border);color:var(--navy);border-radius:9px;padding:10px 11px;font:13px 'Inter',sans-serif;}
   .guest-add-row button{border:0;border-radius:9px;padding:9px 12px;background:var(--celeste-deep);color:#fff;font:700 12px 'Inter',sans-serif;cursor:pointer;}
   .guest-list{display:grid;gap:7px;}
-  .guest-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;border:1px solid var(--card-border);border-radius:10px;background:var(--bg-bottom);padding:9px 10px;}
-  .guest-name{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .guest-paid-check{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--card-border);border-radius:8px;background:var(--white);color:var(--muted);padding:7px 8px;font:700 10px 'Inter',sans-serif;cursor:pointer;white-space:nowrap;}
+  .guest-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;border:1px solid var(--card-border);border-radius:var(--radius-control);background:var(--surface-2);padding:9px 10px;}
+  .guest-name{font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .guest-paid-check{display:inline-flex;align-items:center;gap:6px;min-height:var(--tap);border:1px solid var(--card-border);border-radius:var(--radius-control);background:var(--surface);color:var(--muted);padding:8px 10px;font:700 var(--fs-help) 'Inter',sans-serif;cursor:pointer;white-space:nowrap;}
   .guest-paid-check::before{content:'✓';display:grid;place-items:center;width:16px;height:16px;border-radius:5px;border:1px solid var(--card-border);color:transparent;}
-  .guest-paid-check.active{border-color:var(--ok);color:var(--ok);background:rgba(31,143,78,.08);}
+  .guest-paid-check.active{border-color:var(--ok);color:var(--ok);background:var(--active-soft);}
   .guest-paid-check.active::before{border-color:var(--ok);background:var(--ok);color:#fff;}
-  .guest-remove{border:0;background:transparent;color:var(--danger);font:700 18px 'Inter',sans-serif;cursor:pointer;padding:4px 6px;line-height:1;}
-  .guest-empty{margin:4px 0 0;color:var(--muted);font-size:11px;text-align:center;}
-  .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:9px;white-space:nowrap;}
+  .guest-remove{border:0;background:transparent;color:var(--danger);font:700 18px 'Inter',sans-serif;cursor:pointer;min-width:var(--tap);min-height:var(--tap);line-height:1;}
+  .guest-empty{margin:4px 0 0;color:var(--muted);font-size:var(--fs-help);text-align:center;}
+  /* Texto de apoyo: piso de 12px como el resto. Sin nowrap — en la columna angosta
+     de nombre a 320px "Invitado de <anfitrión>" tiene que poder envolver en vez de
+     recortarse; word-break de la celda parte palabras largas si hiciera falta. */
+  .organizer-guest-note{display:block;margin-top:3px;color:var(--muted);font-size:var(--fs-help);line-height:1.3;}
 
   /* FALTA CONFIRMAR — quiénes del grupo habitual todavía no respondieron */
   .falta-confirmar{
-    display:grid; gap:8px; margin:0 0 16px; padding:12px 14px;
-    background:rgba(79,166,222,.06); border:1px solid var(--card-border); border-radius:12px;
+    display:grid; gap:8px; margin:0 0 16px; padding:14px;
+    background:var(--surface); border:1px solid var(--card-border); border-radius:var(--radius);
   }
   .falta-confirmar[hidden]{display:none;}
   .falta-confirmar-head{display:grid; gap:2px;}
   .falta-confirmar-title-row{display:flex; align-items:center; gap:8px;}
-  .falta-confirmar-title{margin:0; font:700 12px 'Oswald',sans-serif; letter-spacing:.07em; text-transform:uppercase; color:var(--navy);}
-  .falta-confirmar-count{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:20px; padding:0 7px; border-radius:999px; background:var(--bg-bottom); color:var(--celeste-deep); font:700 11px 'JetBrains Mono',monospace;}
+  .falta-confirmar-title{margin:0; font:700 13px 'Oswald',sans-serif; letter-spacing:.06em; text-transform:uppercase; color:var(--text);}
+  .falta-confirmar-count{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:20px; padding:0 7px; border-radius:999px; background:var(--surface-2); color:var(--primary-deep); font:700 12px 'JetBrains Mono',monospace;}
   .falta-confirmar-count[hidden]{display:none;}
-  .falta-confirmar-sub{margin:0; font-size:11px; line-height:1.4; color:var(--muted);}
+  .falta-confirmar-sub{margin:0; font-size:var(--fs-help); line-height:1.45; color:var(--muted);}
   .falta-confirmar--ok .falta-confirmar-sub{color:var(--ok);}
-  .falta-confirmar-names{margin:0; font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);}
+  .falta-confirmar-names{margin:0; font:600 var(--fs-body) 'Inter',sans-serif; line-height:1.5; color:var(--text);}
   .falta-confirmar-names[hidden]{display:none;}
-  .falta-confirmar-copy{justify-self:start; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-bottom); color:var(--celeste-deep); padding:8px 12px; font:700 11px 'Inter',sans-serif; cursor:pointer;}
+  .falta-confirmar-copy{justify-self:start; min-height:var(--tap); border:1px solid var(--card-border); border-radius:var(--radius-control); background:var(--surface-2); color:var(--primary-deep); padding:10px 14px; font:700 var(--fs-help) 'Inter',sans-serif; cursor:pointer;}
   .falta-confirmar-copy[hidden]{display:none;}
 
   /* LISTA DE MOROSOS — estado de tarjetas/birras del grupo (PR #18). Se muestra siempre;
      las reglas quedan visibles haya o no sanciones. La lista es read-only salvo el botón
      "Saldar birra" (PR #19), única acción manual: baja en 1 las birras pendientes. */
   .lista-morosos{
-    display:grid; gap:8px; margin:0 0 16px; padding:12px 14px;
-    background:rgba(228,99,75,.06); border:1px solid var(--card-border); border-radius:12px;
+    display:grid; gap:8px; margin:0 0 16px; padding:14px;
+    background:var(--surface); border:1px solid var(--card-border); border-radius:var(--radius);
   }
-  .lista-morosos-title{margin:0; font:700 12px 'Oswald',sans-serif; letter-spacing:.07em; text-transform:uppercase; color:var(--navy);}
-  .lista-morosos-empty{margin:0; font-size:12px; line-height:1.4; color:var(--ok);}
+  .lista-morosos-title{margin:0; font:700 13px 'Oswald',sans-serif; letter-spacing:.06em; text-transform:uppercase; color:var(--text);}
+  .lista-morosos-empty{margin:0; font-size:var(--fs-help); line-height:1.45; color:var(--ok);}
   .lista-morosos-empty[hidden]{display:none;}
   .lista-morosos-list{list-style:none; margin:0; padding:0; display:grid; gap:4px;}
   .lista-morosos-list[hidden]{display:none;}
   .lista-morosos-item{
     display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px;
-    font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);
+    font:600 var(--fs-body) 'Inter',sans-serif; line-height:1.5; color:var(--text);
   }
   .lista-morosos-item .lm-name{flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
   .lista-morosos-item .lm-marks{flex:0 0 auto; white-space:nowrap; color:var(--muted); font-weight:700;}
   .lista-morosos-item .lm-saldar{
-    flex:0 0 auto; margin-left:auto; cursor:pointer; white-space:nowrap;
-    border:1px solid var(--card-border); border-radius:8px; background:var(--white);
-    color:var(--navy); padding:6px 10px; font:700 10px 'Inter',sans-serif;
-    letter-spacing:.03em; text-transform:uppercase;
+    flex:0 0 auto; margin-left:auto; cursor:pointer; white-space:nowrap; min-height:var(--tap);
+    border:1px solid var(--card-border); border-radius:var(--radius-control); background:var(--surface-2);
+    color:var(--primary-deep); padding:8px 12px; font:700 var(--fs-help) 'Inter',sans-serif;
+    letter-spacing:normal; text-transform:none;
   }
   .lista-morosos-item .lm-saldar:disabled{opacity:.5; cursor:progress;}
-  .lista-morosos-rules{margin:0; font-size:11px; line-height:1.5; color:var(--muted);}
+  .lista-morosos-rules{margin:0; font-size:var(--fs-help); line-height:1.5; color:var(--muted);}
   .lista-morosos-edit-row{margin:0;}
   .lista-morosos-edit-row button[hidden]{display:none;}
   /* Filas del modal "Editar lista de morosos": mismo lenguaje que .lista-morosos-item, con
      el botón de corrección al estilo de .lm-saldar. */
   .morosos-manage-row{
     display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px;
-    background:var(--bg-bottom); border:1px solid var(--card-border); border-radius:8px;
-    padding:9px 10px; font:600 12.5px 'Inter',sans-serif; line-height:1.5; color:var(--navy);
+    background:var(--surface-2); border:1px solid var(--card-border); border-radius:var(--radius-control);
+    padding:10px; font:600 var(--fs-body) 'Inter',sans-serif; line-height:1.5; color:var(--text);
   }
   .morosos-manage-row .mm-name{flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
   .morosos-manage-row .mm-marks{flex:0 0 auto; white-space:nowrap; color:var(--muted); font-weight:700;}
   .morosos-manage-row .mm-sacar{
-    flex:0 0 auto; margin-left:auto; cursor:pointer; white-space:nowrap;
-    border:1px solid var(--card-border); border-radius:8px; background:var(--white);
-    color:var(--navy); padding:6px 10px; font:700 10px 'Inter',sans-serif;
-    letter-spacing:.03em; text-transform:uppercase;
+    flex:0 0 auto; margin-left:auto; cursor:pointer; white-space:nowrap; min-height:var(--tap);
+    border:1px solid var(--card-border); border-radius:var(--radius-control); background:var(--surface);
+    color:var(--primary-deep); padding:8px 12px; font:700 var(--fs-help) 'Inter',sans-serif;
+    letter-spacing:normal; text-transform:none;
   }
   .morosos-manage-row .mm-sacar:disabled{opacity:.5; cursor:progress;}
 
   /* VISTAS PRINCIPALES */
-  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--white);border:1px solid var(--card-border);border-radius:13px;}
-  .main-view-btn{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
-  .main-view-btn.active{background:var(--celeste-deep);color:#fff;box-shadow:0 6px 16px -10px rgba(14,42,61,.65);}
+  .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--surface);border:1px solid var(--card-border);border-radius:var(--radius);}
+  .main-view-btn{border:0;border-radius:var(--radius-control);min-height:var(--tap);padding:11px 12px;background:transparent;color:var(--muted);font:700 14px 'Oswald',sans-serif;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;}
+  .main-view-btn.active{background:var(--primary);color:#fff;box-shadow:var(--shadow-card);}
   .organizer-view{display:none;}
   .organizer-header{margin:4px 0 18px;text-align:center;}
   .organizer-header h1{margin:0 0 5px;font:700 clamp(25px,6vw,34px) 'Oswald',sans-serif;text-transform:uppercase;color:var(--navy);}
@@ -728,7 +744,8 @@
   .organizer-player-static{display:block;font-weight:600;text-align:center;word-break:normal;overflow-wrap:break-word;hyphens:auto;}
   .team-choice-group{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;width:100%;}
   .team-choice{
-    flex:1;border-radius:8px;padding:7px 8px;font:700 10px 'Inter',sans-serif;cursor:pointer;
+    flex:1;border-radius:8px;padding:7px 8px;font:700 12px 'Inter',sans-serif;cursor:pointer;
+    min-height:var(--tap);display:flex;align-items:center;justify-content:center;text-align:center;
     opacity:.48;transition:opacity .15s ease,transform .15s ease,box-shadow .15s ease;
   }
   .team-choice.negro{background:#050506;border:1px solid #34343A;color:#fff;}
@@ -752,8 +769,11 @@
        justo a 8.5px (margen ~1-3px) sin necesitar ningún corte forzado. El
        hyphens/overflow-wrap de .organizer-player-static queda de red para el resto. */
     .organizer-player-static{font-size:8.5px;}
-    .team-choice-group{flex-direction:column;gap:3px;}
-    .team-choice{width:100%;padding:5px 2px;font-size:8px;}
+    .team-choice-group{flex-direction:column;gap:4px;}
+    /* A 320px la columna de equipo (28%, ~66px) no da para los dos botones en fila:
+       quedan apilados. Piso de 12px y min-height:var(--tap) heredados de la regla
+       base — "Negro"/"Blanco" a 12px entran en ~66px sin corte. */
+    .team-choice{width:100%;padding:6px 4px;font-size:12px;}
     .status-pill{padding:3px 4px;font-size:9px;}
   }
 
@@ -777,8 +797,8 @@
   <div id="main-view-user">
 
   <div class="tabs">
-    <button class="tab-btn active" id="tab-btn-partido">⚽ Partido</button>
-    <button class="tab-btn" id="tab-btn-historial">🕘 Historial</button>
+    <button class="tab-btn active" id="tab-btn-partido">Partido</button>
+    <button class="tab-btn" id="tab-btn-historial">Historial</button>
   </div>
 
   <div id="tab-partido">

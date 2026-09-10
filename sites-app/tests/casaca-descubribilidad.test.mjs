@@ -218,7 +218,7 @@ test("18. el preview dice exactamente 'En la lista te ven como {nombre}', sin '(
 
 test("19. CSS .casaca-preview: compacto, con :empty implícito por [hidden], número resaltado", () => {
   const css = demo.slice(demo.indexOf(".casaca-preview{"), demo.indexOf(".player-name-feedback{"));
-  assert.match(css, /\.casaca-preview\{[^}]*font-size:11\.5px/);
+  assert.match(css, /\.casaca-preview\{[^}]*font-size:var\(--fs-help\)/);
   assert.match(css, /\.casaca-preview\[hidden\]\{display:none;\}/);
   assert.match(css, /\.casaca-preview b\{color:var\(--celeste-deep\)/);
   assert.doesNotMatch(css, /\.casaca-preview\{[^}]*(background|border:)/);

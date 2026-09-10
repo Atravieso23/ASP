@@ -28,10 +28,10 @@ test("1a. el botón activo tiene un ::before con '✓'", () => {
 
 test("1b. el activo suma un refuerzo visual además del color (box-shadow / halo)", () => {
   const base = cssRule(".my-status-choice button.active");
-  assert.match(base, /box-shadow:[^;]*rgba\(63,174,122/, "halo verde para 'Estoy'");
+  assert.match(base, /box-shadow:0 0 0 2px rgba\([^)]+\)/, "halo para 'Estoy'");
   // y también en las variantes por estado
-  assert.match(cssRule('.my-status-choice button[data-value="duda"].active'), /box-shadow:[^;]*rgba\(224,163,62/);
-  assert.match(cssRule('.my-status-choice button[data-value="out"].active'), /box-shadow:[^;]*rgba\(228,99,75/);
+  assert.match(cssRule('.my-status-choice button[data-value="duda"].active'), /box-shadow:0 0 0 2px rgba\(/);
+  assert.match(cssRule('.my-status-choice button[data-value="out"].active'), /box-shadow:0 0 0 2px rgba\(/);
 });
 
 test("1c. los tres estados activos siguen diferenciados por color", () => {
@@ -47,8 +47,8 @@ test("1d. los inactivos son más livianos (outline sobre la card), no rellenos",
   assert.doesNotMatch(btn, /background:var\(--bg-bottom\)/);
 });
 
-test("1e. área táctil: min-height:40px se mantiene", () => {
-  assert.match(cssRule(".my-status-choice button"), /min-height:40px/);
+test("1e. área táctil: min-height del piso --tap (44px) se mantiene", () => {
+  assert.match(cssRule(".my-status-choice button"), /min-height:var\(--tap\)/);
 });
 
 /* ---------- 2. markup / a11y intactos ---------- */

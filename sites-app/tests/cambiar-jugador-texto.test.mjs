@@ -115,9 +115,9 @@ test("6+7+8+9. no cambia disponibilidad / chip full-day / pagos / invitados / mo
 test("10+11. CSS: botón de texto compacto, nowrap, sin forzar ancho; la fila no fuerza scroll", () => {
   const rule = sliceBetween(demo, ".change-player-btn{", "}", "la regla del botón");
   assert.match(rule, /flex:none/);
-  assert.match(rule, /min-height:40px/);
+  assert.match(rule, /min-height:var\(--tap\)/);
   assert.match(rule, /white-space:nowrap/);
-  assert.match(rule, /font:700 11px 'Inter'/);
+  assert.match(rule, /font:700 var\(--fs-help\) 'Inter'/);
   assert.doesNotMatch(rule, /width\s*:/); // sin width fijo
   // El hack ::after del ícono ya no existe.
   assert.doesNotMatch(demo, /\.change-player-btn::after/);
