@@ -102,7 +102,13 @@ test("segundo dispositivo: elegir la identidad del selector abre el claim aunque
 
   const overlayClasses = new Set();
   const claimText = { textContent: "" };
-  const menuEl = { hidden: true, innerHTML: "", _buttons: [], querySelectorAll: () => menuEl._buttons };
+  // querySelectorAll distingue el selector: renderRecurrentPlayerMenu también delega
+  // sobre '[data-join-request]' ("Pedir sumarme"), y un mock que devolviera el mismo
+  // botón para cualquier selector le pisaría el onclick de selección de identidad.
+  const menuEl = {
+    hidden: true, innerHTML: "", _buttons: [],
+    querySelectorAll: (sel) => (sel === "[data-recurrent-index]" ? menuEl._buttons : []),
+  };
   const input = { value: "", setAttribute() {} };
   const els = {
     "my-player-name": input,

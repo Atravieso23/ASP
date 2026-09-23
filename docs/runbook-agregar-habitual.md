@@ -1,13 +1,20 @@
 # Runbook — agregar (o sacar) un habitual del grupo
 
 Procedimiento para modificar la lista de jugadores habituales de ASP de forma
-segura. Hoy **no hay UI** para esto: es una operación controlada que corre una
-persona con acceso al repo. Este documento existe porque la app ya le dice al
-jugador *"pedí que te agreguen en el grupo"*, pero el "agregar" no estaba escrito
-en ningún lado.
+segura.
 
-> Alcance: sólo describe el procedimiento actual. No propone ni habilita una UI
-> nueva. Ver [Futuro posible](#futuro-posible) al final.
+**Desde `feat/solicitudes-alta-habitual` (septiembre 2026) el camino normal es
+la app**, no este script: quien no está en la lista pide "Pedir sumarme" desde
+Jugador, y cualquiera en Organizador aprueba o rechaza desde "Solicitudes
+pendientes" (ver [Alta vía la app](#alta-vía-la-app-camino-normal) más abajo).
+Este runbook describe ahora la **vía manual**: corrección directa sobre el blob
+para los casos que la app no cubre (sacar a alguien, corregir un nombre mal
+tipeado, un reseed completo) o cuando conviene evitar que pase por la cola de
+solicitudes. Sigue siendo una operación controlada que corre una persona con
+acceso al repo.
+
+> Alcance: describe el procedimiento manual (script). El alta normal vía
+> Organizador está descripta abajo pero implementada en `demo.html`, no acá.
 
 ---
 
@@ -21,12 +28,15 @@ en ningún lado.
   fecha de esta semana. Son cosas distintas.
 - La app arranca con `habitualPlayers: []` y adopta lo que venga del servidor. Un
   blob viejo sin la key se normaliza a `[]` sin romper nada.
-- **El cliente nunca escribe `habitualPlayers`.** Ni el registro, ni "Cambiar
-  jugador", ni finalizar la fecha, ni "Limpiar todo" la modifican: los writers de
-  la app la arrastran intacta desde la lectura fresca del servidor. Está blindado
-  por tests (`tests/habitual-players.test.mjs`,
-  `tests/registro-lista-cerrada.test.mjs`). La única vía de cambio es la de este
-  runbook.
+- **El cliente casi nunca escribe `habitualPlayers` — con una única excepción
+  explícita.** Ni el registro, ni "Cambiar jugador", ni finalizar la fecha, ni
+  "Limpiar todo" la modifican: esos writers la arrastran intacta desde la
+  lectura fresca del servidor. La única función del cliente que la modifica es
+  `aprobarSolicitudDeAlta()` (Organizador → "Solicitudes pendientes" →
+  Aprobar), y sólo hace `push` de un nombre ya revalidado contra el estado
+  fresco. Está blindado por tests (`tests/habitual-players.test.mjs`,
+  `tests/registro-lista-cerrada.test.mjs` test 8 — acota el guard a esa única
+  función). Fuera de esa vía, el único otro cambio es el de este runbook.
 
 ### Identidad estable vs. nombre visible
 
@@ -53,9 +63,51 @@ de cada uno NO va acá: vive en su `response.name`.
 
 ---
 
-## El script
+## Alta vía la app (camino normal)
+
+Implementado en `demo.html`, `feat/solicitudes-alta-habitual`. Nueva key
+`match_data.data.solicitudesAlta` (array; cada entrada `{id, nombre, estado,
+ownerId, createdAt, resolvedAt}`, `estado` en `pendiente | aprobada |
+rechazada`). Nunca se borra una entrada: reenviar tras un rechazo agrega una
+fila `pendiente` nueva, la rechazada queda como historial.
+
+1. **Jugador**, sin match en el selector cerrado: escribe su identidad base y
+   toca **"Pedir sumarme"**. Nace una solicitud `pendiente`. No crea response,
+   no confirma nada — el jugador sigue sin poder identificarse hasta que lo
+   aprueben.
+2. **Organizador → "Solicitudes pendientes"**: lista sólo las `pendiente`, con
+   botones **Aprobar** / **Rechazar** (confirmación antes de cada acción). No
+   hay roles reales: cualquiera que abra Organizador puede operar esta cola,
+   igual que el resto de las herramientas de esa vista.
+3. **Aprobar** agrega el nombre a `habitualPlayers` (única mutación de cliente
+   permitida — ver el bullet de arriba) y marca la solicitud `aprobada`. La
+   persona **no** queda "Estoy": recién aparece en el selector "¿Quién sos?" en
+   el próximo sondeo, y responde como cualquier habitual. Idempotente: una
+   segunda aprobación (doble click, dos organizadores) no duplica el nombre.
+4. **Rechazar** marca la solicitud `rechazada` y no toca `habitualPlayers`. La
+   persona ve *"No se aprobó tu solicitud. Corregí el nombre o hablá con el
+   grupo."* y puede tipear de nuevo y volver a pedir.
+
+Sin `resolvedBy` ni motivo de rechazo guardados — no hay auth real, así que
+"quién" y "por qué" no son datos confiables hoy. Dedupe: `pedirSumarme` rechaza
+un nombre ya en `habitualPlayers`, o un nombre con una solicitud `pendiente`
+existente (de cualquier dispositivo); no rechaza si la coincidencia es con una
+solicitud `rechazada` (eso es precisamente el reenvío).
+
+Este camino cubre **agregar**. Sacar a alguien, corregir una identidad mal
+tipeada, o un reseed completo siguen siendo la vía manual de abajo.
+
+---
+
+## El script — vía de corrección / emergencia
 
 `sites-app/scripts/seed-habitual-players.mjs`
+
+Antes del camino de la app de arriba, esta era la única forma de agregar un
+habitual. Ahora es la vía para lo que la app no resuelve: **sacar** a alguien
+(`--remove`, la app no tiene UI de baja), corregir directo sobre el blob sin
+pasar por la cola de solicitudes, o el reseed completo. `--add` sigue andando
+si alguna vez conviene evitar la cola (por ejemplo, un alta masiva).
 
 - **No corre solo.** No está en el build; los tests sólo importan sus helpers
   puros (el `main()` está detrás de un guard de entrypoint y no se dispara).
@@ -118,12 +170,17 @@ toca: queda como historial).
 
 ---
 
-## Procedimiento seguro — `--add` / `--remove` (camino por defecto)
+## Procedimiento seguro — `--add` / `--remove` (vía manual)
 
-> **Antes de empezar:** el jugador nuevo **no puede usar la app** hasta que se
-> corra el `--apply`. El selector "¿Quién sos?" es cerrado y `savePlayerRegistration`
-> tiene un gate duro contra `habitualPlayers`: sin estar en la lista no se puede
-> registrar ni ver su estado. Avisale que va a estar bloqueado hasta entonces.
+> **Antes de empezar:** si el jugador puede abrir la app, es más simple que
+> pida "Pedir sumarme" y lo apruebes desde Organizador (ver arriba) — no hace
+> falta el repo ni una terminal. Usá `--add` cuando eso no aplica: alta a
+> distancia sin que la persona toque la app todavía, corrección directa, o
+> varios nombres de una. Con el script, el jugador nuevo **no puede usar la
+> app** hasta que se corra el `--apply`: el selector "¿Quién sos?" es cerrado y
+> `savePlayerRegistration` tiene un gate duro contra `habitualPlayers` — sin
+> estar en la lista no se puede registrar ni ver su estado. Avisale que va a
+> estar bloqueado hasta entonces.
 >
 > **Qué te pasa el organizador:** el **string de identidad base** exacto — nombre
 > real o corto, el que va a ser la clave estable. **No** la casaca ni un apodo que
@@ -294,20 +351,27 @@ que no figura pago recibe 1 amarilla.
 
 ---
 
-## Futuro posible (no implementado)
+## Historial de la decisión: UI para Organizador
 
-- **UI sólo para Organizador:** un input "Agregar jugador al grupo" en la vista
-  Organizador que hace append a `habitualPlayers` (sin crear response).
-  **Evaluado y descartado** en el diagnóstico de septiembre 2026: rompe el
-  test-guard "el cliente nunca muta `habitualPlayers`"
-  (`registro-lista-cerrada.test.mjs`, `habitual-players.test.mjs`) y, como la
-  vista Organizador **no tiene noción de permisos**, "organizer-controlled"
-  degradaría a "cualquiera con la URL edita la membresía" — choca con el
-  invariante de producto. Si alguna vez se retoma, es un PR Nivel 3 propio con
-  las 5 preguntas de diseño y esa decisión de producto explícita.
+El diagnóstico de septiembre de 2026 evaluó una UI de alta en Organizador y la
+**descartó**: rompía el test-guard "el cliente nunca muta `habitualPlayers`" y,
+sin noción de permisos en esa vista, "organizer-controlled" degradaba a
+"cualquiera con la URL edita la membresía" — chocaba con el invariante de
+producto tal como estaba escrito entonces.
 
-Los modos `--add` / `--remove` del script ya están implementados y son el camino
-por defecto, ahora con alias npm (`npm run habitual:add` / `habitual:remove`).
-Siguen siendo dev-only: corren desde el repo, no desde la app. El alta de un
-habitual es rara (unas pocas veces al año); el script quirúrgico + este runbook
-alcanzan sin sumar sistema.
+**Revertido en `feat/solicitudes-alta-habitual`** (misma fecha, decisión de
+producto explícita nueva): el punto que frenaba la UI —romper el guard sin
+avisar— se resolvió acotando el test en vez de sacarlo (test 8 de
+`registro-lista-cerrada.test.mjs` ahora permite **una única** función,
+`aprobarSolicitudDeAlta`, y sigue fallando si aparece una segunda vía). La
+falta de permisos reales se aceptó explícitamente como parte del alcance ("no
+hay roles reales, cualquiera puede operar esa vista por ahora"), no como un
+descuido. Ver [Alta vía la app](#alta-vía-la-app-camino-normal) arriba para el
+flujo implementado.
+
+Los modos `--add` / `--remove` del script (con alias npm `npm run habitual:add`
+/ `habitual:remove`) siguen implementados y siguen siendo dev-only: corren
+desde el repo, no desde la app. Con el alta ahora cubierta por la app, su rol
+pasa a ser la vía de corrección/emergencia — sacar a alguien, corregir un
+nombre mal tipeado, o el reseed completo — descripta en las secciones de
+arriba.
