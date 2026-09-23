@@ -295,7 +295,9 @@ function runOrganizer(responses) {
     escapeHtml: (v) => String(v),
     String,
   });
-  vm.runInContext(`${puraSrc}\n${organizerSrc}\nrenderLocalOrganizer();`, ctx);
+  // renderLocalOrganizer() ahora arranca llamando a renderSolicitudesAlta() (solicitudes
+  // de alta / "Pedir sumarme"), ajena a este test de disponibilidad: se stubea como no-op.
+  vm.runInContext(`function renderSolicitudesAlta(){}\n${puraSrc}\n${organizerSrc}\nrenderLocalOrganizer();`, ctx);
   return chart.innerHTML;
 }
 

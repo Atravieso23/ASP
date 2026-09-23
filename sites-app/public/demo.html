@@ -513,6 +513,11 @@
   .player-name-feedback.info{background:var(--active-soft);border:1px solid var(--primary);color:var(--primary-deep);}
   .player-name-feedback.error{background:#F6E4E0;border:1px solid var(--danger);color:#8A2A1D;}
   .player-name-feedback strong{display:block;margin-bottom:2px;}
+  .join-request-status{margin:9px 0 0;padding:10px 11px;border-radius:var(--radius-control);font-size:var(--fs-help);line-height:1.45;background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
+  .join-request-status[hidden]{display:none;}
+  .join-request-status p{margin:0;}
+  .join-request-status.pending b{color:var(--primary-deep);font-weight:700;}
+  .join-request-status.rejected{background:#F6E4E0;border-color:var(--danger);color:#8A2A1D;}
   .change-player-btn{flex:none;display:inline-flex;align-items:center;min-height:var(--tap);padding:0 14px;border:1px solid var(--card-border);border-radius:var(--radius-control);background:var(--surface-2);color:var(--primary-deep);font:700 var(--fs-help) 'Inter',sans-serif;line-height:1;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
   .change-player-btn:hover{background:var(--surface);border-color:var(--primary);}
   .change-player-btn[hidden]{display:none;}
@@ -522,6 +527,9 @@
   .recurrent-player-option:hover{background:var(--surface-2);}
   .recurrent-player-select{min-width:0;border:0;background:transparent;color:var(--text);padding:11px 10px;text-align:left;font:600 var(--fs-body) 'Inter',sans-serif;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .recurrent-player-empty{margin:0;padding:11px;color:var(--muted);font-size:var(--fs-help);text-align:center;}
+  .join-request-btn{display:block;width:calc(100% - 22px);margin:0 11px 10px;min-height:var(--tap);border:1px solid var(--primary);border-radius:var(--radius-control);background:var(--active-soft);color:var(--primary-deep);font:700 var(--fs-help) 'Inter',sans-serif;cursor:pointer;}
+  .join-request-btn:hover{background:var(--primary);color:#fff;}
+  .join-request-btn:disabled{opacity:.6;cursor:default;}
   .my-status-choice{display:flex; gap:7px;}
   .my-status-choice button{
     flex:1; border:1px solid var(--card-border); border-radius:var(--radius-control); background:transparent;
@@ -669,6 +677,27 @@
     letter-spacing:normal; text-transform:none;
   }
   .morosos-manage-row .mm-sacar:disabled{opacity:.5; cursor:progress;}
+
+  /* "Solicitudes pendientes" (Organizador): mismo lenguaje visual que la lista de
+     morosos/su modal — fila con nombre + acciones, superficie --surface-2, botones al
+     piso táctil. flex-wrap deja que las acciones bajen de línea con nombres largos a
+     320px en vez de recortarse o abrir scroll horizontal. */
+  .join-requests-list{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px;}
+  .join-requests-list[hidden]{display:none;}
+  .join-request-row{
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px;
+    background:var(--surface-2); border:1px solid var(--card-border); border-radius:var(--radius-control);
+    padding:10px; font:600 var(--fs-body) 'Inter',sans-serif; line-height:1.5; color:var(--text);
+  }
+  .join-request-row .jr-name{flex:1 1 auto; min-width:0; overflow-wrap:anywhere;}
+  .join-request-row .jr-actions{flex:0 0 auto; display:flex; gap:6px; margin-left:auto;}
+  .join-request-row .jr-approve, .join-request-row .jr-reject{
+    min-height:var(--tap); border-radius:var(--radius-control); cursor:pointer; white-space:nowrap;
+    font:700 var(--fs-help) 'Inter',sans-serif; padding:8px 12px; letter-spacing:normal; text-transform:none;
+  }
+  .join-request-row .jr-approve{border:1px solid var(--primary); background:var(--active-soft); color:var(--primary-deep);}
+  .join-request-row .jr-reject{border:1px solid var(--card-border); background:var(--surface); color:var(--danger);}
+  .join-request-row .jr-approve:disabled, .join-request-row .jr-reject:disabled{opacity:.5; cursor:progress;}
 
   /* VISTAS PRINCIPALES */
   .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--surface);border:1px solid var(--card-border);border-radius:var(--radius);}
@@ -831,6 +860,7 @@
           <p class="casaca-preview" id="casaca-preview" hidden>En la lista te ven como <b id="casaca-preview-name"></b></p>
           <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
           <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
+          <div class="join-request-status" id="join-request-status" role="status" hidden></div>
         </div>
         <div class="my-status-field my-status-number-field" id="my-status-number-field" hidden>
           <label for="my-status-number">N°</label>
@@ -1020,6 +1050,12 @@
       <p>Resumen visual de disponibilidad y respuestas del grupo.</p>
       <p>Herramientas compartidas del grupo: usalas con cuidado.</p>
     </header>
+
+    <section class="organizer-card" aria-labelledby="join-requests-title">
+      <h2 class="organizer-card-title" id="join-requests-title">Solicitudes pendientes</h2>
+      <p class="organizer-empty" id="join-requests-empty">No hay pedidos pendientes.</p>
+      <ul class="join-requests-list" id="join-requests-list" hidden></ul>
+    </section>
 
     <section class="organizer-card" aria-labelledby="availability-summary-title">
       <h2 class="organizer-card-title" id="availability-summary-title">Disponibilidad por horario</h2>
@@ -1578,6 +1614,9 @@ async function leerEstadoDelServidor(){
     if(!parsed.split || typeof parsed.split !== 'object') parsed.split = { participants:[], expenses:[] };
     if(!Array.isArray(parsed.split.participants)) parsed.split.participants = [];
     if(!Array.isArray(parsed.split.expenses)) parsed.split.expenses = [];
+    // Solicitudes de alta ("Pedir sumarme"): array plano, igual criterio que cards.log.
+    // Nunca se borra una entrada resuelta; reenviar tras un rechazo agrega una fila nueva.
+    if(!Array.isArray(parsed.solicitudesAlta)) parsed.solicitudesAlta = [];
     return { estado:parsed, motivo:'ok' };
   }catch(e){
     console.error('Error leyendo de Supabase', e);
@@ -1710,6 +1749,10 @@ async function refreshFromServer(){
   render();
   renderLocalOrganizer();
   renderGuestManager();
+  // El estado del pedido ("Pedir sumarme") lo puede resolver OTRO dispositivo
+  // (Organizador). render() no llama a renderIdentityHeader(), así que sin esto el
+  // banner de este dispositivo quedaría "pendiente" para siempre hasta recargar.
+  renderJoinRequestStatus();
   // Alguien que ya tenía la app abierta cuando pasó el horario, o cuyo primer intento
   // perdió la carrera contra otro dispositivo, evalúa en el próximo sondeo. El latch
   // (evaluated[matchKey]) corta el loop: una vez seteado, no vuelve a escribir.
@@ -2887,6 +2930,37 @@ document.getElementById('lista-morosos-list').addEventListener('click', async (e
   }
   renderListaMorosos();
   showToast('Birra saldada.');
+});
+
+/* ---------- SOLICITUDES DE ALTA — Aprobar / Rechazar (Organizador) ---------- */
+// Delegación sobre el <ul> estático, mismo criterio que lista-morosos-list: renderSolici-
+// tudesAlta reescribe su innerHTML en cada llamada, así que un listener por fila se
+// duplicaría o se perdería. Confirmación obligatoria — aprobar suma a habitualPlayers, no
+// es un cambio menor — y el botón clickeado se deshabilita mientras persiste. Ambos
+// writers revalidan estado==='pendiente' contra el estado fresco: un click viejo o una
+// resolución ganada por otro dispositivo/organizador no vuelve a escribir ni duplica.
+document.getElementById('join-requests-list').addEventListener('click', async (ev)=>{
+  const aprobar = ev.target.closest('[data-aprobar-solicitud]');
+  const rechazar = ev.target.closest('[data-rechazar-solicitud]');
+  const boton = aprobar || rechazar;
+  if(!boton) return;
+  const id = aprobar ? boton.dataset.aprobarSolicitud : boton.dataset.rechazarSolicitud;
+  const nombre = boton.dataset.nombre || '';
+  if(!id) return;
+  const pregunta = aprobar
+    ? `¿Sumar a "${nombre}" al grupo? Va a poder elegirse en el selector "¿Quién sos?".`
+    : `¿Rechazar el pedido de "${nombre}"? Va a poder corregir el nombre y pedirlo de nuevo.`;
+  if(!window.confirm(pregunta)) return;
+  boton.disabled = true;
+  const ok = aprobar ? await aprobarSolicitudDeAlta(id) : await rechazarSolicitudDeAlta(id);
+  boton.disabled = false;
+  if(!ok){
+    showToast('Ese pedido ya se resolvió. Actualizá la lista.');
+    renderSolicitudesAlta();
+    return;
+  }
+  renderSolicitudesAlta();
+  showToast(aprobar ? 'Solicitud aprobada.' : 'Solicitud rechazada.');
 });
 
 /* ---------- LISTA DE MOROSOS — modal "Editar lista" / sacar la amarilla ---------- */
@@ -4254,6 +4328,7 @@ function renderIdentityHeader(){
   if(numberInput && document.activeElement !== numberInput){
     numberInput.value = modoIdentificado && Number.isInteger(propia.number) ? String(propia.number) : '';
   }
+  renderJoinRequestStatus();
   renderCasacaPreview();
 }
 
@@ -4281,6 +4356,40 @@ function renderCasacaPreview(){
   }
   nameEl.textContent = nombre;
   wrap.hidden = false;
+}
+
+// Estado del pedido de ESTE dispositivo ("Pedir sumarme"), por ownerId — no hay login,
+// así que el dispositivo que mandó la solicitud es la única forma de reconocerla como
+// "mía". Sólo se muestra en modo Registro (sin response propia, o cambiando de
+// identidad): una vez aprobada, la persona ya está en habitualPlayers y sigue el camino
+// normal de elegirse del selector, así que 'aprobada' no necesita banner propio acá.
+// Se recalcula en cada renderIdentityHeader() Y en el sondeo (refreshFromServer), porque
+// la resolución la puede hacer OTRO dispositivo mientras este está abierto.
+function renderJoinRequestStatus(){
+  const el = document.getElementById('join-request-status');
+  if(!el) return;
+  const propia = responseDelJugadorActual();
+  const enRegistro = !propia || changingRegisteredPlayer;
+  const solicitudes = (state && Array.isArray(state.solicitudesAlta)) ? state.solicitudesAlta : [];
+  const mias = solicitudes.filter(s=>s && s.ownerId===currentSessionUserId);
+  // La más reciente por createdAt: si hubo un rechazo y un reenvío, sólo importa el último.
+  const ultima = mias.length
+    ? mias.reduce((a,b)=> String(b.createdAt||'') > String(a.createdAt||'') ? b : a)
+    : null;
+  if(!enRegistro || !ultima || ultima.estado==='aprobada'){
+    el.hidden = true;
+    el.className = 'join-request-status';
+    el.innerHTML = '';
+    return;
+  }
+  if(ultima.estado==='pendiente'){
+    el.className = 'join-request-status pending';
+    el.innerHTML = `<p>Tu pedido para "<b>${escapeHtml(ultima.nombre)}</b>" está pendiente. Avisamos cuando lo resuelvan.</p>`;
+  }else{
+    el.className = 'join-request-status rejected';
+    el.innerHTML = '<p>No se aprobó tu solicitud. Corregí el nombre o hablá con el grupo.</p>';
+  }
+  el.hidden = false;
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
@@ -4592,6 +4701,107 @@ async function corregirAmarilla(identidad){
     return false;
   }
 }
+
+/* ---------- SOLICITUDES DE ALTA — "Pedir sumarme" ---------- */
+// Quien no está en la lista cerrada puede pedir que lo sumen. La solicitud nace
+// PENDIENTE en solicitudesAlta y no crea ni toca ninguna response: aprobarla agrega el
+// nombre a habitualPlayers, pero la persona sigue sin "Estoy" — recién aparece en el
+// selector "¿Quién sos?" (deriveSelectorNames ya lee de habitualPlayers) y responde como
+// cualquier habitual. Resueltas (aprobada/rechazada) NUNCA se borran: quedan como
+// historial: reenviar después de un rechazo agrega una fila pendiente nueva, no reescribe
+// la vieja. Motivos de rechazo local (dedupe antes de escribir), para copy específico.
+const SOLICITUD_YA_HABITUAL = 'ya-habitual';
+const SOLICITUD_YA_PENDIENTE = 'ya-pendiente';
+
+// Escritura focalizada, gemela de agregarInvitado: revalida SIEMPRE contra el estado
+// fresco (nunca la copia local), porque otro dispositivo puede haber aprobado esa misma
+// identidad o mandado la misma solicitud entre que se pintó la pantalla y este click.
+async function pedirSumarme(nombreCrudo){
+  const nombre = String(nombreCrudo == null ? '' : nombreCrudo).trim();
+  if(!nombre) return {ok:false, motivo:null};
+  const normalizado = nombre.toLocaleLowerCase('es');
+  let motivo = null;
+  try{
+    const ok = await persistFocalizado(fresh=>{
+      const habituales = Array.isArray(fresh.habitualPlayers) ? fresh.habitualPlayers : [];
+      if(habituales.some(h=>String(h).trim().toLocaleLowerCase('es')===normalizado)){
+        motivo = SOLICITUD_YA_HABITUAL; return false;
+      }
+      const yaPendiente = fresh.solicitudesAlta.some(s=>
+        s && s.estado==='pendiente' && String(s.nombre).trim().toLocaleLowerCase('es')===normalizado
+      );
+      if(yaPendiente){ motivo = SOLICITUD_YA_PENDIENTE; return false; }
+      fresh.solicitudesAlta.push({
+        id:crypto.randomUUID(),
+        nombre,
+        estado:'pendiente',
+        ownerId:currentSessionUserId,
+        createdAt:new Date().toISOString(),
+        resolvedAt:null
+      });
+      return true;
+    });
+    return {ok, motivo};
+  }catch(e){
+    console.error('No se pudo enviar el pedido para sumarse', e);
+    return {ok:false, motivo:null};
+  }
+}
+
+// Aprobar: la ÚNICA función del cliente autorizada a escribir habitualPlayers (acotado
+// en tests/registro-lista-cerrada.test.mjs, test 8 — ver el comentario de ese test antes
+// de tocar esta función o de agregar otra vía de mutación). No crea response, no marca
+// asistencia: el jugador aprobado entra al selector recién en el próximo sondeo, igual
+// que un alta hecha con seed-habitual-players.mjs --add --apply.
+//
+// Idempotente: sólo actúa si la solicitud sigue 'pendiente' en el estado fresco. Un
+// doble click, o dos organizadores aprobando la misma solicitud desde dos dispositivos,
+// hacen que la segunda llamada encuentre estado!=='pendiente' y no escriba nada.
+async function aprobarSolicitudDeAlta(id){
+  if(!id) return false;
+  try{
+    return await persistFocalizado(fresh=>{
+      const solicitudes = Array.isArray(fresh.solicitudesAlta) ? fresh.solicitudesAlta : null;
+      const solicitud = solicitudes ? solicitudes.find(s=>s && s.id===id) : null;
+      if(!solicitud || solicitud.estado !== 'pendiente') return false;
+      const normalizado = String(solicitud.nombre).trim().toLocaleLowerCase('es');
+      // Revalidación anti-duplicado: pudo agregarse por script, o por otra solicitud
+      // aprobada primero con el mismo nombre normalizado, entre que se listó y se tocó
+      // "Aprobar". Si ya está, la solicitud igual pasa a aprobada (no queda pendiente
+      // para siempre) pero habitualPlayers no se duplica.
+      const yaHabitual = fresh.habitualPlayers.some(h=>String(h).trim().toLocaleLowerCase('es')===normalizado);
+      if(!yaHabitual) fresh.habitualPlayers.push(String(solicitud.nombre).trim());
+      solicitud.estado = 'aprobada';
+      solicitud.resolvedAt = new Date().toISOString();
+      return true;
+    });
+  }catch(e){
+    console.error('No se pudo aprobar la solicitud', e);
+    return false;
+  }
+}
+
+// Rechazar: nunca toca habitualPlayers. Misma idempotencia que aprobar. Sin motivo ni
+// "resolvedBy": no hay auth real, y el copy que ve la persona es fijo (ver
+// renderJoinRequestStatus) — guardar quién rechazó o por qué es un dato que hoy nadie
+// puede ofrecer de forma confiable.
+async function rechazarSolicitudDeAlta(id){
+  if(!id) return false;
+  try{
+    return await persistFocalizado(fresh=>{
+      const solicitudes = Array.isArray(fresh.solicitudesAlta) ? fresh.solicitudesAlta : null;
+      const solicitud = solicitudes ? solicitudes.find(s=>s && s.id===id) : null;
+      if(!solicitud || solicitud.estado !== 'pendiente') return false;
+      solicitud.estado = 'rechazada';
+      solicitud.resolvedAt = new Date().toISOString();
+      return true;
+    });
+  }catch(e){
+    console.error('No se pudo rechazar la solicitud', e);
+    return false;
+  }
+}
+
 function loadRecurrentPlayers(){
   recurrentPlayers = deriveSelectorNames();
 }
@@ -4666,10 +4876,15 @@ function renderRecurrentPlayerMenu(){
     .map((name,index)=>({name,index}))
     .filter(item=>item.name.toLocaleLowerCase('es').includes(query))
     .slice(0,20);
+  // Sin match Y con algo tipeado: además del empty state de siempre, ofrece "Pedir
+  // sumarme" para esa identidad exacta. Con el input vacío no hay nombre que pedir.
+  const puedePedir = filtered.length===0 && input.value.trim().length>0;
   menu.innerHTML = filtered.length ? filtered.map(item=>`
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
-    </div>`).join('') : '<p class="recurrent-player-empty">No encontramos ese nombre. Pedile a un organizador que te sume al grupo.</p>';
+    </div>`).join('') : `<p class="recurrent-player-empty">No encontramos ese nombre. Pedile a un organizador que te sume al grupo.</p>${
+      puedePedir ? '<button type="button" class="join-request-btn" data-join-request>Pedir sumarme</button>' : ''
+    }`;
   menu.hidden = false;
   input.setAttribute('aria-expanded','true');
   menu.querySelectorAll('[data-recurrent-index]').forEach(button=>{
@@ -4691,6 +4906,36 @@ function renderRecurrentPlayerMenu(){
         pendingClaimResponseId = selectedResponse.responseId;
         document.getElementById('claim-player-text').textContent = `¿Sos ${selectedResponse.habitualName || selectedResponse.name}?`;
         document.getElementById('claim-player-overlay').classList.add('open');
+      }
+    };
+  });
+  // "Pedir sumarme": guardado a través de menu.querySelectorAll (no getElementById) para
+  // no depender de un id fijo que a veces existe y a veces no — el botón sólo se pinta
+  // en el empty state con texto tipeado.
+  menu.querySelectorAll('[data-join-request]').forEach(button=>{
+    button.onclick = async ()=>{
+      const nombrePedido = input.value.trim();
+      if(!nombrePedido) return;
+      button.disabled = true;
+      button.textContent = 'Pidiendo…';
+      const { ok, motivo } = await pedirSumarme(nombrePedido);
+      if(ok){
+        hideRecurrentPlayerMenu();
+        showToast(`Pedimos sumarte como "${nombrePedido}". Quedó pendiente.`);
+        renderJoinRequestStatus();
+        return;
+      }
+      button.disabled = false;
+      button.textContent = 'Pedir sumarme';
+      if(motivo===SOLICITUD_YA_HABITUAL){
+        showToast(`"${nombrePedido}" ya está en la lista. Buscalo de nuevo.`);
+        loadRecurrentPlayers();
+        renderRecurrentPlayerMenu();
+      }else if(motivo===SOLICITUD_YA_PENDIENTE){
+        showToast(`Ya hay un pedido pendiente para "${nombrePedido}".`);
+        renderJoinRequestStatus();
+      }else{
+        showToast('No pudimos enviar el pedido. Revisá la conexión e intentá de nuevo.');
       }
     };
   });
@@ -4937,7 +5182,38 @@ function renderGuestManager(){
   });
 }
 
+// "Solicitudes pendientes" (Organizador): sólo se listan las 'pendiente'; aprobadas y
+// rechazadas quedan en solicitudesAlta como historial pero no ocupan la cola. Reescribe
+// el <ul> entero en cada llamada — el <ul> no se recrea, así que la delegación del click
+// (arriba) no se pierde. Se llama desde renderLocalOrganizer(), que ya corre en cada
+// sondeo (refreshFromServer) y al entrar a la vista Organizador: no hace falta un
+// segundo punto de enganche.
+function renderSolicitudesAlta(){
+  const empty = document.getElementById('join-requests-empty');
+  const list = document.getElementById('join-requests-list');
+  if(!empty || !list) return;
+  const solicitudes = (state && Array.isArray(state.solicitudesAlta)) ? state.solicitudesAlta : [];
+  const pendientes = solicitudes.filter(s=>s && s.estado==='pendiente');
+  if(pendientes.length===0){
+    empty.hidden = false;
+    list.hidden = true;
+    list.innerHTML = '';
+    return;
+  }
+  empty.hidden = true;
+  list.hidden = false;
+  list.innerHTML = pendientes.map(s=>`
+    <li class="join-request-row">
+      <span class="jr-name">${escapeHtml(s.nombre)}</span>
+      <div class="jr-actions">
+        <button type="button" class="jr-approve" data-aprobar-solicitud="${escapeHtml(s.id)}" data-nombre="${escapeHtml(s.nombre)}">Aprobar</button>
+        <button type="button" class="jr-reject" data-rechazar-solicitud="${escapeHtml(s.id)}" data-nombre="${escapeHtml(s.nombre)}">Rechazar</button>
+      </div>
+    </li>`).join('');
+}
+
 function renderLocalOrganizer(){
+  renderSolicitudesAlta();
   const chart = document.getElementById('organizer-availability-chart');
   const body = document.getElementById('organizer-responses-body');
   if(!chart || !body) return;

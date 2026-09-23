@@ -1,0 +1,462 @@
+// feat/solicitudes-alta-habitual — "Pedir sumarme": quien no está en la lista cerrada
+// puede pedir que lo sumen. La solicitud nace PENDIENTE en solicitudesAlta y nunca crea
+// ni toca una response: aprobarla agrega el nombre a habitualPlayers, pero la persona
+// sigue sin "Estoy" — recién aparece en el selector "¿Quién sos?" y responde como
+// cualquier habitual. Resueltas (aprobada/rechazada) nunca se borran; reenviar después
+// de un rechazo agrega una fila pendiente nueva, no reescribe la vieja.
+//
+// Prueba el código REAL de demo.html en node:vm con un persistFocalizado de mentira
+// (blob en memoria, sin red) y un fakeDocument mínimo para los renders. Sin Supabase,
+// sin navegador, cero escrituras reales. Ver también:
+//   - tests/registro-lista-cerrada.test.mjs test 8: acota el guard de habitualPlayers
+//     para que aprobarSolicitudDeAlta() sea la única excepción documentada.
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import vm from "node:vm";
+
+const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
+
+function extractFunction(source, name) {
+  const start = source.search(new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`));
+  assert.notEqual(start, -1, `no encontré la función ${name} en demo.html`);
+  const open = source.indexOf("{", start);
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}" && --depth === 0) return source.slice(start, i + 1);
+  }
+  throw new Error(`no pude cerrar la función ${name}`);
+}
+
+function extractConst(source, name) {
+  const m = source.match(new RegExp(`^const\\s+${name}\\s*=.*;$`, "m"));
+  assert.ok(m, `no encontré la constante ${name} en demo.html`);
+  return m[0];
+}
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+const WRITER_SOURCE = [
+  extractConst(demo, "SOLICITUD_YA_HABITUAL"),
+  extractConst(demo, "SOLICITUD_YA_PENDIENTE"),
+  extractFunction(demo, "pedirSumarme"),
+  extractFunction(demo, "aprobarSolicitudDeAlta"),
+  extractFunction(demo, "rechazarSolicitudDeAlta"),
+].join("\n");
+
+// "Servidor" de mentira: solicitudesAlta + relleno de otras keys para verificar que los
+// tres writers no las tocan.
+const serverOf = (solicitudesAlta, over) => ({
+  matchInfo: { date: "2026-09-26", time: "19:00", type: "F7", priceTotal: "140000" },
+  responses: [{ responseId: "r1", isGuest: false, status: "in", paid: false, name: "Ale", ownerId: "o-ale", ownerIds: ["o-ale"] }],
+  habitualPlayers: ["Ale", "Fran Forrester"],
+  solicitudesAlta: clone(solicitudesAlta),
+  cards: { byPlayer: {}, evaluated: {}, log: [] },
+  players: [{ name: "Ale", number: 9, isCaptain: true }],
+  history: [{ finalizedAt: "2026-08-01T00:00:00.000Z" }],
+  sedes: [{ name: "Cancha", address: "" }],
+  formations: {},
+  frequentAliases: ["picado.demo"],
+  ...over,
+});
+
+// Mundo mínimo: los 3 writers + un persistFocalizado que lee del blob, aplica la
+// intención y sólo commitea si devolvió true. Mismo contrato que el real. `crypto` de
+// mentira, contador propio: no depende de UUIDs reales, sólo de que sean únicos.
+function makeWorld(server, { ownerId = "device-a" } = {}) {
+  let serverBlob = clone(server);
+  const writes = [];
+  let persistCalls = 0;
+  let uuidCounter = 0;
+
+  const context = vm.createContext({
+    JSON, Object, Array, String, Number, Math, Promise, Boolean, Date,
+    console: { error() {}, warn() {}, log() {} },
+    crypto: { randomUUID: () => `sol-${++uuidCounter}` },
+  });
+  context.currentSessionUserId = ownerId;
+  context.persistFocalizado = function (aplicar) {
+    persistCalls++;
+    const fresh = clone(serverBlob);
+    let ok = false;
+    try { ok = aplicar(fresh); } catch { ok = false; }
+    if (!ok) return Promise.resolve(false);
+    serverBlob = fresh;
+    writes.push(clone(fresh));
+    context.state = fresh;
+    return Promise.resolve(true);
+  };
+  vm.runInContext(
+    `${WRITER_SOURCE}
+     globalThis.__pedir = pedirSumarme;
+     globalThis.__aprobar = aprobarSolicitudDeAlta;
+     globalThis.__rechazar = rechazarSolicitudDeAlta;`,
+    context,
+  );
+
+  return {
+    pedir: (nombre) => context.__pedir(nombre),
+    aprobar: (id) => context.__aprobar(id),
+    rechazar: (id) => context.__rechazar(id),
+    writes,
+    persistCalls: () => persistCalls,
+    server: () => serverBlob,
+  };
+}
+
+/* ═════════════════ 1. Creación ═════════════════ */
+
+test("pedirSumarme: crea una solicitud pendiente con ownerId, id y nombre tal cual se escribió", async () => {
+  const w = makeWorld(serverOf([]), { ownerId: "device-a" });
+  const { ok, motivo } = await w.pedir("  Nacho Duncan  ");
+  assert.equal(ok, true);
+  assert.equal(motivo, null);
+  const solicitudes = w.server().solicitudesAlta;
+  assert.equal(solicitudes.length, 1);
+  const s = solicitudes[0];
+  assert.equal(s.nombre, "Nacho Duncan", "se guarda trim() pero sin normalizar casing");
+  assert.equal(s.estado, "pendiente");
+  assert.equal(s.ownerId, "device-a");
+  assert.equal(s.resolvedAt, null);
+  assert.ok(s.id && typeof s.id === "string");
+  assert.ok(s.createdAt && typeof s.createdAt === "string");
+});
+
+test("pedirSumarme: nombre vacío o sólo espacios no crea nada", async () => {
+  const w = makeWorld(serverOf([]));
+  const r1 = await w.pedir("");
+  const r2 = await w.pedir("   ");
+  assert.equal(r1.ok, false);
+  assert.equal(r2.ok, false);
+  assert.equal(w.server().solicitudesAlta.length, 0);
+  assert.equal(w.persistCalls(), 0, "ni siquiera abre una lectura fresca sin nombre");
+});
+
+/* ═════════════════ 2. Duplicados ═════════════════ */
+
+test("pedirSumarme: rechaza si el nombre normalizado ya está en habitualPlayers", async () => {
+  const w = makeWorld(serverOf([], { habitualPlayers: ["Pablo de Achaval"] }));
+  const { ok, motivo } = await w.pedir("pablo DE achaval");
+  assert.equal(ok, false);
+  assert.equal(motivo, "ya-habitual");
+  assert.equal(w.server().solicitudesAlta.length, 0, "no se escribe nada");
+});
+
+test("pedirSumarme: rechaza un segundo pedido pendiente con el mismo nombre normalizado", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa));
+  const { ok, motivo } = await w.pedir("nacho duncan");
+  assert.equal(ok, false);
+  assert.equal(motivo, "ya-pendiente");
+  assert.equal(w.server().solicitudesAlta.length, 1, "no se duplica la fila");
+});
+
+test("pedirSumarme: un pedido pendiente de OTRO nombre no bloquea", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa));
+  const { ok } = await w.pedir("Otro Nombre");
+  assert.equal(ok, true);
+  assert.equal(w.server().solicitudesAlta.length, 2);
+});
+
+/* ═════════════════ 3. Rechazo y reenvío ═════════════════ */
+
+test("pedirSumarme: una solicitud RECHAZADA con el mismo nombre no bloquea el reenvío", async () => {
+  const previa = [{ id: "sol-vieja", nombre: "Nacho Duncan", estado: "rechazada", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: "2026-09-20T10:05:00.000Z" }];
+  const w = makeWorld(serverOf(previa));
+  const { ok } = await w.pedir("Nacho Duncan");
+  assert.equal(ok, true);
+  const solicitudes = w.server().solicitudesAlta;
+  assert.equal(solicitudes.length, 2, "el reenvío agrega una fila nueva, no reescribe la vieja");
+  assert.equal(solicitudes[0].estado, "rechazada", "la rechazada original queda como historial, intacta");
+  assert.equal(solicitudes[0].id, "sol-vieja");
+  assert.equal(solicitudes[1].estado, "pendiente");
+  assert.notEqual(solicitudes[1].id, solicitudes[0].id);
+});
+
+test("rechazarSolicitudDeAlta: marca rechazada, no toca habitualPlayers", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa));
+  const habitualesAntes = w.server().habitualPlayers.slice();
+  const ok = await w.rechazar("sol-1");
+  assert.equal(ok, true);
+  const s = w.server().solicitudesAlta[0];
+  assert.equal(s.estado, "rechazada");
+  assert.ok(s.resolvedAt);
+  assert.deepEqual(w.server().habitualPlayers, habitualesAntes);
+});
+
+test("rechazarSolicitudDeAlta: idempotente — la segunda vez no escribe (ya no está pendiente)", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa));
+  const primera = await w.rechazar("sol-1");
+  const resolvedAtPrimera = w.server().solicitudesAlta[0].resolvedAt;
+  const segunda = await w.rechazar("sol-1");
+  assert.equal(primera, true);
+  assert.equal(segunda, false);
+  assert.equal(w.server().solicitudesAlta[0].resolvedAt, resolvedAtPrimera, "no se reescribe resolvedAt");
+});
+
+test("rechazarSolicitudDeAlta: id inexistente no escribe", async () => {
+  const w = makeWorld(serverOf([]));
+  const ok = await w.rechazar("no-existe");
+  assert.equal(ok, false);
+  assert.equal(w.writes.length, 0);
+});
+
+/* ═════════════════ 4. Aprobar: agrega a habitualPlayers, no crea response ═════════════════ */
+
+test("aprobarSolicitudDeAlta: agrega el nombre a habitualPlayers y marca aprobada", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa));
+  const ok = await w.aprobar("sol-1");
+  assert.equal(ok, true);
+  assert.deepEqual(w.server().habitualPlayers, ["Ale", "Fran Forrester", "Nacho Duncan"]);
+  const s = w.server().solicitudesAlta[0];
+  assert.equal(s.estado, "aprobada");
+  assert.ok(s.resolvedAt);
+});
+
+test("aprobarSolicitudDeAlta: NO crea response ni response.status='in' — sigue sin 'Estoy'", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const responsesAntes = serverOf(previa).responses;
+  const w = makeWorld(serverOf(previa));
+  await w.aprobar("sol-1");
+  assert.deepEqual(w.server().responses, responsesAntes, "responses no cambia: ni cantidad ni contenido");
+  assert.ok(!w.server().responses.some((r) => r.name === "Nacho Duncan"), "no aparece ninguna response para el aprobado");
+});
+
+test("aprobarSolicitudDeAlta: idempotente — doble aprobación (doble click / dos organizadores) no duplica en habitualPlayers", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa));
+  const primera = await w.aprobar("sol-1");
+  const segunda = await w.aprobar("sol-1");
+  assert.equal(primera, true);
+  assert.equal(segunda, false, "la segunda ve estado!=='pendiente' y no escribe");
+  const veces = w.server().habitualPlayers.filter((h) => h === "Nacho Duncan").length;
+  assert.equal(veces, 1, "habitualPlayers no queda con el nombre duplicado");
+});
+
+test("aprobarSolicitudDeAlta: revalida contra fresh — si el nombre ya es habitual (alta por script en el medio), no duplica pero igual resuelve la solicitud", async () => {
+  const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
+  const w = makeWorld(serverOf(previa, { habitualPlayers: ["Ale", "Fran Forrester", "Nacho Duncan"] }));
+  const ok = await w.aprobar("sol-1");
+  assert.equal(ok, true);
+  assert.deepEqual(w.server().habitualPlayers, ["Ale", "Fran Forrester", "Nacho Duncan"], "no se duplica");
+  assert.equal(w.server().solicitudesAlta[0].estado, "aprobada", "la solicitud igual queda resuelta, no pendiente para siempre");
+});
+
+test("aprobarSolicitudDeAlta: id inexistente o ya resuelto no escribe", async () => {
+  const w1 = makeWorld(serverOf([]));
+  assert.equal(await w1.aprobar("no-existe"), false);
+
+  const yaResuelta = [{ id: "sol-1", nombre: "X", estado: "rechazada", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: "2026-09-20T10:05:00.000Z" }];
+  const w2 = makeWorld(serverOf(yaResuelta));
+  assert.equal(await w2.aprobar("sol-1"), false);
+  assert.equal(w2.server().habitualPlayers.length, 2, "no se agrega nada de una solicitud ya rechazada");
+});
+
+/* ═════════════════ 5. Los 3 writers no tocan lo que no les pertenece ═════════════════ */
+
+test("los 3 writers preservan matchInfo, cards, players, history, sedes, frequentAliases y NO borran solicitudes resueltas", async () => {
+  const previa = [
+    { id: "sol-1", nombre: "Rechazado Viejo", estado: "rechazada", ownerId: "device-x", createdAt: "2026-09-01T00:00:00.000Z", resolvedAt: "2026-09-01T00:05:00.000Z" },
+    { id: "sol-2", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null },
+  ];
+  const server = serverOf(previa);
+  const w = makeWorld(server);
+  await w.aprobar("sol-2");
+  const post = w.server();
+  assert.deepEqual(post.matchInfo, server.matchInfo);
+  assert.deepEqual(post.cards, server.cards);
+  assert.deepEqual(post.players, server.players);
+  assert.deepEqual(post.history, server.history);
+  assert.deepEqual(post.sedes, server.sedes);
+  assert.deepEqual(post.frequentAliases, server.frequentAliases);
+  assert.equal(post.solicitudesAlta.length, 2, "la rechazada vieja sigue ahí: nada se borra");
+  assert.equal(post.solicitudesAlta[0].estado, "rechazada");
+});
+
+/* ═════════════════ 6. Render: estado del pedido en Registro ═════════════════ */
+
+function makeStatusContext({ ownerId = "device-a", propia = null, changingRegisteredPlayer = false, solicitudesAlta = [] } = {}) {
+  const el = { hidden: true, className: "", innerHTML: "" };
+  const els = { "join-request-status": el };
+  const context = vm.createContext({
+    document: { getElementById: (id) => els[id] || null },
+    String, Boolean,
+    escapeHtml: (s) => String(s),
+  });
+  vm.runInContext(
+    `let currentSessionUserId = ${JSON.stringify(ownerId)};
+     let changingRegisteredPlayer = ${JSON.stringify(changingRegisteredPlayer)};
+     let state = { solicitudesAlta: ${JSON.stringify(solicitudesAlta)} };
+     function responseDelJugadorActual(){ return ${JSON.stringify(propia)}; }
+     ${extractFunction(demo, "renderJoinRequestStatus")}
+     globalThis.__render = renderJoinRequestStatus;`,
+    context,
+  );
+  context.__render();
+  return el;
+}
+
+test("renderJoinRequestStatus: pendiente muestra el nombre pedido", () => {
+  const el = makeStatusContext({
+    solicitudesAlta: [{ id: "s1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }],
+  });
+  assert.equal(el.hidden, false);
+  assert.match(el.innerHTML, /Nacho Duncan/);
+  assert.match(el.className, /pending/);
+});
+
+test("renderJoinRequestStatus: rechazada usa el copy EXACTO aprobado", () => {
+  const el = makeStatusContext({
+    solicitudesAlta: [{ id: "s1", nombre: "Nacho Duncan", estado: "rechazada", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: "2026-09-20T10:05:00.000Z" }],
+  });
+  assert.equal(el.hidden, false);
+  assert.match(el.innerHTML, /No se aprobó tu solicitud\. Corregí el nombre o hablá con el grupo\./);
+});
+
+test("renderJoinRequestStatus: aprobada no muestra nada (ya sigue el camino normal del selector)", () => {
+  const el = makeStatusContext({
+    solicitudesAlta: [{ id: "s1", nombre: "Nacho Duncan", estado: "aprobada", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: "2026-09-20T10:05:00.000Z" }],
+  });
+  assert.equal(el.hidden, true);
+});
+
+test("renderJoinRequestStatus: una solicitud de OTRO ownerId no se muestra", () => {
+  const el = makeStatusContext({
+    ownerId: "device-a",
+    solicitudesAlta: [{ id: "s1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-b", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }],
+  });
+  assert.equal(el.hidden, true);
+});
+
+test("renderJoinRequestStatus: identificado (con response propia, sin cambiar) no muestra nada", () => {
+  const el = makeStatusContext({
+    propia: { name: "Ale" },
+    changingRegisteredPlayer: false,
+    solicitudesAlta: [{ id: "s1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }],
+  });
+  assert.equal(el.hidden, true);
+});
+
+test("renderJoinRequestStatus: reenvío tras rechazo — se muestra la MÁS RECIENTE (pendiente), no la vieja rechazada", () => {
+  const el = makeStatusContext({
+    solicitudesAlta: [
+      { id: "s1", nombre: "Nacho Duncan", estado: "rechazada", ownerId: "device-a", createdAt: "2026-09-19T10:00:00.000Z", resolvedAt: "2026-09-19T10:05:00.000Z" },
+      { id: "s2", nombre: "Nacho A. Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null },
+    ],
+  });
+  assert.equal(el.hidden, false);
+  assert.match(el.className, /pending/);
+  assert.match(el.innerHTML, /Nacho A\. Duncan/);
+});
+
+/* ═════════════════ 7. Render: cola del Organizador ═════════════════ */
+
+function makeOrganizerListContext(solicitudesAlta) {
+  const empty = { hidden: false };
+  const list = { hidden: true, innerHTML: "" };
+  const els = { "join-requests-empty": empty, "join-requests-list": list };
+  const context = vm.createContext({
+    document: { getElementById: (id) => els[id] || null },
+    String,
+    escapeHtml: (s) => String(s),
+  });
+  vm.runInContext(
+    `let state = { solicitudesAlta: ${JSON.stringify(solicitudesAlta)} };
+     ${extractFunction(demo, "renderSolicitudesAlta")}
+     globalThis.__render = renderSolicitudesAlta;`,
+    context,
+  );
+  context.__render();
+  return { empty, list };
+}
+
+test("renderSolicitudesAlta: sin pendientes muestra el empty state y esconde la lista", () => {
+  const { empty, list } = makeOrganizerListContext([
+    { id: "s1", nombre: "X", estado: "aprobada" },
+    { id: "s2", nombre: "Y", estado: "rechazada" },
+  ]);
+  assert.equal(empty.hidden, false);
+  assert.equal(list.hidden, true);
+  assert.equal(list.innerHTML, "");
+});
+
+test("renderSolicitudesAlta: lista SÓLO las pendientes, con botones Aprobar/Rechazar por id", () => {
+  const { empty, list } = makeOrganizerListContext([
+    { id: "s1", nombre: "Aprobada Vieja", estado: "aprobada" },
+    { id: "s2", nombre: "Nacho Duncan", estado: "pendiente" },
+    { id: "s3", nombre: "Rechazada Vieja", estado: "rechazada" },
+  ]);
+  assert.equal(empty.hidden, true);
+  assert.equal(list.hidden, false);
+  assert.match(list.innerHTML, /Nacho Duncan/);
+  assert.doesNotMatch(list.innerHTML, /Aprobada Vieja/);
+  assert.doesNotMatch(list.innerHTML, /Rechazada Vieja/);
+  assert.match(list.innerHTML, /data-aprobar-solicitud="s2"/);
+  assert.match(list.innerHTML, /data-rechazar-solicitud="s2"/);
+});
+
+/* ═════════════════ 8. Sincronización por refresh (wiring) ═════════════════ */
+
+test("refreshFromServer llama a renderJoinRequestStatus() (el estado lo puede resolver otro dispositivo)", () => {
+  const fn = extractFunction(demo, "refreshFromServer");
+  assert.match(fn, /renderJoinRequestStatus\(\);/);
+});
+
+test("renderLocalOrganizer llama a renderSolicitudesAlta() (la cola se actualiza con cada sondeo del Organizador)", () => {
+  const fn = extractFunction(demo, "renderLocalOrganizer");
+  assert.match(fn, /^function renderLocalOrganizer\(\)\{\s*renderSolicitudesAlta\(\);/);
+});
+
+test("leerEstadoDelServidor normaliza solicitudesAlta ausente/roto a []", () => {
+  const fn = extractFunction(demo, "leerEstadoDelServidor");
+  assert.match(fn, /if\(!Array\.isArray\(parsed\.solicitudesAlta\)\) parsed\.solicitudesAlta = \[\];/);
+});
+
+/* ═════════════════ 9. Copy y markup aprobados ═════════════════ */
+
+test("copy de rechazo EXACTO en el markup fuente (no sólo en el render)", () => {
+  assert.match(demo, /No se aprobó tu solicitud\. Corregí el nombre o hablá con el grupo\./);
+});
+
+test("Organizador: sección 'Solicitudes pendientes' con Aprobar y Rechazar", () => {
+  assert.match(demo, /id="join-requests-title">Solicitudes pendientes</);
+  assert.match(demo, />Aprobar</);
+  assert.match(demo, />Rechazar</);
+});
+
+test("Jugador: botón 'Pedir sumarme' en el empty state del selector", () => {
+  const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
+  assert.match(menu, /Pedir sumarme/);
+  assert.match(menu, /data-join-request/);
+});
+
+/* ═════════════════ 10. No se abren otras vías de mutación ═════════════════ */
+
+test("pedirSumarme y rechazarSolicitudDeAlta nunca tocan habitualPlayers en escritura", () => {
+  const pedir = extractFunction(demo, "pedirSumarme");
+  const rechazar = extractFunction(demo, "rechazarSolicitudDeAlta");
+  for (const fn of [pedir, rechazar]) {
+    assert.doesNotMatch(fn, /habitualPlayers\.(push|pop|shift|unshift|splice|sort)\(/);
+    assert.doesNotMatch(fn, /habitualPlayers\s*=/);
+  }
+});
+
+test("los 3 writers no llaman a savePlayerRegistration / guardarCambioEnResponses ni tocan responses/paid", () => {
+  for (const name of ["pedirSumarme", "aprobarSolicitudDeAlta", "rechazarSolicitudDeAlta"]) {
+    const fn = extractFunction(demo, name);
+    assert.doesNotMatch(fn, /savePlayerRegistration|guardarCambioEnResponses|guardarCambio\(/);
+    assert.doesNotMatch(fn, /\.responses\s*=|\.paid\s*=|status\s*:\s*'in'/);
+  }
+});
+
+test("no se guarda resolvedBy ni motivo de rechazo (decisión de producto)", () => {
+  for (const name of ["pedirSumarme", "aprobarSolicitudDeAlta", "rechazarSolicitudDeAlta"]) {
+    const fn = extractFunction(demo, name);
+    assert.doesNotMatch(fn, /resolvedBy|motivoRechazo/i);
+  }
+});
