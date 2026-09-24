@@ -4,7 +4,7 @@ Procedimiento para modificar la lista de jugadores habituales de ASP de forma
 segura.
 
 **Desde `feat/solicitudes-alta-habitual` (septiembre 2026) el camino normal es
-la app**, no este script: quien no está en la lista pide "Pedir sumarme" desde
+la app**, no este script: quien no está en la lista pide "Solicitar sumarme" desde
 Jugador, y cualquiera en Organizador aprueba o rechaza desde el acceso
 **Solicitudes (N)**; desde **Roster (N)** se puede **sacar del roster** a quien
 ya no participa (ver [Alta y baja vía la app](#alta-y-baja-vía-la-app-camino-normal)
@@ -67,22 +67,25 @@ de cada uno NO va acá: vive en su `response.name`.
 
 ## Alta y baja vía la app (camino normal)
 
-Implementado en `demo.html`, `feat/solicitudes-alta-habitual`. Nueva key
+Implementado en `demo.html` (`feat/solicitudes-alta-habitual` y
+`feat/administrar-roster-organizador`). Nueva key
 `match_data.data.solicitudesAlta` (array; cada entrada `{id, nombre, estado,
 ownerId, createdAt, resolvedAt}`, `estado` en `pendiente | aprobada |
 rechazada`). Nunca se borra una entrada: reenviar tras un rechazo agrega una
 fila `pendiente` nueva, la rechazada queda como historial.
 
 1. **Jugador**, sin match en el selector cerrado: escribe su identidad base y
-   toca **"Pedir sumarme"**. Nace una solicitud `pendiente`. No crea response,
+   toca **"Solicitar sumarme"**. Nace una solicitud `pendiente`. No crea response,
    no confirma nada — el jugador sigue sin poder identificarse hasta que lo
    aprueben.
-2. **Organizador → "Solicitudes pendientes"**: lista sólo las `pendiente`, con
+2. **Organizador → Gestión de jugadores**: dos accesos compactos, **Solicitudes
+   (N)** y **Roster (N)**, cada uno con su modal (las listas no quedan abiertas
+   en la vista principal). **Solicitudes (N)** lista sólo las `pendiente`, con
    botones **Aprobar** / **Rechazar** (confirmación antes de cada acción). No
-   hay roles reales: cualquiera que abra Organizador puede operar esta cola,
-   igual que el resto de las herramientas de esa vista.
-3. **Aprobar** agrega el nombre a `habitualPlayers` (única mutación de cliente
-   permitida — ver el bullet de arriba) y marca la solicitud `aprobada`. La
+   hay roles reales: cualquiera que abra Organizador puede operar estos
+   paneles, igual que el resto de las herramientas de esa vista.
+3. **Aprobar** agrega el nombre a `habitualPlayers` (una de las dos mutaciones
+   de cliente permitidas, con `sacarDelRoster` — ver el bullet de arriba) y marca la solicitud `aprobada`. La
    persona **no** queda "Estoy": recién aparece en el selector "¿Quién sos?" en
    el próximo sondeo, y responde como cualquier habitual. Idempotente: una
    segunda aprobación (doble click, dos organizadores) no duplica el nombre.
@@ -193,7 +196,7 @@ toca: queda como historial).
 ## Procedimiento seguro — `--add` / `--remove` (vía manual)
 
 > **Antes de empezar:** si el jugador puede abrir la app, es más simple que
-> pida "Pedir sumarme" y lo apruebes desde Organizador (ver arriba) — no hace
+> pida "Solicitar sumarme" y lo apruebes desde Organizador (ver arriba) — no hace
 > falta el repo ni una terminal. Usá `--add` cuando eso no aplica: alta a
 > distancia sin que la persona toque la app todavía, corrección directa, o
 > varios nombres de una. Con el script, el jugador nuevo **no puede usar la
@@ -382,12 +385,13 @@ producto tal como estaba escrito entonces.
 **Revertido en `feat/solicitudes-alta-habitual`** (misma fecha, decisión de
 producto explícita nueva): el punto que frenaba la UI —romper el guard sin
 avisar— se resolvió acotando el test en vez de sacarlo (test 8 de
-`registro-lista-cerrada.test.mjs` ahora permite **una única** función,
-`aprobarSolicitudDeAlta`, y sigue fallando si aparece una segunda vía). La
+`registro-lista-cerrada.test.mjs` ahora permite **dos** funciones,
+`aprobarSolicitudDeAlta` y `sacarDelRoster` — esta última se sumó con la baja
+desde Roster —, y sigue fallando si aparece una tercera vía). La
 falta de permisos reales se aceptó explícitamente como parte del alcance ("no
 hay roles reales, cualquiera puede operar esa vista por ahora"), no como un
-descuido. Ver [Alta vía la app](#alta-vía-la-app-camino-normal) arriba para el
-flujo implementado.
+descuido. Ver [Alta y baja vía la app](#alta-y-baja-vía-la-app-camino-normal) arriba
+para el flujo implementado.
 
 Los modos `--add` / `--remove` del script (con alias npm `npm run habitual:add`
 / `habitual:remove`) siguen implementados y siguen siendo dev-only: corren

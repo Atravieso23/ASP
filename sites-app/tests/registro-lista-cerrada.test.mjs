@@ -180,9 +180,16 @@ test("8. state.habitualPlayers no se muta desde el cliente, salvo las DOS excepc
   assert.match(aprobar, /habitualPlayers\.push\(/, "aprobar es quien agrega");
   assert.match(sacar, /fresh\.habitualPlayers = habituales\.filter\(/, "sacar es quien quita");
   const resto = demo.replace(aprobar, "").replace(sacar, "");
-  assert.doesNotMatch(resto, /state\.habitualPlayers\s*=/);
+  assert.doesNotMatch(resto, /\bstate\.habitualPlayers\s*=/);
   assert.doesNotMatch(resto, /habitualPlayers\.(push|pop|shift|unshift|splice|sort)\(/);
   assert.doesNotMatch(resto, /\.habitualPlayers\s*=\s*\[[^\]]/);
+  // Control negativo: la protección no está inerte — una asignación adicional representativa
+  // SÍ hace fallar el mismo chequeo (y la normalización de lectura de `parsed` no lo dispara).
+  for (const extra of ["state.habitualPlayers = fresh.habitualPlayers;", "  state.habitualPlayers=[];"]) {
+    assert.throws(() => assert.doesNotMatch(`${resto}
+${extra}`, /\bstate\.habitualPlayers\s*=/), `debe detectar: ${extra}`);
+  }
+  assert.doesNotThrow(() => assert.doesNotMatch("parsed.habitualPlayers = [];", /\bstate\.habitualPlayers\s*=/));
   // Toda asignación restante a .habitualPlayers es la normalización de lectura.
   const asignaciones = [...resto.matchAll(/(\w+)\.habitualPlayers\s*=(?!=)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(asignaciones)], ["parsed"], "sólo parsed.habitualPlayers (lectura)");

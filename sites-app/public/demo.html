@@ -4914,9 +4914,13 @@ async function sacarDelRoster(nombreCrudo){
       const existe = habituales.some(h=>String(h).trim().toLocaleLowerCase('es')===clave);
       if(!existe) return false;
       fresh.habitualPlayers = habituales.filter(h=>String(h).trim().toLocaleLowerCase('es')!==clave);
-      fresh.responses = (Array.isArray(fresh.responses) ? fresh.responses : []).filter(r=>
-        r && (r.isGuest || String(r.habitualName || r.name || '').trim().toLocaleLowerCase('es')!==clave)
-      );
+      // Sólo sale la response REGULAR de esa identidad: cualquier entrada falsy o que no sea
+      // objeto (datos raros del blob) y todos los invitados se conservan tal cual.
+      fresh.responses = (Array.isArray(fresh.responses) ? fresh.responses : []).filter(r=>{
+        if(!r || typeof r !== 'object') return true;
+        if(r.isGuest) return true;
+        return String(r.habitualName || r.name || '').trim().toLocaleLowerCase('es')!==clave;
+      });
       return true;
     });
   }catch(e){

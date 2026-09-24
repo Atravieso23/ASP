@@ -791,3 +791,25 @@ test("el handler de baja limpia la identidad local sólo después de que el writ
   assert.ok(propia > -1 && propia < escribe, "captura la identidad propia ANTES de escribir (la response va a desaparecer)");
   assert.ok(limpia > falla && falla > escribe, "sólo tras el chequeo de éxito");
 });
+
+test("sacarDelRoster: conserva entradas falsy / no-objeto de responses y sólo elimina la response regular objetivo", async () => {
+  const w = makeWorld(rosterServer({
+    responses: [
+      null,
+      { responseId: "r-ale", isGuest: false, habitualName: "Ale", name: "Ale", paid: false, status: "in" },
+      0,
+      "texto raro",
+      { responseId: "g-ale", isGuest: true, invitedBy: "Ale", name: "Ale", paid: false, status: "in" },
+      undefined,
+    ],
+  }));
+  assert.equal(await w.sacar("Ale"), true);
+  // JSON del blob convierte undefined en null: lo que importa es que NADA falsy/no-objeto se pierde
+  const resp = w.server().responses;
+  assert.equal(resp.length, 5, "sólo salió la response regular de Ale");
+  assert.equal(resp[0], null, "null sobrevive en su lugar");
+  assert.equal(resp[1], 0);
+  assert.equal(resp[2], "texto raro");
+  assert.equal(resp[3].responseId, "g-ale", "el invitado sobrevive");
+  assert.ok(!resp.some((r) => r && r.responseId === "r-ale"));
+});
