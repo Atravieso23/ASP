@@ -209,6 +209,7 @@ function makeWorld({ row, local, failRead = false, failWrite = false } = {}) {
     function renderGuestManager(){}
     function renderJoinRequestStatus(){}
     function renderRememberPlayerDevice(){}
+    function restaurarJugadorRecordado(){}
     function evaluarTarjetasSiCorresponde(){}
     function saveLocalFormationState(){}
     function showToast(mensaje){ toasts.push(mensaje); }

@@ -304,8 +304,156 @@ test("el handler y el render del checkbox no escriben estado compartido ni owner
 
 test("wiring: el checkbox se re-evalúa al escribir, al elegir del menú y en cada renderIdentityHeader", () => {
   assert.match(demo, /getElementById\('remember-player-device'\)\.addEventListener\('change', onRememberPlayerDeviceChange\)/);
-  assert.match(demo, /myStatusCard\.addEventListener\('input', renderRememberPlayerDevice\)/);
+  assert.match(demo, /myStatusCard\.addEventListener\('input', onMyStatusCardInputRemember\)/);
   assert.match(extractFunction(demo, "renderIdentityHeader"), /renderRememberPlayerDevice\(\);/);
   assert.match(extractFunction(demo, "renderRecurrentPlayerMenu"), /renderRememberPlayerDevice\(\);/);
   assert.match(extractFunction(demo, "refreshFromServer"), /renderRememberPlayerDevice\(\);/);
+});
+
+/* ═════════════════ 3. Restauración segura al abrir ═════════════════ */
+
+function makeRestoreWorld({ habituales = ["Alejandro", "Félix BV"], stored = null, propia = null, responses = [], inputValue = "", focused = false } = {}) {
+  const store = new Map();
+  if (stored !== null) store.set(KEY, stored);
+  const storage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+    raw: () => store.get(KEY) ?? null,
+  };
+  const input = { value: inputValue };
+  const doc = { getElementById: (id) => (id === "my-player-name" ? input : null), activeElement: focused ? input : null };
+  const calls = { server: 0, claim: 0, save: 0 };
+  const ctx = vm.createContext({
+    document: doc, localStorage: storage, String, Array, Boolean,
+    console: { error() {}, warn() {}, log() {} },
+    persistFocalizado: () => { calls.server++; return Promise.resolve(true); },
+    savePlayerRegistration: () => { calls.save++; },
+    saveState: () => { calls.server++; },
+    abrirClaim: () => { calls.claim++; },
+  });
+  vm.runInContext(
+    `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     let state = ${JSON.stringify({ habitualPlayers: habituales, responses })};
+     let currentLocalResponseName = '';
+     let pendingClaimResponseId = '';
+     let changingRegisteredPlayer = false;
+     let jugadorRecordadoPrefill = '';
+     function responseDelJugadorActual(){ return ${JSON.stringify(propia)}; }
+     ${extractFunction(demo, "leerJugadorRecordado")}
+     ${extractFunction(demo, "restaurarJugadorRecordado")}
+     globalThis.__restore = restaurarJugadorRecordado;
+     globalThis.__get = (n) => eval(n);`,
+    ctx,
+  );
+  return { input, storage, calls, run: (code) => vm.runInContext(code, ctx), restore: (o) => ctx.__restore(o), get: (n) => ctx.__get(n), state: () => JSON.parse(JSON.stringify(ctx.__get("state"))) };
+}
+
+test("restaurarJugadorRecordado: partido nuevo sin response propia preselecciona la identidad sin crear ni confirmar nada", () => {
+  const w = makeRestoreWorld({ stored: "  alejandro ", responses: [] });
+  assert.equal(w.restore(), true);
+  assert.equal(w.input.value, "Alejandro", "identidad canónica en el buscador");
+  assert.equal(w.calls.save, 0);
+  assert.equal(w.calls.server, 0);
+  assert.equal(w.calls.claim, 0);
+  assert.deepEqual(w.state().responses, [], "no crea ninguna response");
+  assert.equal(w.get("currentLocalResponseName"), "", "no queda 'identificado'");
+  assert.equal(w.get("pendingClaimResponseId"), "");
+});
+
+test("restaurarJugadorRecordado: con response propia deja la restauración normal (no toca el input)", () => {
+  const w = makeRestoreWorld({ stored: "Alejandro", propia: { name: "Tito", habitualName: "Alejandro" }, inputValue: "" });
+  assert.equal(w.restore(), false);
+  assert.equal(w.input.value, "");
+});
+
+test("restaurarJugadorRecordado: response de OTRO dispositivo — rellena el nombre pero no reclama ni cambia ownership", () => {
+  const ajena = { responseId: "r-ale", isGuest: false, name: "Alejandro", habitualName: "Alejandro", ownerId: "device-celu", ownerIds: ["device-celu"] };
+  const w = makeRestoreWorld({ stored: "Alejandro", responses: [ajena], propia: null });
+  const antes = JSON.stringify(w.state().responses);
+  assert.equal(w.restore(), true);
+  assert.equal(w.input.value, "Alejandro");
+  assert.equal(JSON.stringify(w.state().responses), antes, "ownerId/ownerIds intactos");
+  assert.equal(w.get("currentLocalResponseName"), "", "sin identidad local adquirida");
+  assert.equal(w.get("pendingClaimResponseId"), "", "no abre el claim solo");
+  assert.equal(w.calls.server + w.calls.save + w.calls.claim, 0);
+});
+
+test("restaurarJugadorRecordado: identidad que ya salió del roster borra el recuerdo y deja Registro vacío", () => {
+  const w = makeRestoreWorld({ stored: "Fulano", habituales: ["Alejandro"] });
+  assert.equal(w.restore(), false);
+  assert.equal(w.storage.raw(), null);
+  assert.equal(w.input.value, "");
+});
+
+test("restaurarJugadorRecordado: sin preferencia no hace nada", () => {
+  const w = makeRestoreWorld({});
+  assert.equal(w.restore(), false);
+  assert.equal(w.input.value, "");
+});
+
+test("restaurarJugadorRecordado: no pisa lo que la persona está escribiendo ni el input enfocado", () => {
+  const escribiendo = makeRestoreWorld({ stored: "Alejandro", inputValue: "Fél" });
+  assert.equal(escribiendo.restore(), false);
+  assert.equal(escribiendo.input.value, "Fél");
+  const enfocado = makeRestoreWorld({ stored: "Alejandro", focused: true });
+  assert.equal(enfocado.restore(), false);
+  assert.equal(enfocado.input.value, "");
+});
+
+test("restaurarJugadorRecordado({soloLimpiar}) nunca preselecciona: el sondeo no re-rellena un input vaciado a propósito", () => {
+  const w = makeRestoreWorld({ stored: "Alejandro" });
+  assert.equal(w.restore({ soloLimpiar: true }), false);
+  assert.equal(w.input.value, "");
+});
+
+test("tras una baja de roster ajena: el sondeo limpia el recuerdo y el prefill sin editar, pero no un texto editado", () => {
+  const w = makeRestoreWorld({ stored: "Alejandro" });
+  w.restore();
+  assert.equal(w.input.value, "Alejandro");
+  w.run("state.habitualPlayers = ['Félix BV'];"); // otro dispositivo retiró a Alejandro
+  assert.equal(w.restore({ soloLimpiar: true }), false);
+  assert.equal(w.storage.raw(), null, "recuerdo borrado");
+  assert.equal(w.input.value, "", "prefill sin editar se limpia");
+
+  const editado = makeRestoreWorld({ stored: "Alejandro" });
+  editado.restore();
+  editado.input.value = "Alejandro Ma"; // la persona estaba editando
+  editado.run("state.habitualPlayers = ['Félix BV'];");
+  editado.restore({ soloLimpiar: true });
+  assert.equal(editado.storage.raw(), null);
+  assert.equal(editado.input.value, "Alejandro Ma", "no se pisa un texto en edición");
+});
+
+test("wiring: al iniciar restaura DESPUÉS de restoreCurrentLocalResponse y ANTES de renderIdentityHeader; el sondeo sólo limpia", () => {
+  const i = demo.indexOf("  updateKnownSets(state);\r\n  render();\r\n  // Jugador recordado en este dispositivo");
+  assert.ok(i > -1, "se llama al iniciar, tras armar el estado y el selector");
+  const bloque = demo.slice(i, demo.indexOf("evaluarTarjetasSiCorresponde();", i));
+  assert.ok(bloque.indexOf("restaurarJugadorRecordado();") < bloque.indexOf("restoreCurrentLocalResponse();"), "la restauración normal de una response propia sigue mandando (esta retorna si hay una)");
+  assert.ok(bloque.indexOf("restaurarJugadorRecordado();") < bloque.indexOf("renderIdentityHeader();"), "antes del render de identidad");
+  assert.match(extractFunction(demo, "refreshFromServer"), /restaurarJugadorRecordado\(\{ soloLimpiar:true \}\);/);
+});
+
+test("restaurarJugadorRecordado no escribe estado compartido, ownership ni abre el claim", () => {
+  const fn = extractFunction(demo, "restaurarJugadorRecordado");
+  assert.doesNotMatch(fn, /persistFocalizado|savePlayerRegistration|guardarCambioEnResponses|saveState|upsert|supabase/i);
+  assert.doesNotMatch(fn, /ownerId|ownerIds|pendingClaimResponseId\s*=|claim-player-overlay|currentLocalResponseName\s*=|LOCAL_CURRENT_PLAYER_KEY|\.responses/);
+});
+
+test("regresión: el evento 'input' del propio checkbox no re-renderiza (si no, el tilde se pisa antes de 'change')", () => {
+  let renders = 0;
+  const ctx = vm.createContext({});
+  vm.runInContext(
+    `let calls = 0; function renderRememberPlayerDevice(){ calls++; }
+     ${extractFunction(demo, "onMyStatusCardInputRemember")}
+     globalThis.__on = onMyStatusCardInputRemember; globalThis.__calls = () => calls;`,
+    ctx,
+  );
+  ctx.__on({ target: { id: "remember-player-device" } });
+  assert.equal(ctx.__calls(), 0, "evento del checkbox: ignorado");
+  ctx.__on({ target: { id: "my-player-name" } });
+  assert.equal(ctx.__calls(), 1, "evento del buscador: re-renderiza");
+  ctx.__on(undefined);
+  assert.equal(ctx.__calls(), 2);
+  assert.equal(renders, 0);
 });

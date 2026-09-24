@@ -1799,6 +1799,9 @@ async function refreshFromServer(){
   // (Organizador). render() no llama a renderIdentityHeader(), así que sin esto el
   // banner de este dispositivo quedaría "pendiente" para siempre hasta recargar.
   renderJoinRequestStatus();
+  // Una baja de roster hecha en otro dispositivo puede invalidar el recuerdo: sólo se limpia,
+  // nunca se vuelve a preseleccionar en cada sondeo.
+  restaurarJugadorRecordado({ soloLimpiar:true });
   renderRememberPlayerDevice();
   // Alguien que ya tenía la app abierta cuando pasó el horario, o cuyo primer intento
   // perdió la carrera contra otro dispositivo, evalúa en el próximo sondeo. El latch
@@ -4499,6 +4502,36 @@ function renderJoinRequestStatus(){
   el.hidden = false;
 }
 
+// Restaura de forma SEGURA el jugador recordado en este navegador (preferencia local; no
+// vincula dispositivos ni da acceso a una response ajena).
+//  - Preferencia inválida o fuera del roster: leerJugadorRecordado la borra; si el buscador
+//    aún tiene el mismo texto que se preseleccionó (sin editar), se limpia.
+//  - Con response propia no hace nada: la restauración normal (restoreCurrentLocalResponse) manda.
+//  - Sin response propia (partido nuevo) o con una response de OTRO dispositivo: sólo escribe el
+//    nombre canónico en el buscador. NO crea response, NO cambia ownerId/ownerIds, NO fija
+//    identidad local y NO abre el claim: al tocar Guardar, el flujo actual (incluido el claim de
+//    una response ajena) decide, como si la persona hubiera elegido su nombre del selector.
+//  - No pisa lo que la persona está escribiendo ni un buscador enfocado. `soloLimpiar`
+//    (sondeo) nunca preselecciona: no re-rellena un input vaciado a propósito.
+let jugadorRecordadoPrefill = '';
+function restaurarJugadorRecordado(opciones){
+  const soloLimpiar = Boolean(opciones && opciones.soloLimpiar);
+  const input = document.getElementById('my-player-name');
+  if(!input) return false;
+  const recordado = leerJugadorRecordado();
+  if(!recordado){
+    if(jugadorRecordadoPrefill && input.value===jugadorRecordadoPrefill) input.value = '';
+    jugadorRecordadoPrefill = '';
+    return false;
+  }
+  if(soloLimpiar) return false;
+  if(responseDelJugadorActual()) return false;
+  if(input.value.trim() || document.activeElement===input) return false;
+  input.value = recordado;
+  jugadorRecordadoPrefill = recordado;
+  return true;
+}
+
 // Identidad habitual CANÓNICA sobre la que aplica el checkbox "Recordar este jugador en este
 // dispositivo", o '' si no hay una válida. Identificado: la identidad base de su response
 // (habitualName ?? name), no la casaca. Registro / "Cambiar jugador": lo que hay en el buscador,
@@ -4526,6 +4559,14 @@ function renderRememberPlayerDevice(){
   const identidad = identidadParaRecordar();
   field.hidden = !identidad;
   box.checked = Boolean(identidad) && leerJugadorRecordado()===identidad;
+}
+
+// El propio checkbox también emite 'input' (ANTES de 'change') y burbujea hasta la card: si ese
+// evento re-renderizara, el checkbox volvería a su valor guardado antes de que el handler de
+// 'change' lea lo que la persona marcó y el tilde nunca se guardaría. Se ignora el evento del checkbox.
+function onMyStatusCardInputRemember(ev){
+  if(ev && ev.target && ev.target.id==='remember-player-device') return;
+  renderRememberPlayerDevice();
 }
 
 // Cambio del checkbox: SÓLO preferencia local. No guarda la respuesta, no fija disponibilidad,
@@ -5835,7 +5876,7 @@ myStatusCard.addEventListener('input', refreshDirtyIndicator);
 myStatusCard.addEventListener('input', renderCasacaPreview);
 // Checkbox "Recordar este jugador en este dispositivo": se re-evalúa al escribir el nombre y su
 // cambio es SÓLO preferencia local.
-myStatusCard.addEventListener('input', renderRememberPlayerDevice);
+myStatusCard.addEventListener('input', onMyStatusCardInputRemember);
 document.getElementById('remember-player-device').addEventListener('change', onRememberPlayerDeviceChange);
 myStatusCard.addEventListener('click', event=>{
   if(event.target.closest('#my-status-confirm')) return;
@@ -6175,6 +6216,9 @@ mockNumberInput.onchange = async ()=>{
   loadLocalFormationState();
   updateKnownSets(state);
   render();
+  // Jugador recordado en este dispositivo: sólo preselecciona (sin response propia); nunca
+  // reclama ni escribe. Con response propia no hace nada: la restaura restoreCurrentLocalResponse.
+  restaurarJugadorRecordado();
   restoreCurrentLocalResponse();
   // Fija el modo de la card (Registro vs Jugador convocado) también en estado anónimo,
   // donde restoreCurrentLocalResponse() retorna sin tocar la card.
