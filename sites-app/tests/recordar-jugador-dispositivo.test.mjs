@@ -50,8 +50,10 @@ function makeWorld({ stored = null, habituales = [] } = {}) {
   const ctx = vm.createContext({ localStorage: storage, String, Array });
   vm.runInContext(
     `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     ${extractConst(demo, "LOCAL_REMEMBERED_DETAILS_KEY")}
      let state = ${JSON.stringify({ habitualPlayers: habituales })};
      ${extractFunction(demo, "leerJugadorRecordado")}
+     ${extractFunction(demo, "datosRecordadosSanos")}
      ${extractFunction(demo, "guardarJugadorRecordado")}
      ${extractFunction(demo, "olvidarJugadorRecordado")}
      globalThis.__read = leerJugadorRecordado;
@@ -81,7 +83,7 @@ test("leerJugadorRecordado conserva el casing canónico del roster", () => {
 test("leerJugadorRecordado borra una identidad que ya salió del roster", () => {
   const w = makeWorld({ stored: "Ale", habituales: ["Pablo de Achaval"] });
   assert.equal(w.read(), "");
-  assert.deepEqual(w.storage.removed, [KEY]);
+  assert.deepEqual(w.storage.removed, [KEY, DETAILS_KEY], "borra identidad y detalles");
   assert.equal(w.storage.raw(), null);
 });
 
@@ -99,6 +101,7 @@ test("leerJugadorRecordado no rompe con localStorage que lanza o con roster ause
   });
   vm.runInContext(
     `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     ${extractConst(demo, "LOCAL_REMEMBERED_DETAILS_KEY")}
      let state = {};
      ${extractFunction(demo, "leerJugadorRecordado")}
      globalThis.__read = leerJugadorRecordado;`,
@@ -130,7 +133,7 @@ test("olvidarJugadorRecordado borra sólo si el recuerdo es de esa identidad", (
   assert.deepEqual(w.storage.removed, []);
   assert.equal(w.storage.raw(), "Ale");
   assert.equal(w.forget("  ale "), true);
-  assert.deepEqual(w.storage.removed, [KEY]);
+  assert.deepEqual(w.storage.removed, [KEY, DETAILS_KEY], "borra identidad y detalles");
   assert.equal(w.storage.raw(), null);
 });
 
@@ -160,19 +163,6 @@ test("la preferencia guarda sólo un string: nada de response, pago, disponibili
 
 /* ═════════════════ 2. Checkbox contextual junto a la identidad ═════════════════ */
 
-test("el checkbox de recuerdo tiene el copy exacto, sin texto auxiliar, y está entre la identidad y el Estado", () => {
-  assert.match(demo, /<input type="checkbox" id="remember-player-device">/);
-  assert.match(demo, /<label for="remember-player-device">Recordar este jugador en este dispositivo<\/label>/);
-  assert.equal((demo.match(/>Recordar este jugador en este dispositivo</g) || []).length, 1, "único texto nuevo visible (markup)");
-  const desde = demo.indexOf('id="my-player-name"');
-  const hasta = demo.indexOf('<span class="my-status-label">Estado</span>');
-  const zona = demo.slice(desde, hasta);
-  assert.match(zona, /id="remember-player-device-field"/, "debajo de la identidad y antes del Estado");
-  const campo = demo.match(/<div class="remember-player-field"[^>]*id="remember-player-device-field"[^>]*>[\s\S]*?<\/div>/)[0];
-  assert.match(campo, /\shidden/, "arranca oculto hasta que hay una identidad válida");
-  assert.doesNotMatch(campo, /<p |<small|help|title=/i, "sin texto auxiliar");
-});
-
 function makeUiWorld({ habituales = ["Ale", "Félix BV"], stored = null, propia = null, changing = false, inputValue = "" } = {}) {
   const store = new Map();
   if (stored !== null) store.set(KEY, stored);
@@ -198,13 +188,17 @@ function makeUiWorld({ habituales = ["Ale", "Félix BV"], stored = null, propia 
   });
   vm.runInContext(
     `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     ${extractConst(demo, "LOCAL_REMEMBERED_DETAILS_KEY")}
      let state = ${JSON.stringify({ habitualPlayers: habituales })};
      let changingRegisteredPlayer = ${JSON.stringify(changing)};
      function responseDelJugadorActual(){ return ${JSON.stringify(propia)}; }
      ${extractFunction(demo, "leerJugadorRecordado")}
+     ${extractFunction(demo, "datosRecordadosSanos")}
      ${extractFunction(demo, "guardarJugadorRecordado")}
      ${extractFunction(demo, "olvidarJugadorRecordado")}
      ${extractFunction(demo, "identidadParaRecordar")}
+     ${extractFunction(demo, "datosDeMiResponse")}
+     ${extractFunction(demo, "leerDatosRecordados")}
      ${extractFunction(demo, "renderRememberPlayerDevice")}
      ${extractFunction(demo, "onRememberPlayerDeviceChange")}
      globalThis.__render = renderRememberPlayerDevice;
@@ -334,6 +328,7 @@ function makeRestoreWorld({ habituales = ["Alejandro", "Félix BV"], stored = nu
   });
   vm.runInContext(
     `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     ${extractConst(demo, "LOCAL_REMEMBERED_DETAILS_KEY")}
      let state = ${JSON.stringify({ habitualPlayers: habituales, responses })};
      let currentLocalResponseName = '';
      let pendingClaimResponseId = '';
@@ -456,4 +451,282 @@ test("regresión: el evento 'input' del propio checkbox no re-renderiza (si no, 
   ctx.__on(undefined);
   assert.equal(ctx.__calls(), 2);
   assert.equal(renders, 0);
+});
+
+/* ═════════════════ 4. Recordar mis datos: casaca y número ═════════════════ */
+
+const DETAILS_KEY = "asp_remembered_details_v1";
+
+function makeDetailsWorld({ stored = null, details = null, habituales = ["Alejandro Leupold de Souza Jr.", "Ale"] } = {}) {
+  const store = new Map();
+  if (stored !== null) store.set(KEY, stored);
+  if (details !== null) store.set(DETAILS_KEY, typeof details === "string" ? details : JSON.stringify(details));
+  const log = { written: [], removed: [] };
+  const storage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem(k, v) { store.set(k, String(v)); log.written.push(k); },
+    removeItem(k) { store.delete(k); log.removed.push(k); },
+    raw: (k = KEY) => store.get(k) ?? null,
+    json: () => JSON.parse(store.get(DETAILS_KEY) ?? "null"),
+  };
+  const ctx = vm.createContext({ localStorage: storage, String, Array, Number, JSON, Boolean });
+  vm.runInContext(
+    `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     ${extractConst(demo, "LOCAL_REMEMBERED_DETAILS_KEY")}
+     let state = ${JSON.stringify({ habitualPlayers: habituales })};
+     let localAvailabilityResponses = [];
+     ${extractFunction(demo, "leerJugadorRecordado")}
+     ${extractFunction(demo, "datosRecordadosSanos")}
+     ${extractFunction(demo, "guardarJugadorRecordado")}
+     ${extractFunction(demo, "olvidarJugadorRecordado")}
+     ${extractFunction(demo, "leerDatosRecordados")}
+     ${extractFunction(demo, "actualizarDatosRecordados")}
+     ${extractFunction(demo, "aplicarDatosRecordadosANuevaResponse")}
+     globalThis.__leer = leerDatosRecordados;
+     globalThis.__guardar = guardarJugadorRecordado;
+     globalThis.__olvidar = olvidarJugadorRecordado;
+     globalThis.__actualizar = actualizarDatosRecordados;
+     globalThis.__aplicar = aplicarDatosRecordadosANuevaResponse;
+     globalThis.__setResponses = (r) => { localAvailabilityResponses = r; };
+     globalThis.__leerJugador = leerJugadorRecordado;`,
+    ctx,
+  );
+  return {
+    storage, log,
+    leer: () => JSON.parse(JSON.stringify(ctx.__leer())),
+    leerJugador: () => ctx.__leerJugador(),
+    guardar: (n, d) => ctx.__guardar(n, d),
+    olvidar: (n) => ctx.__olvidar(n),
+    actualizar: (j, c, n) => ctx.__actualizar(j, c, n),
+    aplicar: (resp, hab, responses) => JSON.parse(JSON.stringify(ctx.__aplicar(resp, hab, responses))),
+    setResponses: (r) => ctx.__setResponses(r),
+  };
+}
+
+test("clave de detalles: constante propia, distinta de la de identidad y de la de sesión", () => {
+  assert.equal(extractConst(demo, "LOCAL_REMEMBERED_DETAILS_KEY"), "const LOCAL_REMEMBERED_DETAILS_KEY = 'asp_remembered_details_v1';");
+});
+
+test("recuerdo v1 (sólo identidad) sigue preseleccionando y NO inventa casaca ni número", () => {
+  const w = makeDetailsWorld({ stored: " alejandro leupold de souza jr. " });
+  assert.equal(w.leerJugador(), "Alejandro Leupold de Souza Jr.");
+  assert.deepEqual(w.leer(), { jugador: "Alejandro Leupold de Souza Jr.", casaca: "", numero: null });
+  assert.deepEqual(w.log.written, [], "leer no migra ni escribe");
+  assert.equal(w.storage.raw(DETAILS_KEY), null);
+});
+
+test("guardar con datos escribe identidad canónica + casaca + número; leer los devuelve", () => {
+  const w = makeDetailsWorld();
+  assert.equal(w.guardar("  ale ", { casaca: "  Tito ", numero: 10 }), true);
+  assert.equal(w.storage.raw(), "Ale");
+  assert.deepEqual(w.storage.json(), { jugador: "Ale", casaca: "Tito", numero: 10 });
+  assert.deepEqual(w.leer(), { jugador: "Ale", casaca: "Tito", numero: 10 });
+});
+
+test("casaca vacía o igual a la identidad se guarda como '' y número vacío/ inválido como null", () => {
+  const w = makeDetailsWorld();
+  w.guardar("Ale", { casaca: "", numero: null });
+  assert.deepEqual(w.leer(), { jugador: "Ale", casaca: "", numero: null });
+  w.guardar("Ale", { casaca: "  ale ", numero: 0 });
+  assert.deepEqual(w.leer(), { jugador: "Ale", casaca: "", numero: null }, "casaca == identidad => sin casaca; 0 fuera de rango");
+  for (const numero of [100, -3, 4.5, "7", NaN, undefined]) {
+    w.guardar("Ale", { casaca: "Tito", numero });
+    assert.equal(w.leer().numero, null, `número inválido ${String(numero)}`);
+  }
+});
+
+test("los detalles de OTRA identidad se ignoran (la preferencia de identidad manda)", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Alejandro Leupold de Souza Jr.", casaca: "Otro", numero: 9 } });
+  assert.deepEqual(w.leer(), { jugador: "Ale", casaca: "", numero: null });
+});
+
+test("detalles corruptos o de tipo raro no rompen: caen a identidad sola", () => {
+  for (const details of ["{no es json", "null", "[]", "\"texto\"", "42"]) {
+    const w = makeDetailsWorld({ stored: "Ale", details });
+    assert.deepEqual(w.leer(), { jugador: "Ale", casaca: "", numero: null }, `details=${details}`);
+  }
+});
+
+test("casaca se recorta y se limita a 40 caracteres", () => {
+  const w = makeDetailsWorld();
+  w.guardar("Ale", { casaca: "x".repeat(80), numero: 5 });
+  assert.equal(w.leer().casaca.length, 40);
+});
+
+test("identidad fuera del roster: se borran AMBAS claves", () => {
+  const w = makeDetailsWorld({ stored: "Fulano", details: { jugador: "Fulano", casaca: "F", numero: 3 }, habituales: ["Ale"] });
+  assert.equal(w.leer(), null);
+  assert.equal(w.storage.raw(), null);
+  assert.equal(w.storage.raw(DETAILS_KEY), null);
+});
+
+test("desmarcar (olvidar) borra identidad, casaca y número; otra identidad no se toca", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Ale", casaca: "Tito", numero: 10 } });
+  assert.equal(w.olvidar("Alejandro Leupold de Souza Jr."), false);
+  assert.equal(w.storage.raw(), "Ale");
+  assert.deepEqual(w.storage.json(), { jugador: "Ale", casaca: "Tito", numero: 10 });
+  assert.equal(w.olvidar(" ale "), true);
+  assert.equal(w.storage.raw(), null);
+  assert.equal(w.storage.raw(DETAILS_KEY), null);
+});
+
+test("actualizarDatosRecordados: sólo si este navegador recuerda a esa identidad (checkbox marcado)", () => {
+  const no = makeDetailsWorld();
+  assert.equal(no.actualizar("Ale", "Tito", 10), false);
+  assert.deepEqual(no.log.written, [], "sin recuerdo no escribe nada");
+  const otro = makeDetailsWorld({ stored: "Alejandro Leupold de Souza Jr." });
+  assert.equal(otro.actualizar("Ale", "Tito", 10), false, "recuerdo de otra persona: no se pisa");
+  const si = makeDetailsWorld({ stored: "Ale" });
+  assert.equal(si.actualizar("ale", "Tito", 10), true);
+  assert.deepEqual(si.storage.json(), { jugador: "Ale", casaca: "Tito", numero: 10 });
+  assert.equal(si.storage.raw(), "Ale", "la identidad v1 no se reescribe");
+});
+
+test("actualizarDatosRecordados con casaca vacía y sin número guarda vacíos (borra lo anterior)", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Ale", casaca: "Tito", numero: 10 } });
+  assert.equal(w.actualizar("Ale", "", null), true);
+  assert.deepEqual(w.leer(), { jugador: "Ale", casaca: "", numero: null });
+});
+
+test("aplicarDatosRecordadosANuevaResponse: casaca -> name y número -> number; habitualName no cambia", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Ale", casaca: "Tito", numero: 10 } });
+  const r = w.aplicar({ responseId: "n1", name: "Ale", habitualName: "Ale", status: "in" }, "Ale", []);
+  assert.equal(r.name, "Tito");
+  assert.equal(r.number, 10);
+  assert.equal(r.habitualName, "Ale");
+});
+
+test("aplicar: recuerdo v1 (sin detalles) deja la response intacta: name = identidad, sin number", () => {
+  const w = makeDetailsWorld({ stored: "Ale" });
+  const r = w.aplicar({ name: "Ale", habitualName: "Ale" }, "Ale", []);
+  assert.deepEqual(r, { name: "Ale", habitualName: "Ale" });
+});
+
+test("aplicar: casaca vacía no cambia name; número vacío no agrega number", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Ale", casaca: "", numero: null } });
+  const r = w.aplicar({ name: "Ale", habitualName: "Ale" }, "Ale", []);
+  assert.deepEqual(r, { name: "Ale", habitualName: "Ale" });
+});
+
+test("aplicar: solo número (casaca vacía) aplica sólo el número", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Ale", casaca: "", numero: 7 } });
+  const r = w.aplicar({ name: "Ale", habitualName: "Ale" }, "Ale", []);
+  assert.equal(r.name, "Ale");
+  assert.equal(r.number, 7);
+});
+
+test("aplicar: si el recuerdo es de OTRA identidad no aplica nada", () => {
+  const w = makeDetailsWorld({ stored: "Alejandro Leupold de Souza Jr.", details: { jugador: "Alejandro Leupold de Souza Jr.", casaca: "Aleee", numero: 3 } });
+  const r = w.aplicar({ name: "Ale", habitualName: "Ale" }, "Ale", []);
+  assert.deepEqual(r, { name: "Ale", habitualName: "Ale" });
+});
+
+test("aplicar: una casaca que ya usa otra response NO se aplica (sin colisión), pero el número sí", () => {
+  const w = makeDetailsWorld({ stored: "Ale", details: { jugador: "Ale", casaca: "Tito", numero: 10 } });
+  const r = w.aplicar({ name: "Ale", habitualName: "Ale" }, "Ale", [{ name: " tito ", isGuest: false }]);
+  assert.equal(r.name, "Ale");
+  assert.equal(r.number, 10);
+});
+
+test("aplicarDatosRecordadosANuevaResponse sólo se usa al CREAR: nunca con response existente (propia ni ajena)", () => {
+  const h = demo.slice(demo.indexOf("document.getElementById('my-status-confirm').onclick = async ()=>{"), demo.indexOf("document.getElementById('change-player-btn').onclick"));
+  assert.equal((h.match(/aplicarDatosRecordadosANuevaResponse\(/g) || []).length, 1);
+  assert.match(h, /if\(!existingResponse\)\{\s*aplicarDatosRecordadosANuevaResponse\(response, habitualName\);\s*\}/, "sólo sin response propia");
+  // una response ajena para esa identidad manda: el claim corta el handler ANTES de armar la response
+  assert.ok(h.indexOf("pendingClaimResponseId = yaRegistrada.responseId;") < h.indexOf("aplicarDatosRecordadosANuevaResponse("), "el claim de una response ajena corta antes de aplicar");
+  // y se aplica sólo si la identidad es un habitual exacto (registro nuevo), antes de guardar
+  assert.ok(h.indexOf("aplicarDatosRecordadosANuevaResponse(") < h.indexOf("await savePlayerRegistration(response)"));
+});
+
+test("al guardar una respuesta propia se actualiza la preferencia con lo realmente guardado, y se usa response.name como identidad local", () => {
+  const h = demo.slice(demo.indexOf("document.getElementById('my-status-confirm').onclick = async ()=>{"), demo.indexOf("document.getElementById('change-player-btn').onclick"));
+  const ok = h.indexOf("showSaveFeedback('ok','✓ Cambios guardados');");
+  assert.ok(ok > -1);
+  const despues = h.slice(ok);
+  assert.match(despues, /actualizarDatosRecordados\(response\.habitualName, response\.name, response\.number\);/);
+  assert.match(despues, /currentLocalResponseName = response\.name;/, "si la casaca recordada cambió el name, la identidad local es el name guardado");
+  assert.doesNotMatch(despues, /currentLocalResponseName = playerName;/);
+  assert.match(despues, /nameInput\.value = response\.name;/);
+});
+
+test("al cambiar el N° se actualiza la preferencia recordada tras el guardado exitoso", () => {
+  const h = demo.slice(demo.indexOf("mockNumberInput.onchange = async ()=>{"), demo.indexOf("(async function init()"));
+  const okAt = h.indexOf("if(!ok){");
+  assert.ok(h.indexOf("actualizarDatosRecordados(", okAt) > okAt);
+});
+
+test("los helpers de detalles no escriben estado compartido ni ownership", () => {
+  for (const name of ["leerDatosRecordados", "actualizarDatosRecordados", "aplicarDatosRecordadosANuevaResponse"]) {
+    const fn = extractFunction(demo, name);
+    assert.doesNotMatch(fn, /persistFocalizado|savePlayerRegistration|guardarCambioEnResponses|saveState|upsert|supabase/i);
+    assert.doesNotMatch(fn, /ownerId|ownerIds|pendingClaimResponseId|showToast/);
+  }
+});
+
+test("marcar el checkbox con una response propia guarda sus casaca y número; en Registro sólo la identidad", () => {
+  const src = extractFunction(demo, "onRememberPlayerDeviceChange");
+  assert.match(src, /datosDeMiResponse\(identidad\)/);
+  const helper = extractFunction(demo, "datosDeMiResponse");
+  assert.doesNotMatch(helper, /persistFocalizado|saveState|upsert|ownerId/);
+});
+
+/* ═════════════════ 5. Copy: "Recordar mis datos", ayuda accesible, Casaca, sin ayudas fijas ═════════════════ */
+
+test("el checkbox se llama 'Recordar mis datos' y explica qué guarda (tooltip + ayuda accesible)", () => {
+  const AYUDA = "Guardamos jugador, casaca y número en este dispositivo para próximos partidos.";
+  assert.match(demo, /<label for="remember-player-device"[^>]*title="Guardamos jugador, casaca y número en este dispositivo para próximos partidos\."[^>]*>Recordar mis datos<\/label>/, "hover: title en la etiqueta");
+  assert.match(demo, /<input type="checkbox" id="remember-player-device" aria-describedby="remember-player-device-help">/, "foco: descripción accesible");
+  assert.match(demo, new RegExp(`<p class="remember-player-help" id="remember-player-device-help"[^>]*hidden>${AYUDA.replace(/[.]/g, "\\.")}</p>`), "ayuda visible al enfocar / tocar el botón");
+  assert.match(demo, /<button type="button" class="remember-help-btn" id="remember-player-device-info"[^>]*aria-controls="remember-player-device-help"[^>]*>/, "botón de ayuda tocable");
+  assert.equal((demo.match(/>Recordar mis datos</g) || []).length, 1);
+  assert.doesNotMatch(demo, /Recordar este jugador en este dispositivo/);
+});
+
+test("la ayuda se muestra al enfocar el checkbox y al tocar su botón, y se oculta al salir", () => {
+  const els = {
+    "remember-player-device-help": { hidden: true },
+    "remember-player-device-info": { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } },
+  };
+  let abierta = false;
+  const ctx = vm.createContext({ document: { getElementById: (id) => els[id] || null }, Boolean });
+  vm.runInContext(
+    `let rememberHelpFijada = false;
+     ${extractFunction(demo, "mostrarAyudaRecordar")}
+     globalThis.__show = mostrarAyudaRecordar; globalThis.__fija = () => rememberHelpFijada; globalThis.__set = (v) => { rememberHelpFijada = v; };`,
+    ctx,
+  );
+  ctx.__show(true);
+  assert.equal(els["remember-player-device-help"].hidden, false);
+  assert.equal(els["remember-player-device-info"].attrs["aria-expanded"], "true");
+  ctx.__show(false);
+  assert.equal(els["remember-player-device-help"].hidden, true);
+  assert.equal(els["remember-player-device-info"].attrs["aria-expanded"], "false");
+  assert.match(demo, /getElementById\('remember-player-device'\)\.addEventListener\('focus'/);
+  assert.match(demo, /getElementById\('remember-player-device'\)\.addEventListener\('blur'/);
+  assert.match(demo, /getElementById\('remember-player-device-info'\)\.addEventListener\('click'/);
+  assert.equal(abierta, false);
+});
+
+test("identificado: la etiqueta pasa a 'Casaca' y desaparece la ayuda fija 'no modifica tu jugador'", () => {
+  const header = extractFunction(demo, "renderIdentityHeader");
+  assert.match(header, /label\.textContent = 'Casaca';/);
+  assert.doesNotMatch(header, /Nombre en la casaca/);
+  const mode = extractFunction(demo, "setRegisteredPlayerNameMode");
+  assert.doesNotMatch(mode, /Editarlo no cambia tu jugador/);
+  assert.match(mode, /help\.hidden = true;/, "el modo identificado oculta la ayuda fija");
+  assert.doesNotMatch(demo, /Editarlo no cambia tu jugador/);
+});
+
+test("el campo N° conserva su lugar junto a Casaca pero sin 'Opcional.'", () => {
+  assert.doesNotMatch(demo, /Opcional\./);
+  assert.doesNotMatch(demo, /my-status-number-help/);
+  const fila = demo.slice(demo.indexOf('<div class="casaca-row">'), demo.indexOf('<div class="remember-player-field"'));
+  assert.match(fila, /id="my-status-number-field"/, "sigue dentro de la misma fila de la casaca");
+  assert.match(fila, /<label for="my-status-number">N°<\/label>/);
+});
+
+test("el preview 'En la lista te ven como…' sigue mostrándose sólo cuando la casaca difiere de la identidad", () => {
+  const fn = extractFunction(demo, "renderCasacaPreview");
+  assert.match(fn, /if\(!nombre \|\| nombre === habitual\)\{/);
+  assert.match(demo, /En la lista te ven como <b id="casaca-preview-name">/);
 });

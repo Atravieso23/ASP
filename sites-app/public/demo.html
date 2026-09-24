@@ -502,7 +502,6 @@
   .my-status-number-field input{width:100%; -moz-appearance:textfield;}
   .my-status-number-field input::-webkit-outer-spin-button,
   .my-status-number-field input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
-  .my-status-number-help{margin:6px 2px 0;color:var(--muted);font-size:var(--fs-help);line-height:1.45;}
   /* Preview vivo de "Nombre en la casaca": refleja lo que hay en el input (aún sin
      guardar), para que se note que ese campo cambia cómo te ve el grupo. */
   .casaca-preview{margin:7px 2px 0;font-size:var(--fs-help);line-height:1.45;color:var(--text);}
@@ -513,8 +512,12 @@
   .player-name-feedback.info{background:var(--active-soft);border:1px solid var(--primary);color:var(--primary-deep);}
   .player-name-feedback.error{background:#F6E4E0;border:1px solid var(--danger);color:#8A2A1D;}
   .player-name-feedback strong{display:block;margin-bottom:2px;}
-  /* "Recordar este jugador en este dispositivo": checkbox + etiqueta, toda la fila es tocable. */
-  .remember-player-field{display:flex; align-items:center; gap:10px; margin:2px 0 6px;}
+  /* "Recordar mis datos": checkbox + etiqueta, toda la fila es tocable. */
+  .remember-player-field{display:flex; flex-wrap:wrap; align-items:center; gap:0 10px; margin:2px 0 6px;}
+  .remember-help-btn{flex:none; width:var(--tap); height:var(--tap); border:0; background:transparent; color:var(--primary-deep); font:700 var(--fs-body) 'Inter',sans-serif; cursor:pointer; border-radius:50%;}
+  .remember-help-btn:hover{background:var(--surface-2);}
+  .remember-player-help{flex:1 0 100%; margin:0 0 4px; font-size:var(--fs-help); line-height:1.45; color:var(--muted);}
+  .remember-player-help[hidden]{display:none;}
   .remember-player-field[hidden]{display:none;}
   .remember-player-field input{flex:none; width:22px; height:22px; margin:0; accent-color:var(--primary); cursor:pointer;}
   .remember-player-field label{flex:1; min-width:0; min-height:var(--tap); display:flex; align-items:center; margin:0; font:600 var(--fs-body) 'Inter',sans-serif; text-transform:none; letter-spacing:normal; color:var(--text); cursor:pointer; overflow-wrap:anywhere;}
@@ -881,12 +884,13 @@
         <div class="my-status-field my-status-number-field" id="my-status-number-field" hidden>
           <label for="my-status-number">N°</label>
           <input type="number" id="my-status-number" inputmode="numeric" min="1" max="99" step="1" placeholder="—" autocomplete="off">
-          <p class="my-status-number-help">Opcional.</p>
         </div>
       </div>
       <div class="remember-player-field" id="remember-player-device-field" hidden>
-        <input type="checkbox" id="remember-player-device">
-        <label for="remember-player-device">Recordar este jugador en este dispositivo</label>
+        <input type="checkbox" id="remember-player-device" aria-describedby="remember-player-device-help">
+        <label for="remember-player-device" title="Guardamos jugador, casaca y número en este dispositivo para próximos partidos.">Recordar mis datos</label>
+        <button type="button" class="remember-help-btn" id="remember-player-device-info" aria-label="Qué se guarda al recordar mis datos" aria-expanded="false" aria-controls="remember-player-device-help">?</button>
+        <p class="remember-player-help" id="remember-player-device-help" hidden>Guardamos jugador, casaca y número en este dispositivo para próximos partidos.</p>
       </div>
       <span class="my-status-label">Estado</span>
       <div class="my-status-choice" role="group" aria-label="Estado">
@@ -4239,10 +4243,14 @@ document.getElementById('maps-btn').onclick = ()=>{
 /* ---------- DISPONIBILIDAD LOCAL DE PRUEBA ---------- */
 const LOCAL_AVAILABILITY_KEY = 'asp_availability_demo_v1';
 const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
-// Preferencia LOCAL y optativa (checkbox "Recordar este jugador en este dispositivo"): guarda
+// Preferencia LOCAL y optativa (checkbox "Recordar mis datos"): guarda
 // SÓLO la identidad habitual canónica. Clave propia — LOCAL_CURRENT_PLAYER_KEY es el valor de
 // sesión que escriben el registro y el claim, y no debe mezclarse con una preferencia.
 const LOCAL_REMEMBERED_HABITUAL_KEY = 'asp_remembered_habitual_v1';
+// Detalles opcionales del recuerdo ("Recordar mis datos"): casaca y número, JSON
+// {jugador, casaca, numero}. Clave aparte para que el recuerdo v1 (sólo identidad) siga siendo
+// válido tal cual; sólo cuenta si su `jugador` coincide con la identidad recordada.
+const LOCAL_REMEMBERED_DETAILS_KEY = 'asp_remembered_details_v1';
 const LOCAL_DEMO_SEEDED_KEY = 'asp_demo_responses_seeded_v3';
 const DEFAULT_DEMO_RESPONSES = [
   {name:'Clara', status:'in', from:'16:00', to:'20:00', paid:true, team:'negro'},
@@ -4422,7 +4430,7 @@ function renderIdentityHeader(){
   if(modoIdentificado){
     eyebrow.textContent = 'Jugador convocado esta fecha';
     title.textContent = propia.habitualName || propia.name;
-    if(label) label.textContent = 'Nombre en la casaca';
+    if(label) label.textContent = 'Casaca';
   }else{
     eyebrow.textContent = 'Registro';
     title.textContent = 'Elegí tu jugador';
@@ -4576,8 +4584,28 @@ function onRememberPlayerDeviceChange(){
   if(!box) return;
   const identidad = identidadParaRecordar();
   if(!identidad){ box.checked = false; return; }
-  if(box.checked) guardarJugadorRecordado(identidad);
+  if(box.checked) guardarJugadorRecordado(identidad, datosDeMiResponse(identidad));
   else olvidarJugadorRecordado(identidad);
+}
+
+// Casaca y N° de la response propia de esta identidad, para recordarlos al marcar el checkbox.
+// En Registro (sin response propia) no hay nada que recordar todavía: sólo la identidad.
+function datosDeMiResponse(identidad){
+  const propia = responseDelJugadorActual();
+  if(!propia || changingRegisteredPlayer) return undefined;
+  const id = String(propia.habitualName || propia.name || '').trim().toLocaleLowerCase('es');
+  if(id!==String(identidad == null ? '' : identidad).trim().toLocaleLowerCase('es')) return undefined;
+  return { casaca:propia.name, numero:Number.isInteger(propia.number) ? propia.number : null };
+}
+
+// Ayuda del checkbox "Recordar mis datos": visible al enfocarlo o al tocar su botón "?"; el hover
+// usa el title de la etiqueta. `rememberHelpFijada` = abierta a propósito con el botón.
+let rememberHelpFijada = false;
+function mostrarAyudaRecordar(abierta){
+  const help = document.getElementById('remember-player-device-help');
+  const info = document.getElementById('remember-player-device-info');
+  if(help) help.hidden = !abierta;
+  if(info) info.setAttribute('aria-expanded', abierta ? 'true' : 'false');
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
@@ -5062,22 +5090,47 @@ function leerJugadorRecordado(estado = state){
   const habituales = Array.isArray(estado && estado.habitualPlayers) ? estado.habitualPlayers : [];
   const habitual = key ? habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key) : null;
   if(habitual) return String(habitual);
-  // Recuerdo inválido (salió del roster, editado a mano, roster vacío): se elimina.
-  if(raw){ try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){} }
+  // Recuerdo inválido (salió del roster, editado a mano, roster vacío): se elimina, con sus detalles.
+  if(raw){
+    try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){}
+    try{ localStorage.removeItem(LOCAL_REMEMBERED_DETAILS_KEY); }catch(e){}
+  }
   return '';
 }
 
-function guardarJugadorRecordado(nombre){
+// Casaca y N° recordados, ya saneados: casaca recortada (máx. 40) y '' si es igual a la identidad
+// (no hay casaca distinta); número entero 1–99 o null. Nunca inventa datos.
+function datosRecordadosSanos(casaca, numero, identidad){
+  const c = String(casaca == null ? '' : casaca).trim().slice(0, 40);
+  const igual = c.toLocaleLowerCase('es')===String(identidad == null ? '' : identidad).trim().toLocaleLowerCase('es');
+  const n = Number.isInteger(numero) && numero >= 1 && numero <= 99 ? numero : null;
+  return { casaca: igual ? '' : c, numero: n };
+}
+
+// `datos` ({casaca, numero}) es opcional: sin datos se conservan los de la MISMA identidad y se
+// descartan los de otra. Sólo localStorage.
+function guardarJugadorRecordado(nombre, datos){
   const key = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
   if(!key) return false;
   const habituales = Array.isArray(state && state.habitualPlayers) ? state.habitualPlayers : [];
   const habitual = habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key);
   if(!habitual) return false;
   try{ localStorage.setItem(LOCAL_REMEMBERED_HABITUAL_KEY, String(habitual)); }catch(e){ return false; }
+  try{
+    if(datos && typeof datos === 'object'){
+      const sanos = datosRecordadosSanos(datos.casaca, datos.numero, habitual);
+      localStorage.setItem(LOCAL_REMEMBERED_DETAILS_KEY, JSON.stringify({ jugador:String(habitual), casaca:sanos.casaca, numero:sanos.numero }));
+    }else{
+      const previos = JSON.parse(localStorage.getItem(LOCAL_REMEMBERED_DETAILS_KEY) || 'null');
+      const mismo = previos && typeof previos === 'object' &&
+        String(previos.jugador || '').trim().toLocaleLowerCase('es')===key;
+      if(!mismo) localStorage.removeItem(LOCAL_REMEMBERED_DETAILS_KEY);
+    }
+  }catch(e){}
   return true;
 }
 
-// Borra el recuerdo SÓLO si es de esa identidad: no pisa el de otra persona.
+// Borra el recuerdo (identidad + casaca + número) SÓLO si es de esa identidad: no pisa el de otra persona.
 function olvidarJugadorRecordado(nombre){
   const key = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
   if(!key) return false;
@@ -5085,7 +5138,51 @@ function olvidarJugadorRecordado(nombre){
   try{ raw = localStorage.getItem(LOCAL_REMEMBERED_HABITUAL_KEY) || ''; }catch(e){ return false; }
   if(String(raw).trim().toLocaleLowerCase('es')!==key) return false;
   try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){ return false; }
+  try{ localStorage.removeItem(LOCAL_REMEMBERED_DETAILS_KEY); }catch(e){}
   return true;
+}
+
+// Preferencia completa: { jugador, casaca, numero } o null si no hay recuerdo válido. Un recuerdo
+// v1 (sólo identidad) devuelve casaca '' y numero null: no se inventa nada. Los detalles de otra
+// identidad, o corruptos, se ignoran.
+function leerDatosRecordados(estado = state){
+  const jugador = leerJugadorRecordado(estado);
+  if(!jugador) return null;
+  const base = { jugador, casaca:'', numero:null };
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(LOCAL_REMEMBERED_DETAILS_KEY) || 'null'); }catch(e){ return base; }
+  if(!d || typeof d !== 'object') return base;
+  if(String(d.jugador || '').trim().toLocaleLowerCase('es')!==jugador.trim().toLocaleLowerCase('es')) return base;
+  const sanos = datosRecordadosSanos(d.casaca, d.numero, jugador);
+  return { jugador, casaca:sanos.casaca, numero:sanos.numero };
+}
+
+// Actualiza casaca y N° recordados con lo REALMENTE guardado, sólo si este navegador recuerda a esa
+// identidad (checkbox marcado). No cambia la identidad recordada.
+function actualizarDatosRecordados(jugador, casaca, numero){
+  const recordado = leerJugadorRecordado();
+  if(!recordado) return false;
+  if(recordado.trim().toLocaleLowerCase('es')!==String(jugador == null ? '' : jugador).trim().toLocaleLowerCase('es')) return false;
+  const sanos = datosRecordadosSanos(casaca, numero, recordado);
+  try{ localStorage.setItem(LOCAL_REMEMBERED_DETAILS_KEY, JSON.stringify({ jugador:recordado, casaca:sanos.casaca, numero:sanos.numero })); }catch(e){ return false; }
+  return true;
+}
+
+// Sugerencias para la PRIMERA respuesta regular de ese jugador en una fecha: habitualName sigue
+// siendo la identidad; `name` toma la casaca recordada y `number` el número recordado. Se llama
+// sólo al CREAR (nunca con una response propia o ajena existente: esa manda). Una casaca que ya
+// usa otra response no se aplica (evita un duplicado de nombre); casaca/número vacíos no cambian nada.
+function aplicarDatosRecordadosANuevaResponse(response, habitualName, responses = localAvailabilityResponses){
+  const datos = leerDatosRecordados();
+  if(!datos || !habitualName) return response;
+  if(datos.jugador.trim().toLocaleLowerCase('es')!==String(habitualName).trim().toLocaleLowerCase('es')) return response;
+  if(datos.casaca){
+    const clave = datos.casaca.toLocaleLowerCase('es');
+    const ocupada = (responses || []).some(item=>item && item.name && String(item.name).trim().toLocaleLowerCase('es')===clave);
+    if(!ocupada) response.name = datos.casaca;
+  }
+  if(Number.isInteger(datos.numero)) response.number = datos.numero;
+  return response;
 }
 
 function loadRecurrentPlayers(){
@@ -5135,8 +5232,8 @@ function setRegisteredPlayerNameMode(allowChange=false){
     // base para que vaciar el campo (volver a ella) no sea una sorpresa, y el helper aclara
     // que editar acá NO cambia el jugador elegido ni crea otra identidad.
     input.placeholder = ownResponse.habitualName || ownResponse.name;
-    help.textContent = 'Editarlo no cambia tu jugador.';
-    help.hidden = false;
+    help.textContent = '';
+    help.hidden = true;
     hidePlayerNameFeedback();
     hideRecurrentPlayerMenu();
   }else if(ownResponse){
@@ -5874,10 +5971,16 @@ myStatusCard.addEventListener('input', refreshDirtyIndicator);
 // El preview de casaca sigue al input en vivo (mismo canal, función aparte para no
 // tocar el cableado del indicador de cambios sin guardar).
 myStatusCard.addEventListener('input', renderCasacaPreview);
-// Checkbox "Recordar este jugador en este dispositivo": se re-evalúa al escribir el nombre y su
+// Checkbox "Recordar mis datos": se re-evalúa al escribir el nombre y su
 // cambio es SÓLO preferencia local.
 myStatusCard.addEventListener('input', onMyStatusCardInputRemember);
 document.getElementById('remember-player-device').addEventListener('change', onRememberPlayerDeviceChange);
+document.getElementById('remember-player-device').addEventListener('focus', ()=> mostrarAyudaRecordar(true));
+document.getElementById('remember-player-device').addEventListener('blur', ()=> mostrarAyudaRecordar(rememberHelpFijada));
+document.getElementById('remember-player-device-info').addEventListener('click', ()=>{
+  rememberHelpFijada = !rememberHelpFijada;
+  mostrarAyudaRecordar(rememberHelpFijada);
+});
 myStatusCard.addEventListener('click', event=>{
   if(event.target.closest('#my-status-confirm')) return;
   refreshDirtyIndicator();
@@ -6010,6 +6113,12 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   // El N° de camiseta tiene su propio writer (marcarMiNumero); acá sólo se arrastra el
   // que ya estaba para que "Guardar cambios" no lo borre.
   if(existingResponse && Number.isInteger(existingResponse.number)) response.number = existingResponse.number;
+  // "Recordar mis datos": SÓLO al crear la primera response regular de este jugador en la fecha
+  // (sin response propia; una response ajena ya cortó arriba en el claim). Usa la casaca y el N°
+  // recordados como sugerencia; una response existente siempre manda.
+  if(!existingResponse){
+    aplicarDatosRecordadosANuevaResponse(response, habitualName);
+  }
   // Guard duro de identidad cerrada: fuera de editar "Nombre en la casaca", una response no
   // invitada sólo se guarda con una identidad habitual exacta. Sin habitualExacto no hay
   // identidad estable que asignar; se bloquea y se orienta a pedir el alta al grupo.
@@ -6042,13 +6151,15 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   }
   confirmButton.textContent = 'Guardar cambios';
   showSaveFeedback('ok','✓ Cambios guardados');
-  currentLocalResponseName = playerName;
+  currentLocalResponseName = response.name;
   hidePlayerNameFeedback();
   // El selector "¿Quién sos?" se deriva siempre de habitualPlayers + identidades existentes
   // (deriveSelectorNames): no se le agregan nombres desde este flujo.
-  nameInput.value = playerName;
+  nameInput.value = response.name;
   try{ localStorage.setItem(LOCAL_CURRENT_PLAYER_KEY, currentLocalResponseName); }
   catch(e){ console.error('No se pudo guardar la selección local del jugador', e); }
+  // Si "Recordar mis datos" está marcado, la preferencia local sigue lo realmente guardado.
+  actualizarDatosRecordados(response.habitualName, response.name, response.number);
   setRegisteredPlayerNameMode(false);
   render();
   renderLocalOrganizer();
@@ -6170,6 +6281,7 @@ mockNumberInput.onchange = async ()=>{
     showToast('No se pudo guardar el número. Revisá la conexión e intentá otra vez.');
     return;
   }
+  actualizarDatosRecordados(response.habitualName || response.name, response.name, parsed.value);
   render();
   renderLocalOrganizer();
   renderIdentityHeader();

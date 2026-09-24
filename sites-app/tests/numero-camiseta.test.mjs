@@ -144,10 +144,10 @@ test(".casaca-row: flex responsive + el campo de N° vuelve la casaca full-width
   assert.match(demo, /\.my-status-number-field\[hidden\]\{display:none;\}/);
 });
 
-test("el label del N° es 'N°' y el helper es 'Opcional.'", () => {
+test("el label del N° es 'N°' y ya no lleva el helper 'Opcional.'", () => {
   const field = demo.slice(demo.indexOf('id="my-status-number-field"'), demo.indexOf('<span class="my-status-label">Estado</span>'));
   assert.match(field, /<label for="my-status-number">N°<\/label>/);
-  assert.match(field, /<p class="my-status-number-help">Opcional\.<\/p>/);
+  assert.doesNotMatch(field, /Opcional\.|my-status-number-help/);
 });
 
 /* ---------- 3. render (buildTeamListRow) ---------- */

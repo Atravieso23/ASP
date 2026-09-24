@@ -106,7 +106,11 @@ function makeConfirmWorld(opts) {
     mockAvailability = "in",
     from = "16:00",
     to = "20:00",
+    remembered = null, // { v1: "Mingo", details: { jugador, casaca, numero } } — "Recordar mis datos"
   } = opts;
+  const store = new Map();
+  if (remembered && remembered.v1) store.set("asp_remembered_habitual_v1", remembered.v1);
+  if (remembered && remembered.details) store.set("asp_remembered_details_v1", JSON.stringify(remembered.details));
 
   const calls = { save: [], feedback: [], toast: [], menu: 0, claimOpened: false, dupName: null, claimText: "" };
   const nameInput = {
@@ -129,7 +133,11 @@ function makeConfirmWorld(opts) {
     document: { getElementById: (id) => els[id] || { focus() {}, classList: { add() {}, remove() {} }, setAttribute() {}, removeAttribute() {} } },
     console: { error() {}, warn() {}, log() {} },
     crypto: { randomUUID: () => "uuid-nueva" },
-    localStorage: { setItem() {}, getItem() { return null; } },
+    localStorage: {
+      setItem: (k, v) => store.set(k, String(v)),
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      removeItem: (k) => store.delete(k),
+    },
     Date, Boolean, Set, Array, Object, JSON, String, Number, Promise, Math,
     showPlayerNameFeedback: (kind, title, msg) => calls.feedback.push({ kind, title, msg }),
     hidePlayerNameFeedback: () => {},
@@ -153,11 +161,19 @@ function makeConfirmWorld(opts) {
      let currentLocalResponseName = '';
      let state = { habitualPlayers: ${JSON.stringify(habitualPlayers)} };
      const LOCAL_CURRENT_PLAYER_KEY = 'k';
+     const LOCAL_REMEMBERED_HABITUAL_KEY = 'asp_remembered_habitual_v1';
+     const LOCAL_REMEMBERED_DETAILS_KEY = 'asp_remembered_details_v1';
      ${extractFn("responseBelongsToCurrentDevice")}
+     ${extractFn("leerJugadorRecordado")}
+     ${extractFn("datosRecordadosSanos")}
+     ${extractFn("leerDatosRecordados")}
+     ${extractFn("actualizarDatosRecordados")}
+     ${extractFn("aplicarDatosRecordadosANuevaResponse")}
+     globalThis.__leerLocal = () => currentLocalResponseName;
      globalThis.__confirm = async ()=>${confirmHandlerBody()};`,
     sandbox,
   );
-  return { run: () => sandbox.__confirm(), calls, nameInput };
+  return { run: () => sandbox.__confirm(), calls, nameInput, store, ctx: sandbox };
 }
 
 const MI_RESPONSE = {
@@ -251,4 +267,114 @@ test("8. regresión: registro normal de una identidad libre sigue guardando", as
   assert.equal(w.calls.claimOpened, false);
   assert.equal(w.calls.save.length, 1);
   assert.equal(w.calls.save[0].habitualName, "Mingo");
+});
+
+/* ---------- 3. Recordar mis datos: casaca y N° al CREAR, nunca sobre una response existente ---------- */
+
+const RECORDADO = { v1: "Mingo", details: { jugador: "Mingo", casaca: "Tito", numero: 10 } };
+
+test("9. registro nuevo con recuerdo: la response nace con la casaca y el N° recordados; habitualName sigue siendo la identidad", async () => {
+  const w = makeConfirmWorld({
+    inputValue: "Mingo", changingRegisteredPlayer: false, localAvailabilityResponses: [],
+    recurrentPlayers: ["Pablo de Achaval", "Mingo"], habitualPlayers: ["Pablo de Achaval", "Mingo"],
+    remembered: RECORDADO,
+  });
+  await w.run();
+  assert.equal(w.calls.save.length, 1);
+  const saved = w.calls.save[0];
+  assert.equal(saved.habitualName, "Mingo", "el jugador canónico no cambia");
+  assert.equal(saved.name, "Tito", "name toma la casaca recordada");
+  assert.equal(saved.number, 10, "number toma el N° recordado");
+  // tras guardar, la identidad local es el name REAL guardado (si no, responseDelJugadorActual no la encontraría)
+  assert.equal(w.ctx.__leerLocal(), "Tito");
+  assert.equal(w.nameInput.value, "Tito");
+  // y la preferencia queda con lo realmente guardado
+  assert.deepEqual(JSON.parse(w.store.get("asp_remembered_details_v1")), { jugador: "Mingo", casaca: "Tito", numero: 10 });
+});
+
+test("10. registro nuevo con recuerdo v1 (sólo identidad): name = identidad y sin number (no se inventa nada)", async () => {
+  const w = makeConfirmWorld({
+    inputValue: "Mingo", localAvailabilityResponses: [],
+    recurrentPlayers: ["Mingo"], habitualPlayers: ["Mingo"], remembered: { v1: "Mingo" },
+  });
+  await w.run();
+  const saved = w.calls.save[0];
+  assert.equal(saved.name, "Mingo");
+  assert.equal("number" in saved, false);
+});
+
+test("11. registro nuevo sin recuerdo: comportamiento de siempre (name = identidad, sin number)", async () => {
+  const w = makeConfirmWorld({
+    inputValue: "Mingo", localAvailabilityResponses: [],
+    recurrentPlayers: ["Mingo"], habitualPlayers: ["Mingo"],
+  });
+  await w.run();
+  const saved = w.calls.save[0];
+  assert.equal(saved.name, "Mingo");
+  assert.equal("number" in saved, false);
+  assert.equal(w.store.has("asp_remembered_details_v1"), false, "no se crea preferencia sin marcar el checkbox");
+});
+
+test("12. recuerdo con casaca vacía y N° vacío: no cambia name ni agrega number", async () => {
+  const w = makeConfirmWorld({
+    inputValue: "Mingo", localAvailabilityResponses: [],
+    recurrentPlayers: ["Mingo"], habitualPlayers: ["Mingo"],
+    remembered: { v1: "Mingo", details: { jugador: "Mingo", casaca: "", numero: null } },
+  });
+  await w.run();
+  const saved = w.calls.save[0];
+  assert.equal(saved.name, "Mingo");
+  assert.equal("number" in saved, false);
+});
+
+test("13. una response AJENA de esa identidad manda: se abre el claim y NO se aplican ni se guardan datos recordados", async () => {
+  const w = makeConfirmWorld({
+    inputValue: "Mingo", localAvailabilityResponses: [RESPONSE_AJENA],
+    recurrentPlayers: ["Pablo de Achaval", "Mingo"], habitualPlayers: ["Pablo de Achaval", "Mingo"],
+    remembered: RECORDADO,
+  });
+  const antes = JSON.stringify(RESPONSE_AJENA);
+  await w.run();
+  assert.equal(w.calls.claimOpened, true);
+  assert.equal(w.calls.save.length, 0);
+  assert.equal(JSON.stringify(RESPONSE_AJENA), antes, "ownerIds/name/number de la ajena intactos");
+});
+
+test("14. una response PROPIA existente manda: se guarda su name/number, no los recordados", async () => {
+  const propia = { ...MI_RESPONSE, name: "Pablito", number: 4 };
+  const w = makeConfirmWorld({
+    inputValue: "Pablito", changingRegisteredPlayer: false, localAvailabilityResponses: [propia],
+    recurrentPlayers: ["Pablo de Achaval"], habitualPlayers: ["Pablo de Achaval"],
+    remembered: { v1: "Pablo de Achaval", details: { jugador: "Pablo de Achaval", casaca: "Otro", numero: 99 } },
+  });
+  await w.run();
+  assert.equal(w.calls.save.length, 1);
+  const saved = w.calls.save[0];
+  assert.equal(saved.name, "Pablito", "no se pisa con la casaca recordada");
+  assert.equal(saved.number, 4, "no se pisa con el N° recordado");
+  // en cambio, con el checkbox marcado la preferencia se ACTUALIZA con lo realmente guardado
+  assert.deepEqual(JSON.parse(w.store.get("asp_remembered_details_v1")), { jugador: "Pablo de Achaval", casaca: "Pablito", numero: 4 });
+});
+
+test("15. respuesta propia guardada SIN el checkbox marcado: no se crea ni actualiza ninguna preferencia", async () => {
+  const propia = { ...MI_RESPONSE, name: "Pablito", number: 4 };
+  const w = makeConfirmWorld({
+    inputValue: "Pablito", localAvailabilityResponses: [propia],
+    recurrentPlayers: ["Pablo de Achaval"], habitualPlayers: ["Pablo de Achaval"],
+  });
+  await w.run();
+  assert.equal(w.store.has("asp_remembered_habitual_v1"), false);
+  assert.equal(w.store.has("asp_remembered_details_v1"), false);
+});
+
+test("16. casaca recordada que ya usa otra response no se aplica (evita duplicado) pero el N° sí", async () => {
+  const otra = { responseId: "r-otra", ownerId: "device-x", ownerIds: ["device-x"], name: "Tito", habitualName: "Nacho", isGuest: false };
+  const w = makeConfirmWorld({
+    inputValue: "Mingo", localAvailabilityResponses: [otra],
+    recurrentPlayers: ["Nacho", "Mingo"], habitualPlayers: ["Nacho", "Mingo"], remembered: RECORDADO,
+  });
+  await w.run();
+  const saved = w.calls.save[0];
+  assert.equal(saved.name, "Mingo");
+  assert.equal(saved.number, 10);
 });
