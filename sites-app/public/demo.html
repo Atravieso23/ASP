@@ -4802,6 +4802,39 @@ async function rechazarSolicitudDeAlta(id){
   }
 }
 
+// Baja del roster (Organizador → Roster → "Sacar del roster"): la SEGUNDA y última función
+// del cliente autorizada a escribir habitualPlayers, junto con aprobarSolicitudDeAlta
+// (acotado en tests/registro-lista-cerrada.test.mjs, test 8). Es una excepción para quien
+// dejó de participar: en una MISMA escritura, sobre el estado fresco, saca la identidad
+// (nombre normalizado trim+minúsculas) de habitualPlayers y su response REGULAR actual.
+//  - La identidad de una response es habitualName, o su name si es legacy sin habitualName
+//    (mismo criterio que faltanConfirmar/deriveSelectorNames).
+//  - NO toca invitados (isGuest), pagos de otros, tarjetas, history, players, sedes,
+//    formations, frequentAliases ni solicitudesAlta.
+// Idempotente: si la identidad ya no está en el estado fresco devuelve false sin escribir
+// (doble toque, o baja resuelta por otro dispositivo), así que nunca saca a una segunda
+// persona ni falla en silencio.
+async function sacarDelRoster(nombreCrudo){
+  const nombre = String(nombreCrudo == null ? '' : nombreCrudo).trim();
+  if(!nombre) return false;
+  const clave = nombre.toLocaleLowerCase('es');
+  try{
+    return await persistFocalizado(fresh=>{
+      const habituales = Array.isArray(fresh.habitualPlayers) ? fresh.habitualPlayers : [];
+      const existe = habituales.some(h=>String(h).trim().toLocaleLowerCase('es')===clave);
+      if(!existe) return false;
+      fresh.habitualPlayers = habituales.filter(h=>String(h).trim().toLocaleLowerCase('es')!==clave);
+      fresh.responses = (Array.isArray(fresh.responses) ? fresh.responses : []).filter(r=>
+        r && (r.isGuest || String(r.habitualName || r.name || '').trim().toLocaleLowerCase('es')!==clave)
+      );
+      return true;
+    });
+  }catch(e){
+    console.error('No se pudo sacar del roster', e);
+    return false;
+  }
+}
+
 function loadRecurrentPlayers(){
   recurrentPlayers = deriveSelectorNames();
 }

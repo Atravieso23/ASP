@@ -43,6 +43,7 @@ const WRITER_SOURCE = [
   extractFunction(demo, "pedirSumarme"),
   extractFunction(demo, "aprobarSolicitudDeAlta"),
   extractFunction(demo, "rechazarSolicitudDeAlta"),
+  extractFunction(demo, "sacarDelRoster"),
 ].join("\n");
 
 // "Servidor" de mentira: solicitudesAlta + relleno de otras keys para verificar que los
@@ -91,7 +92,8 @@ function makeWorld(server, { ownerId = "device-a" } = {}) {
     `${WRITER_SOURCE}
      globalThis.__pedir = pedirSumarme;
      globalThis.__aprobar = aprobarSolicitudDeAlta;
-     globalThis.__rechazar = rechazarSolicitudDeAlta;`,
+     globalThis.__rechazar = rechazarSolicitudDeAlta;
+     globalThis.__sacar = sacarDelRoster;`,
     context,
   );
 
@@ -99,6 +101,7 @@ function makeWorld(server, { ownerId = "device-a" } = {}) {
     pedir: (nombre) => context.__pedir(nombre),
     aprobar: (id) => context.__aprobar(id),
     rechazar: (id) => context.__rechazar(id),
+    sacar: (nombre) => context.__sacar(nombre),
     writes,
     persistCalls: () => persistCalls,
     server: () => serverBlob,
@@ -491,4 +494,97 @@ test("el CTA sólo se pinta con nombre escrito y sin coincidencias (no hay botó
   assert.doesNotMatch(demo.replace(menu, ""), /<button[^>]*data-join-request/);
   const markup = demo.slice(demo.indexOf("<body>"), demo.indexOf("<script>", demo.indexOf("<body>")));
   assert.doesNotMatch(markup, /data-join-request|Solicitar sumarme/);
+});
+
+/* ═════════════════ 12. Baja del roster: sacarDelRoster ═════════════════ */
+
+const rosterServer = (over) => serverOf(
+  [{ id: "sol-x", nombre: "Ya Aprobado", estado: "aprobada", ownerId: "device-z", createdAt: "2026-09-01T00:00:00.000Z", resolvedAt: "2026-09-01T00:05:00.000Z" }],
+  {
+    habitualPlayers: ["Ale", "Félix BV"],
+    responses: [
+      { responseId: "r-ale", isGuest: false, habitualName: "Ale", name: "Ale", paid: true, status: "in" },
+      { responseId: "r-felix", isGuest: false, habitualName: "Félix BV", name: "Félix", paid: false, status: "in" },
+      { responseId: "g-ale", isGuest: true, invitedBy: "Ale", name: "Ale", paid: false, status: "in" },
+      { responseId: "g-felix", isGuest: true, invitedBy: "Félix", name: "Félix BV", paid: true, status: "in" },
+    ],
+    ...over,
+  },
+);
+
+test("sacarDelRoster: quita el habitual y su response regular actual (nombre normalizado)", async () => {
+  const w = makeWorld(rosterServer());
+  assert.equal(await w.sacar("  félix bv "), true);
+  assert.deepEqual(w.server().habitualPlayers, ["Ale"]);
+  assert.deepEqual(w.server().responses.map((r) => r.responseId), ["r-ale", "g-ale", "g-felix"]);
+  assert.equal(w.writes.length, 1, "una única escritura");
+});
+
+test("sacarDelRoster: preserva invitados homónimos (aunque el invitado se llame igual que el habitual)", async () => {
+  const w = makeWorld(rosterServer());
+  await w.sacar("Félix BV");
+  const ids = w.server().responses.map((r) => r.responseId);
+  assert.ok(ids.includes("g-felix"), "el invitado 'Félix BV' de otro anfitrión sigue");
+  assert.ok(ids.includes("g-ale"));
+});
+
+test("sacarDelRoster: preserva matchInfo, history, cards, players, sedes, formations, frequentAliases y solicitudesAlta", async () => {
+  const antes = rosterServer();
+  const w = makeWorld(antes);
+  await w.sacar("Ale");
+  const post = w.server();
+  for (const k of ["matchInfo", "history", "cards", "players", "sedes", "formations", "frequentAliases", "solicitudesAlta"]) {
+    assert.deepEqual(post[k], antes[k], `${k} no cambia`);
+  }
+  assert.deepEqual(post.habitualPlayers, ["Félix BV"]);
+});
+
+test("sacarDelRoster: nombre ausente o vacío devuelve false y no escribe", async () => {
+  const w = makeWorld(rosterServer());
+  assert.equal(await w.sacar("Nadie"), false);
+  assert.equal(await w.sacar(""), false);
+  assert.equal(await w.sacar("   "), false);
+  assert.equal(w.writes.length, 0);
+  assert.deepEqual(w.server().habitualPlayers, ["Ale", "Félix BV"]);
+});
+
+test("sacarDelRoster: idempotente — el segundo intento (doble toque / otro dispositivo) no escribe ni saca a otro", async () => {
+  const w = makeWorld(rosterServer());
+  assert.equal(await w.sacar("Ale"), true);
+  assert.equal(await w.sacar("Ale"), false);
+  assert.equal(w.writes.length, 1);
+  assert.deepEqual(w.server().habitualPlayers, ["Félix BV"], "Félix BV no se toca");
+  assert.ok(w.server().responses.some((r) => r.responseId === "r-felix"));
+});
+
+test("sacarDelRoster: una response con el mismo nombre visible pero OTRA identidad habitual se preserva", async () => {
+  const w = makeWorld(rosterServer({
+    responses: [
+      { responseId: "r-otro", isGuest: false, habitualName: "Félix BV", name: "Ale", paid: false, status: "in" },
+      { responseId: "r-ale", isGuest: false, habitualName: "Ale", name: "Ale", paid: false, status: "in" },
+    ],
+  }));
+  await w.sacar("Ale");
+  assert.deepEqual(w.server().responses.map((r) => r.responseId), ["r-otro"], "sale sólo la de identidad Ale");
+});
+
+test("sacarDelRoster: una response legacy sin habitualName se identifica por su name", async () => {
+  const w = makeWorld(rosterServer({
+    responses: [{ responseId: "r-legacy", isGuest: false, name: "ale", paid: false, status: "in" }],
+  }));
+  await w.sacar("Ale");
+  assert.deepEqual(w.server().responses, []);
+});
+
+test("sacarDelRoster: sin response actual igual saca al habitual", async () => {
+  const w = makeWorld(rosterServer({ responses: [] }));
+  assert.equal(await w.sacar("Ale"), true);
+  assert.deepEqual(w.server().habitualPlayers, ["Félix BV"]);
+});
+
+test("sacarDelRoster: es la única vía de cliente (junto a aprobar) que toca habitualPlayers y no usa guardarCambioEnResponses", () => {
+  const fn = extractFunction(demo, "sacarDelRoster");
+  assert.match(fn, /persistFocalizado\(/);
+  assert.doesNotMatch(fn, /guardarCambioEnResponses|savePlayerRegistration|localAvailabilityResponses|state\./);
+  assert.doesNotMatch(fn, /\.paid\s*=|\.cards|\.history|\.players|solicitudesAlta/);
 });

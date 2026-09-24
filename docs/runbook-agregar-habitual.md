@@ -5,12 +5,13 @@ segura.
 
 **Desde `feat/solicitudes-alta-habitual` (septiembre 2026) el camino normal es
 la app**, no este script: quien no está en la lista pide "Pedir sumarme" desde
-Jugador, y cualquiera en Organizador aprueba o rechaza desde "Solicitudes
-pendientes" (ver [Alta vía la app](#alta-vía-la-app-camino-normal) más abajo).
+Jugador, y cualquiera en Organizador aprueba o rechaza desde el acceso
+**Solicitudes (N)**; desde **Roster (N)** se puede **sacar del roster** a quien
+ya no participa (ver [Alta y baja vía la app](#alta-y-baja-vía-la-app-camino-normal)
+más abajo).
 Este runbook describe ahora la **vía manual**: corrección directa sobre el blob
-para los casos que la app no cubre (sacar a alguien, corregir un nombre mal
-tipeado, un reseed completo) o cuando conviene evitar que pase por la cola de
-solicitudes. Sigue siendo una operación controlada que corre una persona con
+para los casos que la app no cubre (corregir un nombre mal tipeado, un reseed
+completo, o cuando conviene evitar la cola de solicitudes). Sigue siendo una operación controlada que corre una persona con
 acceso al repo.
 
 > Alcance: describe el procedimiento manual (script). El alta normal vía
@@ -28,15 +29,16 @@ acceso al repo.
   fecha de esta semana. Son cosas distintas.
 - La app arranca con `habitualPlayers: []` y adopta lo que venga del servidor. Un
   blob viejo sin la key se normaliza a `[]` sin romper nada.
-- **El cliente casi nunca escribe `habitualPlayers` — con una única excepción
-  explícita.** Ni el registro, ni "Cambiar jugador", ni finalizar la fecha, ni
+- **El cliente casi nunca escribe `habitualPlayers` — con dos excepciones
+  explícitas.** Ni el registro, ni "Cambiar jugador", ni finalizar la fecha, ni
   "Limpiar todo" la modifican: esos writers la arrastran intacta desde la
-  lectura fresca del servidor. La única función del cliente que la modifica es
-  `aprobarSolicitudDeAlta()` (Organizador → "Solicitudes pendientes" →
-  Aprobar), y sólo hace `push` de un nombre ya revalidado contra el estado
-  fresco. Está blindado por tests (`tests/habitual-players.test.mjs`,
-  `tests/registro-lista-cerrada.test.mjs` test 8 — acota el guard a esa única
-  función). Fuera de esa vía, el único otro cambio es el de este runbook.
+  lectura fresca del servidor. Las únicas funciones del cliente que la modifican son
+  `aprobarSolicitudDeAlta()` (Organizador → Solicitudes → Aprobar; un `push`
+  revalidado contra el estado fresco) y `sacarDelRoster()` (Organizador →
+  Roster → Sacar del roster; quita la identidad y su response regular actual
+  en una sola escritura). Está blindado por tests (`tests/habitual-players.test.mjs`,
+  `tests/registro-lista-cerrada.test.mjs` test 8 — acota el guard a esas dos
+  funciones). Fuera de esa vía, el único otro cambio es el de este runbook.
 
 ### Identidad estable vs. nombre visible
 
@@ -63,7 +65,7 @@ de cada uno NO va acá: vive en su `response.name`.
 
 ---
 
-## Alta vía la app (camino normal)
+## Alta y baja vía la app (camino normal)
 
 Implementado en `demo.html`, `feat/solicitudes-alta-habitual`. Nueva key
 `match_data.data.solicitudesAlta` (array; cada entrada `{id, nombre, estado,
@@ -94,8 +96,25 @@ un nombre ya en `habitualPlayers`, o un nombre con una solicitud `pendiente`
 existente (de cualquier dispositivo); no rechaza si la coincidencia es con una
 solicitud `rechazada` (eso es precisamente el reenvío).
 
-Este camino cubre **agregar**. Sacar a alguien, corregir una identidad mal
-tipeada, o un reseed completo siguen siendo la vía manual de abajo.
+### Baja desde Organizador → Roster
+
+En Organizador, **Roster (N)** abre el panel con una fila por integrante de
+`habitualPlayers` y el botón **Sacar del roster**. Antes de escribir pide
+confirmación: *¿Sacar a "{Nombre}" del roster? También se eliminará su
+respuesta al partido actual. El historial de fechas anteriores no cambia.*
+
+`sacarDelRoster(nombre)` relee el estado fresco y, en una única escritura,
+quita la identidad (normalizada trim + minúsculas) de `habitualPlayers` y su
+response **regular** actual (identificada por `habitualName`, o por `name` si es
+legacy). **No** toca invitados (aunque se llamen igual), pagos de otros,
+tarjetas, historial, `players`, sedes, formaciones ni solicitudes anteriores.
+Idempotente: un segundo toque, o una baja ya hecha desde otro dispositivo, no
+escribe ni saca a nadie más. El dispositivo que estaba identificado como esa
+persona vuelve al selector. Sin motivo, auditoría ni rehabilitación: para
+volver, la persona solicita sumarse de nuevo.
+
+Sigue siendo la vía manual (abajo) para corregir una identidad mal tipeada o un
+reseed completo.
 
 ---
 
@@ -104,8 +123,9 @@ tipeada, o un reseed completo siguen siendo la vía manual de abajo.
 `sites-app/scripts/seed-habitual-players.mjs`
 
 Antes del camino de la app de arriba, esta era la única forma de agregar un
-habitual. Ahora es la vía para lo que la app no resuelve: **sacar** a alguien
-(`--remove`, la app no tiene UI de baja), corregir directo sobre el blob sin
+habitual. Ahora es la vía para lo que la app no resuelve: corregir directo
+sobre el blob (`--remove` **no** borra la response de la fecha, a diferencia de
+la baja desde Roster; sirve para correcciones puntuales), sin
 pasar por la cola de solicitudes, o el reseed completo. `--add` sigue andando
 si alguna vez conviene evitar la cola (por ejemplo, un alta masiva).
 
@@ -372,6 +392,6 @@ flujo implementado.
 Los modos `--add` / `--remove` del script (con alias npm `npm run habitual:add`
 / `habitual:remove`) siguen implementados y siguen siendo dev-only: corren
 desde el repo, no desde la app. Con el alta ahora cubierta por la app, su rol
-pasa a ser la vía de corrección/emergencia — sacar a alguien, corregir un
+pasa a ser la vía de corrección/emergencia — corregir un
 nombre mal tipeado, o el reseed completo — descripta en las secciones de
 arriba.
