@@ -708,6 +708,7 @@
   }
   .roster-action-btn:hover{background:var(--primary); color:#fff;}
   #roster-manage-list .jr-name{flex:1 1 140px;}
+  #manage-join-requests-overlay .modal-actions button, #manage-roster-overlay .modal-actions button{min-height:var(--tap);}
 
   /* VISTAS PRINCIPALES */
   .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--surface);border:1px solid var(--card-border);border-radius:var(--radius);}
@@ -3032,6 +3033,9 @@ document.getElementById('roster-manage-list').addEventListener('click', async (e
   if(!nombre) return;
   const pregunta = `¿Sacar a "${nombre}" del roster? También se eliminará su respuesta al partido actual. El historial de fechas anteriores no cambia.`;
   if(!window.confirm(pregunta)) return;
+  // Identidad de este dispositivo ANTES de escribir: la baja elimina su response.
+  const propia = responseDelJugadorActual();
+  const identidadPropia = propia ? (propia.habitualName || propia.name) : '';
   boton.disabled = true;
   const ok = await sacarDelRoster(nombre);
   boton.disabled = false;
@@ -3041,6 +3045,7 @@ document.getElementById('roster-manage-list').addEventListener('click', async (e
     renderGestionRoster();
     return;
   }
+  limpiarIdentidadRetirada(nombre, identidadPropia);
   recurrentPlayers = deriveSelectorNames();
   render();
   renderLocalOrganizer();
@@ -4918,6 +4923,28 @@ async function sacarDelRoster(nombreCrudo){
     console.error('No se pudo sacar del roster', e);
     return false;
   }
+}
+
+// Si ESTE dispositivo estaba identificado como la persona que se acaba de sacar del roster,
+// se limpia su identidad local y se vuelve al selector: no queda una selección inválida.
+// Compara por la identidad base (habitualName ?? name) capturada ANTES de la baja — la
+// response propia desaparece con la baja, y la casaca puede diferir de la identidad—; sin
+// ese dato cae al nombre local guardado. Otros dispositivos no se tocan: ven el roster nuevo
+// en su próximo sondeo. No borra disponibilidad, invitados ni nada ajeno.
+function limpiarIdentidadRetirada(nombre, identidadPropia){
+  const clave = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
+  if(!clave) return false;
+  const propia = String(identidadPropia == null ? '' : identidadPropia).trim().toLocaleLowerCase('es');
+  const coincide = propia
+    ? propia===clave
+    : String(currentLocalResponseName || '').trim().toLocaleLowerCase('es')===clave;
+  if(!coincide) return false;
+  currentLocalResponseName = '';
+  try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }catch(e){}
+  setRegisteredPlayerNameMode(true);
+  const input = document.getElementById('my-player-name');
+  if(input) input.value = '';
+  return true;
 }
 
 function loadRecurrentPlayers(){

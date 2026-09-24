@@ -722,3 +722,72 @@ test("el handler de Sacar del roster confirma con el copy exacto y delega en sac
 test("renderLocalOrganizer renderiza la gestión de jugadores en cada sondeo", () => {
   assert.match(extractFunction(demo, "renderLocalOrganizer"), /renderGestionRoster\(\);/);
 });
+
+/* ═════════════════ 14. Identidad local al sacar del roster ═════════════════ */
+
+function makeLocalIdentityWorld({ currentLocalResponseName = "" } = {}) {
+  const removed = [];
+  const input = { value: "algo escrito" };
+  let nameModeCalls = 0;
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => (id === "my-player-name" ? input : null) },
+    localStorage: { removeItem: (k) => removed.push(k) },
+    String,
+    console: { error() {}, warn() {}, log() {} },
+    setRegisteredPlayerNameMode: (allow) => { nameModeCalls += allow === true ? 1 : 100; },
+  });
+  vm.runInContext(
+    `const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
+     let currentLocalResponseName = ${JSON.stringify(currentLocalResponseName)};
+     ${extractFunction(demo, "limpiarIdentidadRetirada")}
+     globalThis.__limpiar = limpiarIdentidadRetirada;
+     globalThis.__nombre = () => currentLocalResponseName;`,
+    ctx,
+  );
+  return {
+    limpiar: (n, propia) => ctx.__limpiar(n, propia),
+    currentName: () => ctx.__nombre(),
+    removed,
+    input,
+    modeCalls: () => nameModeCalls,
+  };
+}
+
+test("limpiarIdentidadRetirada: limpia sólo la identidad retirada de este dispositivo", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Félix BV" });
+  assert.equal(w.limpiar("  félix bv "), true);
+  assert.equal(w.currentName(), "");
+  assert.deepEqual(w.removed, ["asp_current_player_demo_v1"]);
+  assert.equal(w.modeCalls(), 1, "vuelve al selector de identidad");
+  assert.equal(w.input.value, "", "limpia el input");
+});
+
+test("limpiarIdentidadRetirada: otra persona no toca nada (sin storage, sin cambio de modo)", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Ale" });
+  assert.equal(w.limpiar("Félix BV"), false);
+  assert.equal(w.currentName(), "Ale");
+  assert.deepEqual(w.removed, []);
+  assert.equal(w.modeCalls(), 0);
+  assert.equal(w.input.value, "algo escrito");
+});
+
+test("limpiarIdentidadRetirada: con casaca renombrada usa la identidad base capturada antes de la baja", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Tito" });
+  assert.equal(w.limpiar("Pablo de Achaval", "Pablo de Achaval"), true);
+  assert.equal(w.currentName(), "");
+  // y una casaca que casualmente se llama igual que la identidad retirada NO alcanza
+  const otro = makeLocalIdentityWorld({ currentLocalResponseName: "Ale" });
+  assert.equal(otro.limpiar("Ale", "Fran Forrester"), false);
+  assert.deepEqual(otro.removed, []);
+});
+
+test("el handler de baja limpia la identidad local sólo después de que el writer devuelve true", () => {
+  const i = demo.indexOf("getElementById('roster-manage-list').addEventListener('click'");
+  const h = demo.slice(i, demo.indexOf("\n});", i));
+  const propia = h.indexOf("responseDelJugadorActual()");
+  const escribe = h.indexOf("await sacarDelRoster(");
+  const falla = h.indexOf("if(!ok){");
+  const limpia = h.indexOf("limpiarIdentidadRetirada(nombre, identidadPropia)");
+  assert.ok(propia > -1 && propia < escribe, "captura la identidad propia ANTES de escribir (la response va a desaparecer)");
+  assert.ok(limpia > falla && falla > escribe, "sólo tras el chequeo de éxito");
+});
