@@ -698,6 +698,16 @@
   .join-request-row .jr-approve{border:1px solid var(--primary); background:var(--active-soft); color:var(--primary-deep);}
   .join-request-row .jr-reject{border:1px solid var(--card-border); background:var(--surface); color:var(--danger);}
   .join-request-row .jr-approve:disabled, .join-request-row .jr-reject:disabled{opacity:.5; cursor:progress;}
+  /* "Gestión de jugadores" (Organizador): dos accesos de igual jerarquía que abren su modal.
+     Sin listas abiertas en la vista principal; los conteos van en la etiqueta. */
+  .roster-actions{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
+  .roster-action-btn{
+    min-height:var(--tap); padding:8px 10px; border:1px solid var(--primary); border-radius:var(--radius-control);
+    background:var(--active-soft); color:var(--primary-deep); cursor:pointer;
+    font:700 var(--fs-body) 'Inter',sans-serif; letter-spacing:normal; text-transform:none;
+  }
+  .roster-action-btn:hover{background:var(--primary); color:#fff;}
+  #roster-manage-list .jr-name{flex:1 1 140px;}
 
   /* VISTAS PRINCIPALES */
   .main-view-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:5px;background:var(--surface);border:1px solid var(--card-border);border-radius:var(--radius);}
@@ -1051,10 +1061,12 @@
       <p>Herramientas compartidas del grupo: usalas con cuidado.</p>
     </header>
 
-    <section class="organizer-card" aria-labelledby="join-requests-title">
-      <h2 class="organizer-card-title" id="join-requests-title">Solicitudes pendientes</h2>
-      <p class="organizer-empty" id="join-requests-empty">No hay solicitudes pendientes.</p>
-      <ul class="join-requests-list" id="join-requests-list" hidden></ul>
+    <section class="organizer-card" aria-labelledby="player-management-title">
+      <h2 class="organizer-card-title" id="player-management-title">Gestión de jugadores</h2>
+      <div class="roster-actions">
+        <button type="button" class="roster-action-btn" id="open-join-requests">Solicitudes (0)</button>
+        <button type="button" class="roster-action-btn" id="open-roster-manager">Roster (0)</button>
+      </div>
     </section>
 
     <section class="organizer-card" aria-labelledby="availability-summary-title">
@@ -1211,6 +1223,30 @@
     <ul class="manage-list" id="morosos-manage-list"></ul>
     <div class="modal-actions">
       <button class="btn-cancel" id="manage-morosos-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-join-requests-overlay">
+  <div class="modal">
+    <h2 id="join-requests-title">Solicitudes pendientes</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Quien no estaba en la lista pidió sumarse. Aprobar lo agrega al roster; no crea su respuesta al partido.</p>
+    <p class="organizer-empty" id="join-requests-empty">No hay solicitudes pendientes.</p>
+    <ul class="join-requests-list" id="join-requests-list" hidden></ul>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-join-requests-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manage-roster-overlay">
+  <div class="modal">
+    <h2 id="roster-manage-title">Roster actual</h2>
+    <p style="font-size:12.5px;color:var(--muted); margin-top:-8px;">Sacá del roster a quien dejó de participar. También se elimina su respuesta al partido actual; el historial de fechas anteriores no cambia.</p>
+    <p class="organizer-empty" id="roster-manage-empty">Todavía no hay jugadores en el roster.</p>
+    <ul class="join-requests-list" id="roster-manage-list" hidden></ul>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="manage-roster-close">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1718,7 +1754,7 @@ function reconciliarPlayers(freshPlayers){
 }
 
 async function refreshFromServer(){
-  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay','manage-split-expenses-overlay','manage-morosos-overlay']
+  const anyModalOpen = ['modal-overlay','finalize-overlay','clear-overlay','claim-player-overlay','manage-sedes-overlay','manage-split-overlay','manage-split-expenses-overlay','manage-morosos-overlay','manage-join-requests-overlay','manage-roster-overlay']
     .some(id=> document.getElementById(id).classList.contains('open'));
   const editingHistory = document.activeElement && document.activeElement.closest && document.activeElement.closest('.history-details');
   if(anyModalOpen || editingHistory || saving) return;
@@ -2957,10 +2993,59 @@ document.getElementById('join-requests-list').addEventListener('click', async (e
   if(!ok){
     showToast('Esa solicitud ya se resolvió. Actualizá la lista.');
     renderSolicitudesAlta();
+    renderGestionRoster();
     return;
   }
+  // Aprobar cambia el roster: se actualiza también el selector de este dispositivo.
+  recurrentPlayers = deriveSelectorNames();
   renderSolicitudesAlta();
+  renderGestionRoster();
   showToast(aprobar ? 'Solicitud aprobada.' : 'Solicitud rechazada.');
+});
+
+/* ---------- GESTIÓN DE JUGADORES — accesos, modales y "Sacar del roster" ---------- */
+// Dos accesos compactos en Organizador, cada uno con su propio modal (mismo patrón que
+// "Editar lista de morosos"): el sondeo se pausa mientras alguno está abierto (ids en
+// anyModalOpen). Las listas viven dentro de los modales, no en la vista principal.
+document.getElementById('open-join-requests').onclick = ()=>{
+  renderSolicitudesAlta();
+  document.getElementById('manage-join-requests-overlay').classList.add('open');
+};
+document.getElementById('manage-join-requests-close').onclick = ()=>{
+  document.getElementById('manage-join-requests-overlay').classList.remove('open');
+};
+document.getElementById('open-roster-manager').onclick = ()=>{
+  renderRosterManageList();
+  document.getElementById('manage-roster-overlay').classList.add('open');
+};
+document.getElementById('manage-roster-close').onclick = ()=>{
+  document.getElementById('manage-roster-overlay').classList.remove('open');
+};
+// Delegación sobre el <ul> estático: renderRosterManageList reescribe su innerHTML. La baja
+// pide confirmación con el nombre y las consecuencias, deshabilita SÓLO el botón tocado, y
+// sacarDelRoster revalida contra el estado fresco (idempotente: un doble toque, o una baja
+// ya hecha desde otro dispositivo, no escribe ni saca a nadie más).
+document.getElementById('roster-manage-list').addEventListener('click', async (ev)=>{
+  const boton = ev.target.closest('[data-sacar-del-roster]');
+  if(!boton) return;
+  const nombre = boton.dataset.sacarDelRoster || '';
+  if(!nombre) return;
+  const pregunta = `¿Sacar a "${nombre}" del roster? También se eliminará su respuesta al partido actual. El historial de fechas anteriores no cambia.`;
+  if(!window.confirm(pregunta)) return;
+  boton.disabled = true;
+  const ok = await sacarDelRoster(nombre);
+  boton.disabled = false;
+  if(!ok){
+    showToast('No se pudo sacar del roster. Puede que ya no esté; actualizá la lista.');
+    renderRosterManageList();
+    renderGestionRoster();
+    return;
+  }
+  recurrentPlayers = deriveSelectorNames();
+  render();
+  renderLocalOrganizer();
+  renderGuestManager();
+  showToast(`${nombre} salió del roster.`);
 });
 
 /* ---------- LISTA DE MOROSOS — modal "Editar lista" / sacar la amarilla ---------- */
@@ -5245,8 +5330,45 @@ function renderSolicitudesAlta(){
     </li>`).join('');
 }
 
+// Roster actual (modal "Roster"): una fila por integrante de habitualPlayers. Nombres
+// escapados; la baja se dispara desde la delegación de #roster-manage-list.
+function renderRosterManageList(){
+  const empty = document.getElementById('roster-manage-empty');
+  const list = document.getElementById('roster-manage-list');
+  if(!empty || !list) return;
+  const habituales = (state && Array.isArray(state.habitualPlayers)) ? state.habitualPlayers : [];
+  if(habituales.length===0){
+    empty.hidden = false;
+    list.hidden = true;
+    list.innerHTML = '';
+    return;
+  }
+  empty.hidden = true;
+  list.hidden = false;
+  list.innerHTML = habituales.map(nombre=>`
+    <li class="join-request-row">
+      <span class="jr-name">${escapeHtml(String(nombre))}</span>
+      <div class="jr-actions">
+        <button type="button" class="jr-reject" data-sacar-del-roster="${escapeHtml(String(nombre))}">Sacar del roster</button>
+      </div>
+    </li>`).join('');
+}
+
+// Los dos accesos compactos de Organizador llevan el trabajo pendiente y el tamaño del
+// roster en la etiqueta, sin desplegar ninguna lista. Corre en cada renderLocalOrganizer.
+function renderGestionRoster(){
+  const solicitudes = (state && Array.isArray(state.solicitudesAlta)) ? state.solicitudesAlta : [];
+  const habituales = (state && Array.isArray(state.habitualPlayers)) ? state.habitualPlayers : [];
+  const btnSolicitudes = document.getElementById('open-join-requests');
+  const btnRoster = document.getElementById('open-roster-manager');
+  if(btnSolicitudes) btnSolicitudes.textContent = `Solicitudes (${solicitudes.filter(s=>s && s.estado==='pendiente').length})`;
+  if(btnRoster) btnRoster.textContent = `Roster (${habituales.length})`;
+  renderRosterManageList();
+}
+
 function renderLocalOrganizer(){
   renderSolicitudesAlta();
+  renderGestionRoster();
   const chart = document.getElementById('organizer-availability-chart');
   const body = document.getElementById('organizer-responses-body');
   if(!chart || !body) return;

@@ -297,7 +297,7 @@ function runOrganizer(responses) {
   });
   // renderLocalOrganizer() ahora arranca llamando a renderSolicitudesAlta() (solicitudes
   // de alta / "Pedir sumarme"), ajena a este test de disponibilidad: se stubea como no-op.
-  vm.runInContext(`function renderSolicitudesAlta(){}\n${puraSrc}\n${organizerSrc}\nrenderLocalOrganizer();`, ctx);
+  vm.runInContext(`function renderSolicitudesAlta(){}\nfunction renderGestionRoster(){}\n${puraSrc}\n${organizerSrc}\nrenderLocalOrganizer();`, ctx);
   return chart.innerHTML;
 }
 

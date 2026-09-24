@@ -428,8 +428,8 @@ test("copy de rechazo EXACTO en el markup fuente (no sólo en el render)", () =>
   assert.match(demo, /No se aprobó tu solicitud\. Corregí el nombre o hablá con el grupo\./);
 });
 
-test("Organizador: sección 'Solicitudes pendientes' con Aprobar y Rechazar", () => {
-  assert.match(demo, /id="join-requests-title">Solicitudes pendientes</);
+test("Solicitudes: el modal 'Solicitudes pendientes' tiene Aprobar y Rechazar", () => {
+  assert.match(demo, /<h2 id="join-requests-title">Solicitudes pendientes<\/h2>/);
   assert.match(demo, />Aprobar</);
   assert.match(demo, />Rechazar</);
 });
@@ -587,4 +587,138 @@ test("sacarDelRoster: es la única vía de cliente (junto a aprobar) que toca ha
   assert.match(fn, /persistFocalizado\(/);
   assert.doesNotMatch(fn, /guardarCambioEnResponses|savePlayerRegistration|localAvailabilityResponses|state\./);
   assert.doesNotMatch(fn, /\.paid\s*=|\.cards|\.history|\.players|solicitudesAlta/);
+});
+
+/* ═════════════════ 13. Gestión de jugadores: dos accesos compactos + dos modales ═════════════════ */
+
+const organizerMarkup = demo.slice(
+  demo.indexOf('<div class="organizer-view" id="main-view-organizer">'),
+  demo.indexOf('<div class="modal-overlay"'),
+);
+
+test("Organizador muestra dos accesos compactos de igual jerarquía, no las listas abiertas", () => {
+  assert.match(organizerMarkup, /id="open-join-requests"/);
+  assert.match(organizerMarkup, /id="open-roster-manager"/);
+  assert.match(organizerMarkup, /Gestión de jugadores/);
+  assert.doesNotMatch(organizerMarkup, /id="join-requests-list"|id="roster-manage-list"|id="join-requests-empty"|id="roster-manage-empty"/);
+  const a = organizerMarkup.match(/<button[^>]*id="open-join-requests"[^>]*>/)[0];
+  const b = organizerMarkup.match(/<button[^>]*id="open-roster-manager"[^>]*>/)[0];
+  const clase = (t) => t.match(/class="([^"]+)"/)[1];
+  assert.equal(clase(a), clase(b), "misma clase = misma jerarquía");
+});
+
+test("cada acceso tiene su propio modal, con lista, vacío y botón Cerrar", () => {
+  const modal = (id) => {
+    const ini = demo.indexOf(`<div class="modal-overlay" id="${id}">`);
+    assert.ok(ini > -1, `existe ${id}`);
+    return demo.slice(ini, demo.indexOf("</div>\r\n</div>", ini));
+  };
+  const sol = modal("manage-join-requests-overlay");
+  assert.match(sol, /Solicitudes pendientes/);
+  assert.match(sol, /id="join-requests-empty"/);
+  assert.match(sol, /id="join-requests-list"/);
+  assert.match(sol, /id="manage-join-requests-close"/);
+  const ros = modal("manage-roster-overlay");
+  assert.match(ros, /Roster actual/);
+  assert.match(ros, /id="roster-manage-empty"/);
+  assert.match(ros, /id="roster-manage-list"/);
+  assert.match(ros, /id="manage-roster-close"/);
+  assert.doesNotMatch(sol, /roster-manage/);
+  assert.doesNotMatch(ros, /id="join-requests-list"/);
+});
+
+test("los dos modales pausan el sondeo (están en anyModalOpen)", () => {
+  const fn = extractFunction(demo, "refreshFromServer");
+  assert.match(fn, /'manage-join-requests-overlay'/);
+  assert.match(fn, /'manage-roster-overlay'/);
+});
+
+test("cada acceso abre SU modal y Cerrar lo cierra", () => {
+  assert.match(demo, /getElementById\('open-join-requests'\)\.onclick = \(\)=>\{\s*renderSolicitudesAlta\(\);\s*document\.getElementById\('manage-join-requests-overlay'\)\.classList\.add\('open'\);/);
+  assert.match(demo, /getElementById\('open-roster-manager'\)\.onclick = \(\)=>\{\s*renderRosterManageList\(\);\s*document\.getElementById\('manage-roster-overlay'\)\.classList\.add\('open'\);/);
+  assert.match(demo, /getElementById\('manage-join-requests-close'\)\.onclick = \(\)=>\{\s*document\.getElementById\('manage-join-requests-overlay'\)\.classList\.remove\('open'\);/);
+  assert.match(demo, /getElementById\('manage-roster-close'\)\.onclick = \(\)=>\{\s*document\.getElementById\('manage-roster-overlay'\)\.classList\.remove\('open'\);/);
+});
+
+function makeRosterContext(estado) {
+  const els = {
+    "open-join-requests": { textContent: "" },
+    "open-roster-manager": { textContent: "" },
+    "roster-manage-empty": { hidden: false },
+    "roster-manage-list": { hidden: true, innerHTML: "" },
+  };
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => els[id] || null },
+    String, Array,
+    escapeHtml: (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])),
+  });
+  vm.runInContext(
+    `let state = ${JSON.stringify(estado)};
+     ${extractFunction(demo, "renderRosterManageList")}
+     ${extractFunction(demo, "renderGestionRoster")}
+     globalThis.__gestion = renderGestionRoster;
+     globalThis.__lista = renderRosterManageList;`,
+    ctx,
+  );
+  return { els, ctx };
+}
+
+test("renderGestionRoster: los accesos muestran los conteos (pendientes / integrantes)", () => {
+  const { els, ctx } = makeRosterContext({
+    habitualPlayers: ["Ale", "Fran", "Nacho"],
+    solicitudesAlta: [
+      { id: "a", nombre: "X", estado: "pendiente" },
+      { id: "b", nombre: "Y", estado: "aprobada" },
+      { id: "c", nombre: "Z", estado: "rechazada" },
+      { id: "d", nombre: "W", estado: "pendiente" },
+    ],
+  });
+  ctx.__gestion();
+  assert.equal(els["open-join-requests"].textContent, "Solicitudes (2)");
+  assert.equal(els["open-roster-manager"].textContent, "Roster (3)");
+});
+
+test("renderGestionRoster: sin datos muestra (0) y no falla con keys ausentes", () => {
+  const { els, ctx } = makeRosterContext({});
+  ctx.__gestion();
+  assert.equal(els["open-join-requests"].textContent, "Solicitudes (0)");
+  assert.equal(els["open-roster-manager"].textContent, "Roster (0)");
+});
+
+test("renderRosterManageList: una fila por habitual con data-sacar-del-roster escapado", () => {
+  const { els, ctx } = makeRosterContext({ habitualPlayers: ["Ale", 'Ana "La <b>Larga"'], solicitudesAlta: [] });
+  ctx.__lista();
+  const { hidden, innerHTML } = els["roster-manage-list"];
+  assert.equal(hidden, false);
+  assert.equal(els["roster-manage-empty"].hidden, true);
+  assert.equal((innerHTML.match(/data-sacar-del-roster=/g) || []).length, 2);
+  assert.match(innerHTML, /data-sacar-del-roster="Ale"/);
+  assert.match(innerHTML, /Ana &quot;La &lt;b&gt;Larga/);
+  assert.doesNotMatch(innerHTML, /<b>Larga/);
+  assert.match(innerHTML, />Sacar del roster</);
+});
+
+test("renderRosterManageList: roster vacío explica el vacío y esconde la lista", () => {
+  const { els, ctx } = makeRosterContext({ habitualPlayers: [] });
+  ctx.__lista();
+  assert.equal(els["roster-manage-empty"].hidden, false);
+  assert.equal(els["roster-manage-list"].hidden, true);
+  assert.equal(els["roster-manage-list"].innerHTML, "");
+  assert.match(demo, /id="roster-manage-empty">Todavía no hay jugadores en el roster\./);
+});
+
+test("el handler de Sacar del roster confirma con el copy exacto y delega en sacarDelRoster", () => {
+  const i = demo.indexOf("getElementById('roster-manage-list').addEventListener('click'");
+  assert.ok(i > -1, "delegación desde el <ul> estático");
+  const h = demo.slice(i, demo.indexOf("\n});", i));
+  assert.match(h, /`¿Sacar a "\$\{nombre\}" del roster\? También se eliminará su respuesta al partido actual\. El historial de fechas anteriores no cambia\.`/);
+  assert.match(h, /if\(!window\.confirm\(pregunta\)\) return;/);
+  assert.ok(h.indexOf("window.confirm") < h.indexOf("await sacarDelRoster("), "confirma antes de escribir");
+  assert.match(h, /boton\.disabled = true;/);
+  assert.match(h, /showToast\(/);
+  assert.match(h, /renderGestionRoster\(\);/);
+});
+
+test("renderLocalOrganizer renderiza la gestión de jugadores en cada sondeo", () => {
+  assert.match(extractFunction(demo, "renderLocalOrganizer"), /renderGestionRoster\(\);/);
 });
