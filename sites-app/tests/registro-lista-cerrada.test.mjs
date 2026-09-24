@@ -31,11 +31,12 @@ function confirmHandler() {
   return demo.slice(start, end);
 }
 
-// "Cambiar jugador" conserva "…al grupo."; Registro usa "…en el grupo." + remate 👻 (PR #34).
-const HELPER_BASE = "Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.";
-const HELPER_REGISTRO = "Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)";
-const EMPTY_COPY = "No encontramos ese nombre. Pedile a un organizador que te sume al grupo.";
-const GATE_COPY = "No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.";
+// Copy unificado de la solicitud de alta: mismo helper en Registro y "Cambiar jugador",
+// sin "pedile a un organizador" ni el remate con emoji de antes.
+const HELPER_BASE = "Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.";
+const HELPER_REGISTRO = "Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.";
+const EMPTY_COPY = "No encontramos ese nombre.";
+const GATE_COPY = "No encontramos ese nombre. Elegí uno de la lista o solicitá sumarte al grupo.";
 
 /* ---------- 1. el alta libre ya no existe ---------- */
 
@@ -89,17 +90,18 @@ test("3. una response no invitada nueva sólo se crea con habitualExacto y setea
 
 const esc = (s) => s.replace(/[.?*+^$()[\]{}|\\]/g, "\\$&");
 
-test("4. el helper de Registro usa el copy aprobado con el remate 👻 (markup + JS)", () => {
-  // Markup inicial (estado Registro) + reset del picker llevan el remate.
+test("4. el helper de Registro usa el copy aprobado, sin remate (markup + JS)", () => {
+  // Markup inicial (estado Registro) + reset del picker llevan el copy unificado.
   assert.match(demo, new RegExp(`id="player-picker-help">${esc(HELPER_REGISTRO)}`));
   const reset = extractFn("resetPlayerPicker");
   assert.match(reset, new RegExp(`help\\.textContent = '${esc(HELPER_REGISTRO)}';`));
-  // En setRegisteredPlayerNameMode: la rama anónima (Registro) lleva el remate; la rama
-  // "Cambiar jugador" mantiene el copy base (sin remate).
+  // En setRegisteredPlayerNameMode: la rama anónima (Registro) y la rama "Cambiar jugador"
+  // usan el mismo copy.
   const mode = extractFn("setRegisteredPlayerNameMode");
   assert.match(mode, new RegExp(`\\}else\\{\\s*help\\.textContent = '${esc(HELPER_REGISTRO)}';`));
   assert.match(mode, new RegExp(`\\}else if\\(ownResponse\\)\\{\\s*help\\.textContent = '${esc(HELPER_BASE)}';`));
   assert.doesNotMatch(mode, /Usá siempre el mismo nombre/);
+  assert.doesNotMatch(demo, /Seguro estuviste|Pedile a un organizador|Pedí que te agreguen|pedí que te agreguen/);
 });
 
 /* ---------- 5. empty state del menú ---------- */
@@ -131,8 +133,10 @@ test("5b. vm: sin identificar y sin match el menú muestra el empty state orient
   );
   ctx.__render();
   assert.equal(menu.hidden, false);
-  assert.match(menu.innerHTML, /Pedile a un organizador que te sume al grupo/);
-  assert.doesNotMatch(menu.innerHTML, /recurrent-player-select/);
+  assert.match(menu.innerHTML, /No encontramos ese nombre\./);
+  assert.doesNotMatch(menu.innerHTML, /recurrent-player-select|organizador/);
+  // con nombre escrito y sin match aparece el CTA contextual con el copy nuevo
+  assert.match(menu.innerHTML, /data-join-request>Solicitar sumarme<\/button>/);
 });
 
 /* ---------- 6. "Nombre en la casaca" sigue libre post-identificación ---------- */

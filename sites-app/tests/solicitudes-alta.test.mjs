@@ -143,7 +143,7 @@ test("pedirSumarme: rechaza si el nombre normalizado ya está en habitualPlayers
   assert.equal(w.server().solicitudesAlta.length, 0, "no se escribe nada");
 });
 
-test("pedirSumarme: rechaza un segundo pedido pendiente con el mismo nombre normalizado", async () => {
+test("pedirSumarme: rechaza una segunda solicitud pendiente con el mismo nombre normalizado", async () => {
   const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
   const w = makeWorld(serverOf(previa));
   const { ok, motivo } = await w.pedir("nacho duncan");
@@ -152,7 +152,7 @@ test("pedirSumarme: rechaza un segundo pedido pendiente con el mismo nombre norm
   assert.equal(w.server().solicitudesAlta.length, 1, "no se duplica la fila");
 });
 
-test("pedirSumarme: un pedido pendiente de OTRO nombre no bloquea", async () => {
+test("pedirSumarme: una solicitud pendiente de OTRO nombre no bloquea", async () => {
   const previa = [{ id: "sol-1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }];
   const w = makeWorld(serverOf(previa));
   const { ok } = await w.pedir("Otro Nombre");
@@ -278,7 +278,7 @@ test("los 3 writers preservan matchInfo, cards, players, history, sedes, frequen
   assert.equal(post.solicitudesAlta[0].estado, "rechazada");
 });
 
-/* ═════════════════ 6. Render: estado del pedido en Registro ═════════════════ */
+/* ═════════════════ 6. Render: estado de la solicitud en Registro ═════════════════ */
 
 function makeStatusContext({ ownerId = "device-a", propia = null, changingRegisteredPlayer = false, solicitudesAlta = [] } = {}) {
   const el = { hidden: true, className: "", innerHTML: "" };
@@ -301,12 +301,14 @@ function makeStatusContext({ ownerId = "device-a", propia = null, changingRegist
   return el;
 }
 
-test("renderJoinRequestStatus: pendiente muestra el nombre pedido", () => {
+test("renderJoinRequestStatus: pendiente muestra el nombre solicitado y usa 'solicitud', no 'pedido'", () => {
   const el = makeStatusContext({
     solicitudesAlta: [{ id: "s1", nombre: "Nacho Duncan", estado: "pendiente", ownerId: "device-a", createdAt: "2026-09-20T10:00:00.000Z", resolvedAt: null }],
   });
   assert.equal(el.hidden, false);
   assert.match(el.innerHTML, /Nacho Duncan/);
+  assert.match(el.innerHTML, /Tu solicitud para .* está pendiente\. Avisamos cuando la resuelvan\./);
+  assert.doesNotMatch(el.innerHTML, /pedido/i);
   assert.match(el.className, /pending/);
 });
 
@@ -429,9 +431,10 @@ test("Organizador: sección 'Solicitudes pendientes' con Aprobar y Rechazar", ()
   assert.match(demo, />Rechazar</);
 });
 
-test("Jugador: botón 'Pedir sumarme' en el empty state del selector", () => {
+test("Jugador: botón 'Solicitar sumarme' sólo en el empty state del selector (sin botón permanente)", () => {
   const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
-  assert.match(menu, /Pedir sumarme/);
+  assert.match(menu, /Solicitar sumarme/);
+  assert.doesNotMatch(menu, /Pedir sumarme/);
   assert.match(menu, /data-join-request/);
 });
 
@@ -459,4 +462,33 @@ test("no se guarda resolvedBy ni motivo de rechazo (decisión de producto)", () 
     const fn = extractFunction(demo, name);
     assert.doesNotMatch(fn, /resolvedBy|motivoRechazo/i);
   }
+});
+
+/* ═════════════════ 11. Copy unificado: "solicitud", sin "pedido" / "organizador" ═════════════════ */
+
+test("copy: helper 'Escribí tu nombre…', empty 'No encontramos ese nombre.' y sin restos del copy viejo", () => {
+  assert.match(demo, /id="player-picker-help">Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.</);
+  assert.doesNotMatch(demo, /Pedile a un organizador|Seguro estuviste|Pedir sumarme|Pedimos sumarte/);
+  assert.doesNotMatch(demo, /No hay pedidos pendientes|Ese pedido ya|Tu pedido para|el pedido de/);
+});
+
+test("copy: confirmaciones y toasts del flujo usan 'solicitud'", () => {
+  const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
+  assert.match(menu, /Enviamos tu solicitud para sumarte como/);
+  assert.match(menu, /Ya hay una solicitud pendiente para/);
+  assert.match(menu, /No pudimos enviar la solicitud\./);
+  assert.doesNotMatch(menu, /pedido/i);
+  assert.match(demo, /No hay solicitudes pendientes\./);
+  assert.match(demo, /¿Rechazar la solicitud de "\$\{nombre\}"\?/);
+  assert.match(demo, /Esa solicitud ya se resolvió\./);
+});
+
+test("el CTA sólo se pinta con nombre escrito y sin coincidencias (no hay botón permanente)", () => {
+  const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
+  assert.match(menu, /const puedeSolicitar = filtered\.length===0 && input\.value\.trim\(\)\.length>0;/);
+  // el botón se genera dentro de renderRecurrentPlayerMenu y en ningún otro lado
+  assert.match(menu, /<button type="button" class="join-request-btn" data-join-request>Solicitar sumarme<\/button>/);
+  assert.doesNotMatch(demo.replace(menu, ""), /<button[^>]*data-join-request/);
+  const markup = demo.slice(demo.indexOf("<body>"), demo.indexOf("<script>", demo.indexOf("<body>")));
+  assert.doesNotMatch(markup, /data-join-request|Solicitar sumarme/);
 });

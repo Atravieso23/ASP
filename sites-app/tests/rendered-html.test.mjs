@@ -338,7 +338,7 @@ test("Registro = buscador cerrado: el selector existe y el alta libre no", async
 
   assert.match(demo, /id="recurrent-player-menu" role="listbox"/);
   assert.match(demo, /function renderRecurrentPlayerMenu\(\)/);
-  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen en el grupo\. \(Seguro estuviste 👻\)</);
+  assert.match(demo, /id="player-picker-help">Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.</);
   // La lista base se administra por seed/patch: el menú del selector ya no borra identidades.
   assert.doesNotMatch(demo, /data-delete-recurrent-index/);
   // El alta libre por "Este soy yo" / registeringFirstTime se eliminó por completo.
@@ -370,7 +370,7 @@ test("waits for Supabase before confirming registration and rejects remote dupli
   assert.match(demo, /'Nombre ya tomado\.'/);
   assert.match(demo, /agregá tu apellido para diferenciarte/);
   assert.doesNotMatch(demo, /“\$\{name\} A\.”|“\$\{name\} Chaval”/);
-  assert.match(demo, /Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\./);
+  assert.match(demo, /Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\./);
   assert.match(demo, /confirmButton\.textContent = 'Reintentar'/);
 });
 
@@ -1346,12 +1346,11 @@ test("PR #30 · casaca: el helper de registro / cambio de jugador no se contamin
     "ramas de cambio de jugador y registro de setRegisteredPlayerNameMode",
   );
   assert.doesNotMatch(cambioYRegistro, /Así te ve el grupo/);
-  // Ambas ramas usan el copy de lista cerrada; la de Registro (else) va "…en el grupo." +
-  // remate 👻 (PR #34); la de "Cambiar jugador" (else if) queda con "…al grupo." base.
-  assert.match(cambioYRegistro, /\}else if\(ownResponse\)\{\s*help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen al grupo\.';/);
-  assert.match(cambioYRegistro, /\}else\{\s*help\.textContent = 'Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen en el grupo\. \(Seguro estuviste 👻\)';/);
-  // El texto inicial del helper en el markup es el de Registro (con remate).
-  assert.match(demo, /id="player-picker-help">Elegí tu nombre de la lista\. ¿No estás\? Pedí que te agreguen en el grupo\. \(Seguro estuviste 👻\)</);
+  // Ambas ramas (Registro y "Cambiar jugador") usan el mismo copy de la solicitud de alta.
+  assert.match(cambioYRegistro, /\}else if\(ownResponse\)\{\s*help\.textContent = 'Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.';/);
+  assert.match(cambioYRegistro, /\}else\{\s*help\.textContent = 'Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.';/);
+  // El texto inicial del helper en el markup es el mismo copy unificado.
+  assert.match(demo, /id="player-picker-help">Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.</);
 });
 
 test("PR #30 · casaca: el label del campo sigue siendo 'Nombre en la casaca'", async () => {
