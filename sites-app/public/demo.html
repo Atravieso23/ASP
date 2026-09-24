@@ -513,6 +513,11 @@
   .player-name-feedback.info{background:var(--active-soft);border:1px solid var(--primary);color:var(--primary-deep);}
   .player-name-feedback.error{background:#F6E4E0;border:1px solid var(--danger);color:#8A2A1D;}
   .player-name-feedback strong{display:block;margin-bottom:2px;}
+  /* "Recordar este jugador en este dispositivo": checkbox + etiqueta, toda la fila es tocable. */
+  .remember-player-field{display:flex; align-items:center; gap:10px; margin:2px 0 6px;}
+  .remember-player-field[hidden]{display:none;}
+  .remember-player-field input{flex:none; width:22px; height:22px; margin:0; accent-color:var(--primary); cursor:pointer;}
+  .remember-player-field label{flex:1; min-width:0; min-height:var(--tap); display:flex; align-items:center; margin:0; font:600 var(--fs-body) 'Inter',sans-serif; text-transform:none; letter-spacing:normal; color:var(--text); cursor:pointer; overflow-wrap:anywhere;}
   .join-request-status{margin:9px 0 0;padding:10px 11px;border-radius:var(--radius-control);font-size:var(--fs-help);line-height:1.45;background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
   .join-request-status[hidden]{display:none;}
   .join-request-status p{margin:0;}
@@ -878,6 +883,10 @@
           <input type="number" id="my-status-number" inputmode="numeric" min="1" max="99" step="1" placeholder="—" autocomplete="off">
           <p class="my-status-number-help">Opcional.</p>
         </div>
+      </div>
+      <div class="remember-player-field" id="remember-player-device-field" hidden>
+        <input type="checkbox" id="remember-player-device">
+        <label for="remember-player-device">Recordar este jugador en este dispositivo</label>
       </div>
       <span class="my-status-label">Estado</span>
       <div class="my-status-choice" role="group" aria-label="Estado">
@@ -1790,6 +1799,10 @@ async function refreshFromServer(){
   // (Organizador). render() no llama a renderIdentityHeader(), así que sin esto el
   // banner de este dispositivo quedaría "pendiente" para siempre hasta recargar.
   renderJoinRequestStatus();
+  // Una baja de roster hecha en otro dispositivo puede invalidar el recuerdo: sólo se limpia,
+  // nunca se vuelve a preseleccionar en cada sondeo.
+  restaurarJugadorRecordado({ soloLimpiar:true });
+  renderRememberPlayerDevice();
   // Alguien que ya tenía la app abierta cuando pasó el horario, o cuyo primer intento
   // perdió la carrera contra otro dispositivo, evalúa en el próximo sondeo. El latch
   // (evaluated[matchKey]) corta el loop: una vez seteado, no vuelve a escribir.
@@ -3046,6 +3059,8 @@ document.getElementById('roster-manage-list').addEventListener('click', async (e
     return;
   }
   limpiarIdentidadRetirada(nombre, identidadPropia);
+  // El recuerdo local de esa persona también se va, aunque este dispositivo no estuviera identificado como ella.
+  olvidarJugadorRecordado(nombre);
   recurrentPlayers = deriveSelectorNames();
   render();
   renderLocalOrganizer();
@@ -4224,6 +4239,10 @@ document.getElementById('maps-btn').onclick = ()=>{
 /* ---------- DISPONIBILIDAD LOCAL DE PRUEBA ---------- */
 const LOCAL_AVAILABILITY_KEY = 'asp_availability_demo_v1';
 const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
+// Preferencia LOCAL y optativa (checkbox "Recordar este jugador en este dispositivo"): guarda
+// SÓLO la identidad habitual canónica. Clave propia — LOCAL_CURRENT_PLAYER_KEY es el valor de
+// sesión que escriben el registro y el claim, y no debe mezclarse con una preferencia.
+const LOCAL_REMEMBERED_HABITUAL_KEY = 'asp_remembered_habitual_v1';
 const LOCAL_DEMO_SEEDED_KEY = 'asp_demo_responses_seeded_v3';
 const DEFAULT_DEMO_RESPONSES = [
   {name:'Clara', status:'in', from:'16:00', to:'20:00', paid:true, team:'negro'},
@@ -4418,6 +4437,7 @@ function renderIdentityHeader(){
   if(numberInput && document.activeElement !== numberInput){
     numberInput.value = modoIdentificado && Number.isInteger(propia.number) ? String(propia.number) : '';
   }
+  renderRememberPlayerDevice();
   renderJoinRequestStatus();
   renderCasacaPreview();
 }
@@ -4480,6 +4500,84 @@ function renderJoinRequestStatus(){
     el.innerHTML = '<p>No se aprobó tu solicitud. Corregí el nombre o hablá con el grupo.</p>';
   }
   el.hidden = false;
+}
+
+// Restaura de forma SEGURA el jugador recordado en este navegador (preferencia local; no
+// vincula dispositivos ni da acceso a una response ajena).
+//  - Preferencia inválida o fuera del roster: leerJugadorRecordado la borra; si el buscador
+//    aún tiene el mismo texto que se preseleccionó (sin editar), se limpia.
+//  - Con response propia no hace nada: la restauración normal (restoreCurrentLocalResponse) manda.
+//  - Sin response propia (partido nuevo) o con una response de OTRO dispositivo: sólo escribe el
+//    nombre canónico en el buscador. NO crea response, NO cambia ownerId/ownerIds, NO fija
+//    identidad local y NO abre el claim: al tocar Guardar, el flujo actual (incluido el claim de
+//    una response ajena) decide, como si la persona hubiera elegido su nombre del selector.
+//  - No pisa lo que la persona está escribiendo ni un buscador enfocado. `soloLimpiar`
+//    (sondeo) nunca preselecciona: no re-rellena un input vaciado a propósito.
+let jugadorRecordadoPrefill = '';
+function restaurarJugadorRecordado(opciones){
+  const soloLimpiar = Boolean(opciones && opciones.soloLimpiar);
+  const input = document.getElementById('my-player-name');
+  if(!input) return false;
+  const recordado = leerJugadorRecordado();
+  if(!recordado){
+    if(jugadorRecordadoPrefill && input.value===jugadorRecordadoPrefill) input.value = '';
+    jugadorRecordadoPrefill = '';
+    return false;
+  }
+  if(soloLimpiar) return false;
+  if(responseDelJugadorActual()) return false;
+  if(input.value.trim() || document.activeElement===input) return false;
+  input.value = recordado;
+  jugadorRecordadoPrefill = recordado;
+  return true;
+}
+
+// Identidad habitual CANÓNICA sobre la que aplica el checkbox "Recordar este jugador en este
+// dispositivo", o '' si no hay una válida. Identificado: la identidad base de su response
+// (habitualName ?? name), no la casaca. Registro / "Cambiar jugador": lo que hay en el buscador,
+// sólo si es un nombre EXACTO del roster (comparación normalizada) — un nombre libre no cuenta.
+function identidadParaRecordar(){
+  const input = document.getElementById('my-player-name');
+  const propia = responseDelJugadorActual();
+  const identificado = Boolean(propia) && !changingRegisteredPlayer;
+  const candidato = identificado
+    ? String(propia.habitualName || propia.name || '')
+    : String(input ? input.value : '');
+  const key = candidato.trim().toLocaleLowerCase('es');
+  if(!key) return '';
+  const habituales = Array.isArray(state && state.habitualPlayers) ? state.habitualPlayers : [];
+  const habitual = habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key);
+  return habitual ? String(habitual) : '';
+}
+
+// Muestra/oculta el checkbox y refleja si ESTE navegador ya recuerda a esa identidad. Sólo
+// lee: no persiste nada, no toca responses ni ownership.
+function renderRememberPlayerDevice(){
+  const field = document.getElementById('remember-player-device-field');
+  const box = document.getElementById('remember-player-device');
+  if(!field || !box) return;
+  const identidad = identidadParaRecordar();
+  field.hidden = !identidad;
+  box.checked = Boolean(identidad) && leerJugadorRecordado()===identidad;
+}
+
+// El propio checkbox también emite 'input' (ANTES de 'change') y burbujea hasta la card: si ese
+// evento re-renderizara, el checkbox volvería a su valor guardado antes de que el handler de
+// 'change' lea lo que la persona marcó y el tilde nunca se guardaría. Se ignora el evento del checkbox.
+function onMyStatusCardInputRemember(ev){
+  if(ev && ev.target && ev.target.id==='remember-player-device') return;
+  renderRememberPlayerDevice();
+}
+
+// Cambio del checkbox: SÓLO preferencia local. No guarda la respuesta, no fija disponibilidad,
+// no toca ownerId/ownerIds, no dispara claim ni toast.
+function onRememberPlayerDeviceChange(){
+  const box = document.getElementById('remember-player-device');
+  if(!box) return;
+  const identidad = identidadParaRecordar();
+  if(!identidad){ box.checked = false; return; }
+  if(box.checked) guardarJugadorRecordado(identidad);
+  else olvidarJugadorRecordado(identidad);
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
@@ -4945,9 +5043,48 @@ function limpiarIdentidadRetirada(nombre, identidadPropia){
   if(!coincide) return false;
   currentLocalResponseName = '';
   try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }catch(e){}
+  olvidarJugadorRecordado(nombre);
   setRegisteredPlayerNameMode(true);
   const input = document.getElementById('my-player-name');
   if(input) input.value = '';
+  return true;
+}
+
+// ---------- Recordar jugador en este dispositivo (preferencia local) ----------
+// Tres helpers y nada más: leen/escriben UNA clave de localStorage con la identidad habitual
+// canónica. No tocan state, responses, ownerId/ownerIds ni Supabase: recordar un nombre NO
+// equivale a reclamar una response de otro dispositivo (el claim actual sigue siendo el único
+// camino), ni vincula celular y desktop. Comparación normalizada trim + minúsculas 'es'.
+function leerJugadorRecordado(estado = state){
+  let raw = '';
+  try{ raw = localStorage.getItem(LOCAL_REMEMBERED_HABITUAL_KEY) || ''; }catch(e){ return ''; }
+  const key = String(raw).trim().toLocaleLowerCase('es');
+  const habituales = Array.isArray(estado && estado.habitualPlayers) ? estado.habitualPlayers : [];
+  const habitual = key ? habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key) : null;
+  if(habitual) return String(habitual);
+  // Recuerdo inválido (salió del roster, editado a mano, roster vacío): se elimina.
+  if(raw){ try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){} }
+  return '';
+}
+
+function guardarJugadorRecordado(nombre){
+  const key = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
+  if(!key) return false;
+  const habituales = Array.isArray(state && state.habitualPlayers) ? state.habitualPlayers : [];
+  const habitual = habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key);
+  if(!habitual) return false;
+  try{ localStorage.setItem(LOCAL_REMEMBERED_HABITUAL_KEY, String(habitual)); }catch(e){ return false; }
+  return true;
+}
+
+// Borra el recuerdo SÓLO si es de esa identidad: no pisa el de otra persona.
+function olvidarJugadorRecordado(nombre){
+  const key = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
+  if(!key) return false;
+  let raw = '';
+  try{ raw = localStorage.getItem(LOCAL_REMEMBERED_HABITUAL_KEY) || ''; }catch(e){ return false; }
+  if(String(raw).trim().toLocaleLowerCase('es')!==key) return false;
+  try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){ return false; }
   return true;
 }
 
@@ -5041,6 +5178,7 @@ function renderRecurrentPlayerMenu(){
       const selectedName = recurrentPlayers[Number(button.dataset.recurrentIndex)] || '';
       input.value = selectedName;
       hideRecurrentPlayerMenu();
+      renderRememberPlayerDevice();
       const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
       // El match de identidad mira name Y habitualName: "Nombre en la casaca" muta name,
       // y sin esto un segundo dispositivo no reconoce la response existente y crea otra.
@@ -5736,6 +5874,10 @@ myStatusCard.addEventListener('input', refreshDirtyIndicator);
 // El preview de casaca sigue al input en vivo (mismo canal, función aparte para no
 // tocar el cableado del indicador de cambios sin guardar).
 myStatusCard.addEventListener('input', renderCasacaPreview);
+// Checkbox "Recordar este jugador en este dispositivo": se re-evalúa al escribir el nombre y su
+// cambio es SÓLO preferencia local.
+myStatusCard.addEventListener('input', onMyStatusCardInputRemember);
+document.getElementById('remember-player-device').addEventListener('change', onRememberPlayerDeviceChange);
 myStatusCard.addEventListener('click', event=>{
   if(event.target.closest('#my-status-confirm')) return;
   refreshDirtyIndicator();
@@ -6074,6 +6216,9 @@ mockNumberInput.onchange = async ()=>{
   loadLocalFormationState();
   updateKnownSets(state);
   render();
+  // Jugador recordado en este dispositivo: sólo preselecciona (sin response propia); nunca
+  // reclama ni escribe. Con response propia no hace nada: la restaura restoreCurrentLocalResponse.
+  restaurarJugadorRecordado();
   restoreCurrentLocalResponse();
   // Fija el modo de la card (Registro vs Jugador convocado) también en estado anónimo,
   // donde restoreCurrentLocalResponse() retorna sin tocar la card.
