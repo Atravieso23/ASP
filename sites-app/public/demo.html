@@ -197,6 +197,9 @@
   .split-col.negro li{color:#e8e6df; font-size:14px;}
   .split-col.blanco li{color:#222; font-size:14px;}
   .split-name{display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* Casaca larga (hasta 40 caracteres, ahora también recordada): sin min-width:0 el nombre nowrap
+     ensancha la columna del grid y abre scroll horizontal a 320px; así corta con elipsis. */
+  .split > .split-col, .split-col li{min-width:0;}
   .captain-band{
     flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
     width:17px; height:17px; border-radius:3px; background:#E8A93B; color:#3a2500;
