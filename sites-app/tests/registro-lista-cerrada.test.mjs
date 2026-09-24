@@ -32,7 +32,7 @@ function confirmHandler() {
 }
 
 // Copy unificado de la solicitud de alta: mismo helper en Registro y "Cambiar jugador",
-// sin "pedile a un organizador" ni remate 👻.
+// sin "pedile a un organizador" ni el remate con emoji de antes.
 const HELPER_BASE = "Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.";
 const HELPER_REGISTRO = "Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.";
 const EMPTY_COPY = "No encontramos ese nombre.";
@@ -90,7 +90,7 @@ test("3. una response no invitada nueva sólo se crea con habitualExacto y setea
 
 const esc = (s) => s.replace(/[.?*+^$()[\]{}|\\]/g, "\\$&");
 
-test("4. el helper de Registro usa el copy aprobado, sin remate 👻 (markup + JS)", () => {
+test("4. el helper de Registro usa el copy aprobado, sin remate (markup + JS)", () => {
   // Markup inicial (estado Registro) + reset del picker llevan el copy unificado.
   assert.match(demo, new RegExp(`id="player-picker-help">${esc(HELPER_REGISTRO)}`));
   const reset = extractFn("resetPlayerPicker");

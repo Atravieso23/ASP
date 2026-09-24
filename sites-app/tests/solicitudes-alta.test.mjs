@@ -486,7 +486,9 @@ test("copy: confirmaciones y toasts del flujo usan 'solicitud'", () => {
 test("el CTA sólo se pinta con nombre escrito y sin coincidencias (no hay botón permanente)", () => {
   const menu = extractFunction(demo, "renderRecurrentPlayerMenu");
   assert.match(menu, /const puedeSolicitar = filtered\.length===0 && input\.value\.trim\(\)\.length>0;/);
-  assert.equal((demo.match(/data-join-request/g) || []).length, 2, "sólo el template dinámico + su delegación (sin markup estático)");
+  // el botón se genera dentro de renderRecurrentPlayerMenu y en ningún otro lado
+  assert.match(menu, /<button type="button" class="join-request-btn" data-join-request>Solicitar sumarme<\/button>/);
+  assert.doesNotMatch(demo.replace(menu, ""), /<button[^>]*data-join-request/);
   const markup = demo.slice(demo.indexOf("<body>"), demo.indexOf("<script>", demo.indexOf("<body>")));
   assert.doesNotMatch(markup, /data-join-request|Solicitar sumarme/);
 });

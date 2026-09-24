@@ -1346,11 +1346,10 @@ test("PR #30 · casaca: el helper de registro / cambio de jugador no se contamin
     "ramas de cambio de jugador y registro de setRegisteredPlayerNameMode",
   );
   assert.doesNotMatch(cambioYRegistro, /Así te ve el grupo/);
-  // Ambas ramas usan el copy de lista cerrada; la de Registro (else) va "…en el grupo." +
-  // remate 👻 (PR #34); la de "Cambiar jugador" (else if) queda con "…al grupo." base.
+  // Ambas ramas (Registro y "Cambiar jugador") usan el mismo copy de la solicitud de alta.
   assert.match(cambioYRegistro, /\}else if\(ownResponse\)\{\s*help\.textContent = 'Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.';/);
   assert.match(cambioYRegistro, /\}else\{\s*help\.textContent = 'Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.';/);
-  // El texto inicial del helper en el markup es el de Registro (con remate).
+  // El texto inicial del helper en el markup es el mismo copy unificado.
   assert.match(demo, /id="player-picker-help">Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.</);
 });
 
