@@ -162,24 +162,37 @@ test("7. deriveSelectorNames sigue basado en habitualPlayers + identidades exist
 
 /* ---------- 8. state.habitualPlayers no se muta desde la app ---------- */
 
-test("8. state.habitualPlayers no se muta desde el cliente, salvo la ÚNICA excepción explícita aprobada", () => {
+test("8. state.habitualPlayers no se muta desde el cliente, salvo las DOS excepciones explícitas aprobadas", () => {
   // Ninguna asignación ni mutación de array sobre habitualPlayers (salvo el guard de
-  // normalización de lectura: `if(!Array.isArray(parsed.habitualPlayers)) parsed.habitualPlayers = []`,
-  // que este test no toca porque no matchea ninguna de las 3 formas prohibidas de abajo).
+  // normalización de lectura: `if(!Array.isArray(parsed.habitualPlayers)) parsed.habitualPlayers = []`).
   //
-  // Excepción aprobada (feat/solicitudes-alta-habitual): "Pedir sumarme" + Aprobar/
-  // Rechazar en Organizador. La decisión de producto es que Aprobar agregue el nombre a
-  // habitualPlayers — así que UNA función, y sólo una, queda afuera de este guard:
-  // aprobarSolicitudDeAlta(). Se acota extrayendo su cuerpo (igual criterio que
-  // habitual-players.test.mjs usa para blindar savePlayerRegistration) y corriendo las
-  // mismas 3 prohibiciones sobre el resto del archivo. Si en el futuro aparece una
-  // SEGUNDA vía de mutación — en aprobarSolicitudDeAlta o en cualquier otro lado — este
-  // test cae, y hay que volver a esta decisión antes de tocarlo.
-  const excepcion = extractFn("aprobarSolicitudDeAlta");
-  assert.match(excepcion, /habitualPlayers\.push\(/,
-    "la excepción documentada (aprobarSolicitudDeAlta) tiene que ser la que realmente toca habitualPlayers");
-  const resto = demo.replace(excepcion, "");
+  // Excepciones aprobadas — gestión explícita de membresía desde Organizador, con función
+  // propia, focalizada y revalidada contra el estado fresco (persistFocalizado):
+  //   1. aprobarSolicitudDeAlta(): Aprobar agrega el nombre (feat/solicitudes-alta-habitual).
+  //   2. sacarDelRoster(): "Sacar del roster" lo quita junto con su response regular actual
+  //      (feat/administrar-roster-organizador).
+  // Se acotan extrayendo sus cuerpos (mismo criterio que habitual-players.test.mjs usa para
+  // blindar savePlayerRegistration) y corriendo las mismas prohibiciones sobre el resto del
+  // archivo. Una TERCERA vía de mutación en cualquier lado hace caer este test: hay que volver
+  // a esta decisión antes de tocarlo.
+  const aprobar = extractFn("aprobarSolicitudDeAlta");
+  const sacar = extractFn("sacarDelRoster");
+  assert.match(aprobar, /habitualPlayers\.push\(/, "aprobar es quien agrega");
+  assert.match(sacar, /fresh\.habitualPlayers = habituales\.filter\(/, "sacar es quien quita");
+  const resto = demo.replace(aprobar, "").replace(sacar, "");
   assert.doesNotMatch(resto, /\bstate\.habitualPlayers\s*=/);
   assert.doesNotMatch(resto, /habitualPlayers\.(push|pop|shift|unshift|splice|sort)\(/);
   assert.doesNotMatch(resto, /\.habitualPlayers\s*=\s*\[[^\]]/);
+  // Control negativo: la protección no está inerte — una asignación adicional representativa
+  // SÍ hace fallar el mismo chequeo (y la normalización de lectura de `parsed` no lo dispara).
+  for (const extra of ["state.habitualPlayers = fresh.habitualPlayers;", "  state.habitualPlayers=[];"]) {
+    assert.throws(() => assert.doesNotMatch(`${resto}
+${extra}`, /\bstate\.habitualPlayers\s*=/), `debe detectar: ${extra}`);
+  }
+  assert.doesNotThrow(() => assert.doesNotMatch("parsed.habitualPlayers = [];", /\bstate\.habitualPlayers\s*=/));
+  // Toda asignación restante a .habitualPlayers es la normalización de lectura.
+  const asignaciones = [...resto.matchAll(/(\w+)\.habitualPlayers\s*=(?!=)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(asignaciones)], ["parsed"], "sólo parsed.habitualPlayers (lectura)");
+  // Y ninguna otra función del cliente filtra/reasigna la lista con `fresh.` o `state.`.
+  assert.doesNotMatch(resto, /fresh\.habitualPlayers\s*=|\.habitualPlayers\s*=\s*\w+\.filter/);
 });

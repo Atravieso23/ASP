@@ -43,6 +43,7 @@ const WRITER_SOURCE = [
   extractFunction(demo, "pedirSumarme"),
   extractFunction(demo, "aprobarSolicitudDeAlta"),
   extractFunction(demo, "rechazarSolicitudDeAlta"),
+  extractFunction(demo, "sacarDelRoster"),
 ].join("\n");
 
 // "Servidor" de mentira: solicitudesAlta + relleno de otras keys para verificar que los
@@ -91,7 +92,8 @@ function makeWorld(server, { ownerId = "device-a" } = {}) {
     `${WRITER_SOURCE}
      globalThis.__pedir = pedirSumarme;
      globalThis.__aprobar = aprobarSolicitudDeAlta;
-     globalThis.__rechazar = rechazarSolicitudDeAlta;`,
+     globalThis.__rechazar = rechazarSolicitudDeAlta;
+     globalThis.__sacar = sacarDelRoster;`,
     context,
   );
 
@@ -99,6 +101,7 @@ function makeWorld(server, { ownerId = "device-a" } = {}) {
     pedir: (nombre) => context.__pedir(nombre),
     aprobar: (id) => context.__aprobar(id),
     rechazar: (id) => context.__rechazar(id),
+    sacar: (nombre) => context.__sacar(nombre),
     writes,
     persistCalls: () => persistCalls,
     server: () => serverBlob,
@@ -425,8 +428,8 @@ test("copy de rechazo EXACTO en el markup fuente (no sólo en el render)", () =>
   assert.match(demo, /No se aprobó tu solicitud\. Corregí el nombre o hablá con el grupo\./);
 });
 
-test("Organizador: sección 'Solicitudes pendientes' con Aprobar y Rechazar", () => {
-  assert.match(demo, /id="join-requests-title">Solicitudes pendientes</);
+test("Solicitudes: el modal 'Solicitudes pendientes' tiene Aprobar y Rechazar", () => {
+  assert.match(demo, /<h2 id="join-requests-title">Solicitudes pendientes<\/h2>/);
   assert.match(demo, />Aprobar</);
   assert.match(demo, />Rechazar</);
 });
@@ -491,4 +494,322 @@ test("el CTA sólo se pinta con nombre escrito y sin coincidencias (no hay botó
   assert.doesNotMatch(demo.replace(menu, ""), /<button[^>]*data-join-request/);
   const markup = demo.slice(demo.indexOf("<body>"), demo.indexOf("<script>", demo.indexOf("<body>")));
   assert.doesNotMatch(markup, /data-join-request|Solicitar sumarme/);
+});
+
+/* ═════════════════ 12. Baja del roster: sacarDelRoster ═════════════════ */
+
+const rosterServer = (over) => serverOf(
+  [{ id: "sol-x", nombre: "Ya Aprobado", estado: "aprobada", ownerId: "device-z", createdAt: "2026-09-01T00:00:00.000Z", resolvedAt: "2026-09-01T00:05:00.000Z" }],
+  {
+    habitualPlayers: ["Ale", "Félix BV"],
+    responses: [
+      { responseId: "r-ale", isGuest: false, habitualName: "Ale", name: "Ale", paid: true, status: "in" },
+      { responseId: "r-felix", isGuest: false, habitualName: "Félix BV", name: "Félix", paid: false, status: "in" },
+      { responseId: "g-ale", isGuest: true, invitedBy: "Ale", name: "Ale", paid: false, status: "in" },
+      { responseId: "g-felix", isGuest: true, invitedBy: "Félix", name: "Félix BV", paid: true, status: "in" },
+    ],
+    ...over,
+  },
+);
+
+test("sacarDelRoster: quita el habitual y su response regular actual (nombre normalizado)", async () => {
+  const w = makeWorld(rosterServer());
+  assert.equal(await w.sacar("  félix bv "), true);
+  assert.deepEqual(w.server().habitualPlayers, ["Ale"]);
+  assert.deepEqual(w.server().responses.map((r) => r.responseId), ["r-ale", "g-ale", "g-felix"]);
+  assert.equal(w.writes.length, 1, "una única escritura");
+});
+
+test("sacarDelRoster: preserva invitados homónimos (aunque el invitado se llame igual que el habitual)", async () => {
+  const w = makeWorld(rosterServer());
+  await w.sacar("Félix BV");
+  const ids = w.server().responses.map((r) => r.responseId);
+  assert.ok(ids.includes("g-felix"), "el invitado 'Félix BV' de otro anfitrión sigue");
+  assert.ok(ids.includes("g-ale"));
+});
+
+test("sacarDelRoster: preserva matchInfo, history, cards, players, sedes, formations, frequentAliases y solicitudesAlta", async () => {
+  const antes = rosterServer();
+  const w = makeWorld(antes);
+  await w.sacar("Ale");
+  const post = w.server();
+  for (const k of ["matchInfo", "history", "cards", "players", "sedes", "formations", "frequentAliases", "solicitudesAlta"]) {
+    assert.deepEqual(post[k], antes[k], `${k} no cambia`);
+  }
+  assert.deepEqual(post.habitualPlayers, ["Félix BV"]);
+});
+
+test("sacarDelRoster: nombre ausente o vacío devuelve false y no escribe", async () => {
+  const w = makeWorld(rosterServer());
+  assert.equal(await w.sacar("Nadie"), false);
+  assert.equal(await w.sacar(""), false);
+  assert.equal(await w.sacar("   "), false);
+  assert.equal(w.writes.length, 0);
+  assert.deepEqual(w.server().habitualPlayers, ["Ale", "Félix BV"]);
+});
+
+test("sacarDelRoster: idempotente — el segundo intento (doble toque / otro dispositivo) no escribe ni saca a otro", async () => {
+  const w = makeWorld(rosterServer());
+  assert.equal(await w.sacar("Ale"), true);
+  assert.equal(await w.sacar("Ale"), false);
+  assert.equal(w.writes.length, 1);
+  assert.deepEqual(w.server().habitualPlayers, ["Félix BV"], "Félix BV no se toca");
+  assert.ok(w.server().responses.some((r) => r.responseId === "r-felix"));
+});
+
+test("sacarDelRoster: una response con el mismo nombre visible pero OTRA identidad habitual se preserva", async () => {
+  const w = makeWorld(rosterServer({
+    responses: [
+      { responseId: "r-otro", isGuest: false, habitualName: "Félix BV", name: "Ale", paid: false, status: "in" },
+      { responseId: "r-ale", isGuest: false, habitualName: "Ale", name: "Ale", paid: false, status: "in" },
+    ],
+  }));
+  await w.sacar("Ale");
+  assert.deepEqual(w.server().responses.map((r) => r.responseId), ["r-otro"], "sale sólo la de identidad Ale");
+});
+
+test("sacarDelRoster: una response legacy sin habitualName se identifica por su name", async () => {
+  const w = makeWorld(rosterServer({
+    responses: [{ responseId: "r-legacy", isGuest: false, name: "ale", paid: false, status: "in" }],
+  }));
+  await w.sacar("Ale");
+  assert.deepEqual(w.server().responses, []);
+});
+
+test("sacarDelRoster: sin response actual igual saca al habitual", async () => {
+  const w = makeWorld(rosterServer({ responses: [] }));
+  assert.equal(await w.sacar("Ale"), true);
+  assert.deepEqual(w.server().habitualPlayers, ["Félix BV"]);
+});
+
+test("sacarDelRoster: es la única vía de cliente (junto a aprobar) que toca habitualPlayers y no usa guardarCambioEnResponses", () => {
+  const fn = extractFunction(demo, "sacarDelRoster");
+  assert.match(fn, /persistFocalizado\(/);
+  assert.doesNotMatch(fn, /guardarCambioEnResponses|savePlayerRegistration|localAvailabilityResponses|state\./);
+  assert.doesNotMatch(fn, /\.paid\s*=|\.cards|\.history|\.players|solicitudesAlta/);
+});
+
+/* ═════════════════ 13. Gestión de jugadores: dos accesos compactos + dos modales ═════════════════ */
+
+const organizerMarkup = demo.slice(
+  demo.indexOf('<div class="organizer-view" id="main-view-organizer">'),
+  demo.indexOf('<div class="modal-overlay"'),
+);
+
+test("Organizador muestra dos accesos compactos de igual jerarquía, no las listas abiertas", () => {
+  assert.match(organizerMarkup, /id="open-join-requests"/);
+  assert.match(organizerMarkup, /id="open-roster-manager"/);
+  assert.match(organizerMarkup, /Gestión de jugadores/);
+  assert.doesNotMatch(organizerMarkup, /id="join-requests-list"|id="roster-manage-list"|id="join-requests-empty"|id="roster-manage-empty"/);
+  const a = organizerMarkup.match(/<button[^>]*id="open-join-requests"[^>]*>/)[0];
+  const b = organizerMarkup.match(/<button[^>]*id="open-roster-manager"[^>]*>/)[0];
+  const clase = (t) => t.match(/class="([^"]+)"/)[1];
+  assert.equal(clase(a), clase(b), "misma clase = misma jerarquía");
+});
+
+test("cada acceso tiene su propio modal, con lista, vacío y botón Cerrar", () => {
+  const modal = (id) => {
+    const ini = demo.indexOf(`<div class="modal-overlay" id="${id}">`);
+    assert.ok(ini > -1, `existe ${id}`);
+    return demo.slice(ini, demo.indexOf("</div>\r\n</div>", ini));
+  };
+  const sol = modal("manage-join-requests-overlay");
+  assert.match(sol, /Solicitudes pendientes/);
+  assert.match(sol, /id="join-requests-empty"/);
+  assert.match(sol, /id="join-requests-list"/);
+  assert.match(sol, /id="manage-join-requests-close"/);
+  const ros = modal("manage-roster-overlay");
+  assert.match(ros, /Roster actual/);
+  assert.match(ros, /id="roster-manage-empty"/);
+  assert.match(ros, /id="roster-manage-list"/);
+  assert.match(ros, /id="manage-roster-close"/);
+  assert.doesNotMatch(sol, /roster-manage/);
+  assert.doesNotMatch(ros, /id="join-requests-list"/);
+});
+
+test("los dos modales pausan el sondeo (están en anyModalOpen)", () => {
+  const fn = extractFunction(demo, "refreshFromServer");
+  assert.match(fn, /'manage-join-requests-overlay'/);
+  assert.match(fn, /'manage-roster-overlay'/);
+});
+
+test("cada acceso abre SU modal y Cerrar lo cierra", () => {
+  assert.match(demo, /getElementById\('open-join-requests'\)\.onclick = \(\)=>\{\s*renderSolicitudesAlta\(\);\s*document\.getElementById\('manage-join-requests-overlay'\)\.classList\.add\('open'\);/);
+  assert.match(demo, /getElementById\('open-roster-manager'\)\.onclick = \(\)=>\{\s*renderRosterManageList\(\);\s*document\.getElementById\('manage-roster-overlay'\)\.classList\.add\('open'\);/);
+  assert.match(demo, /getElementById\('manage-join-requests-close'\)\.onclick = \(\)=>\{\s*document\.getElementById\('manage-join-requests-overlay'\)\.classList\.remove\('open'\);/);
+  assert.match(demo, /getElementById\('manage-roster-close'\)\.onclick = \(\)=>\{\s*document\.getElementById\('manage-roster-overlay'\)\.classList\.remove\('open'\);/);
+});
+
+function makeRosterContext(estado) {
+  const els = {
+    "open-join-requests": { textContent: "" },
+    "open-roster-manager": { textContent: "" },
+    "roster-manage-empty": { hidden: false },
+    "roster-manage-list": { hidden: true, innerHTML: "" },
+  };
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => els[id] || null },
+    String, Array,
+    escapeHtml: (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])),
+  });
+  vm.runInContext(
+    `let state = ${JSON.stringify(estado)};
+     ${extractFunction(demo, "renderRosterManageList")}
+     ${extractFunction(demo, "renderGestionRoster")}
+     globalThis.__gestion = renderGestionRoster;
+     globalThis.__lista = renderRosterManageList;`,
+    ctx,
+  );
+  return { els, ctx };
+}
+
+test("renderGestionRoster: los accesos muestran los conteos (pendientes / integrantes)", () => {
+  const { els, ctx } = makeRosterContext({
+    habitualPlayers: ["Ale", "Fran", "Nacho"],
+    solicitudesAlta: [
+      { id: "a", nombre: "X", estado: "pendiente" },
+      { id: "b", nombre: "Y", estado: "aprobada" },
+      { id: "c", nombre: "Z", estado: "rechazada" },
+      { id: "d", nombre: "W", estado: "pendiente" },
+    ],
+  });
+  ctx.__gestion();
+  assert.equal(els["open-join-requests"].textContent, "Solicitudes (2)");
+  assert.equal(els["open-roster-manager"].textContent, "Roster (3)");
+});
+
+test("renderGestionRoster: sin datos muestra (0) y no falla con keys ausentes", () => {
+  const { els, ctx } = makeRosterContext({});
+  ctx.__gestion();
+  assert.equal(els["open-join-requests"].textContent, "Solicitudes (0)");
+  assert.equal(els["open-roster-manager"].textContent, "Roster (0)");
+});
+
+test("renderRosterManageList: una fila por habitual con data-sacar-del-roster escapado", () => {
+  const { els, ctx } = makeRosterContext({ habitualPlayers: ["Ale", 'Ana "La <b>Larga"'], solicitudesAlta: [] });
+  ctx.__lista();
+  const { hidden, innerHTML } = els["roster-manage-list"];
+  assert.equal(hidden, false);
+  assert.equal(els["roster-manage-empty"].hidden, true);
+  assert.equal((innerHTML.match(/data-sacar-del-roster=/g) || []).length, 2);
+  assert.match(innerHTML, /data-sacar-del-roster="Ale"/);
+  assert.match(innerHTML, /Ana &quot;La &lt;b&gt;Larga/);
+  assert.doesNotMatch(innerHTML, /<b>Larga/);
+  assert.match(innerHTML, />Sacar del roster</);
+});
+
+test("renderRosterManageList: roster vacío explica el vacío y esconde la lista", () => {
+  const { els, ctx } = makeRosterContext({ habitualPlayers: [] });
+  ctx.__lista();
+  assert.equal(els["roster-manage-empty"].hidden, false);
+  assert.equal(els["roster-manage-list"].hidden, true);
+  assert.equal(els["roster-manage-list"].innerHTML, "");
+  assert.match(demo, /id="roster-manage-empty">Todavía no hay jugadores en el roster\./);
+});
+
+test("el handler de Sacar del roster confirma con el copy exacto y delega en sacarDelRoster", () => {
+  const i = demo.indexOf("getElementById('roster-manage-list').addEventListener('click'");
+  assert.ok(i > -1, "delegación desde el <ul> estático");
+  const h = demo.slice(i, demo.indexOf("\n});", i));
+  assert.match(h, /`¿Sacar a "\$\{nombre\}" del roster\? También se eliminará su respuesta al partido actual\. El historial de fechas anteriores no cambia\.`/);
+  assert.match(h, /if\(!window\.confirm\(pregunta\)\) return;/);
+  assert.ok(h.indexOf("window.confirm") < h.indexOf("await sacarDelRoster("), "confirma antes de escribir");
+  assert.match(h, /boton\.disabled = true;/);
+  assert.match(h, /showToast\(/);
+  assert.match(h, /renderGestionRoster\(\);/);
+});
+
+test("renderLocalOrganizer renderiza la gestión de jugadores en cada sondeo", () => {
+  assert.match(extractFunction(demo, "renderLocalOrganizer"), /renderGestionRoster\(\);/);
+});
+
+/* ═════════════════ 14. Identidad local al sacar del roster ═════════════════ */
+
+function makeLocalIdentityWorld({ currentLocalResponseName = "" } = {}) {
+  const removed = [];
+  const input = { value: "algo escrito" };
+  let nameModeCalls = 0;
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => (id === "my-player-name" ? input : null) },
+    localStorage: { removeItem: (k) => removed.push(k) },
+    String,
+    console: { error() {}, warn() {}, log() {} },
+    setRegisteredPlayerNameMode: (allow) => { nameModeCalls += allow === true ? 1 : 100; },
+  });
+  vm.runInContext(
+    `const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
+     let currentLocalResponseName = ${JSON.stringify(currentLocalResponseName)};
+     ${extractFunction(demo, "limpiarIdentidadRetirada")}
+     globalThis.__limpiar = limpiarIdentidadRetirada;
+     globalThis.__nombre = () => currentLocalResponseName;`,
+    ctx,
+  );
+  return {
+    limpiar: (n, propia) => ctx.__limpiar(n, propia),
+    currentName: () => ctx.__nombre(),
+    removed,
+    input,
+    modeCalls: () => nameModeCalls,
+  };
+}
+
+test("limpiarIdentidadRetirada: limpia sólo la identidad retirada de este dispositivo", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Félix BV" });
+  assert.equal(w.limpiar("  félix bv "), true);
+  assert.equal(w.currentName(), "");
+  assert.deepEqual(w.removed, ["asp_current_player_demo_v1"]);
+  assert.equal(w.modeCalls(), 1, "vuelve al selector de identidad");
+  assert.equal(w.input.value, "", "limpia el input");
+});
+
+test("limpiarIdentidadRetirada: otra persona no toca nada (sin storage, sin cambio de modo)", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Ale" });
+  assert.equal(w.limpiar("Félix BV"), false);
+  assert.equal(w.currentName(), "Ale");
+  assert.deepEqual(w.removed, []);
+  assert.equal(w.modeCalls(), 0);
+  assert.equal(w.input.value, "algo escrito");
+});
+
+test("limpiarIdentidadRetirada: con casaca renombrada usa la identidad base capturada antes de la baja", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Tito" });
+  assert.equal(w.limpiar("Pablo de Achaval", "Pablo de Achaval"), true);
+  assert.equal(w.currentName(), "");
+  // y una casaca que casualmente se llama igual que la identidad retirada NO alcanza
+  const otro = makeLocalIdentityWorld({ currentLocalResponseName: "Ale" });
+  assert.equal(otro.limpiar("Ale", "Fran Forrester"), false);
+  assert.deepEqual(otro.removed, []);
+});
+
+test("el handler de baja limpia la identidad local sólo después de que el writer devuelve true", () => {
+  const i = demo.indexOf("getElementById('roster-manage-list').addEventListener('click'");
+  const h = demo.slice(i, demo.indexOf("\n});", i));
+  const propia = h.indexOf("responseDelJugadorActual()");
+  const escribe = h.indexOf("await sacarDelRoster(");
+  const falla = h.indexOf("if(!ok){");
+  const limpia = h.indexOf("limpiarIdentidadRetirada(nombre, identidadPropia)");
+  assert.ok(propia > -1 && propia < escribe, "captura la identidad propia ANTES de escribir (la response va a desaparecer)");
+  assert.ok(limpia > falla && falla > escribe, "sólo tras el chequeo de éxito");
+});
+
+test("sacarDelRoster: conserva entradas falsy / no-objeto de responses y sólo elimina la response regular objetivo", async () => {
+  const w = makeWorld(rosterServer({
+    responses: [
+      null,
+      { responseId: "r-ale", isGuest: false, habitualName: "Ale", name: "Ale", paid: false, status: "in" },
+      0,
+      "texto raro",
+      { responseId: "g-ale", isGuest: true, invitedBy: "Ale", name: "Ale", paid: false, status: "in" },
+      undefined,
+    ],
+  }));
+  assert.equal(await w.sacar("Ale"), true);
+  // JSON del blob convierte undefined en null: lo que importa es que NADA falsy/no-objeto se pierde
+  const resp = w.server().responses;
+  assert.equal(resp.length, 5, "sólo salió la response regular de Ale");
+  assert.equal(resp[0], null, "null sobrevive en su lugar");
+  assert.equal(resp[1], 0);
+  assert.equal(resp[2], "texto raro");
+  assert.equal(resp[3].responseId, "g-ale", "el invitado sobrevive");
+  assert.ok(!resp.some((r) => r && r.responseId === "r-ale"));
 });

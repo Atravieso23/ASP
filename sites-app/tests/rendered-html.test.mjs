@@ -1458,7 +1458,10 @@ test("drops the legacy join section and the unused group roster", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
 
   assert.doesNotMatch(demo, /legacy-join-section|id="name-select"|new-player-wrap/);
-  assert.doesNotMatch(demo, /manage-roster-overlay|manage-roster-btn|roster-manage-list|add-roster-btn/);
+  // manage-roster-overlay / roster-manage-list se reutilizan a propósito para el modal "Roster"
+  // de feat/administrar-roster-organizador (baja de habituales, no el plantel fijo viejo); lo
+  // que sigue muerto es el botón de gestión y el alta desde el plantel.
+  assert.doesNotMatch(demo, /manage-roster-btn|add-roster-btn/);
   assert.doesNotMatch(demo, /state\.roster|mergeRosterArr|knownRosterNames|renderNameSelect/);
   assert.doesNotMatch(demo, /Gestionar plantel del grupo/);
   // El selector se apoya en habitualPlayers (miembros estables del grupo) unidos a
