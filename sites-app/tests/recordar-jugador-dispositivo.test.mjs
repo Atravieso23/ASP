@@ -157,3 +157,155 @@ test("la preferencia guarda sólo un string: nada de response, pago, disponibili
   assert.equal(typeof w.storage.written[0][1], "string");
   assert.equal(w.storage.written[0][1], "Ale");
 });
+
+/* ═════════════════ 2. Checkbox contextual junto a la identidad ═════════════════ */
+
+test("el checkbox de recuerdo tiene el copy exacto, sin texto auxiliar, y está entre la identidad y el Estado", () => {
+  assert.match(demo, /<input type="checkbox" id="remember-player-device">/);
+  assert.match(demo, /<label for="remember-player-device">Recordar este jugador en este dispositivo<\/label>/);
+  assert.equal((demo.match(/>Recordar este jugador en este dispositivo</g) || []).length, 1, "único texto nuevo visible (markup)");
+  const desde = demo.indexOf('id="my-player-name"');
+  const hasta = demo.indexOf('<span class="my-status-label">Estado</span>');
+  const zona = demo.slice(desde, hasta);
+  assert.match(zona, /id="remember-player-device-field"/, "debajo de la identidad y antes del Estado");
+  const campo = demo.match(/<div class="remember-player-field"[^>]*id="remember-player-device-field"[^>]*>[\s\S]*?<\/div>/)[0];
+  assert.match(campo, /\shidden/, "arranca oculto hasta que hay una identidad válida");
+  assert.doesNotMatch(campo, /<p |<small|help|title=/i, "sin texto auxiliar");
+});
+
+function makeUiWorld({ habituales = ["Ale", "Félix BV"], stored = null, propia = null, changing = false, inputValue = "" } = {}) {
+  const store = new Map();
+  if (stored !== null) store.set(KEY, stored);
+  const storage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+    raw: () => store.get(KEY) ?? null,
+  };
+  const els = {
+    "my-player-name": { value: inputValue },
+    "remember-player-device-field": { hidden: true },
+    "remember-player-device": { checked: false },
+  };
+  const calls = { server: 0 };
+  const ctx = vm.createContext({
+    document: { getElementById: (id) => els[id] || null },
+    localStorage: storage, String, Array, Boolean,
+    console: { error() {}, warn() {}, log() {} },
+    persistFocalizado: () => { calls.server++; return Promise.resolve(true); },
+    savePlayerRegistration: () => { calls.server++; },
+    saveState: () => { calls.server++; },
+  });
+  vm.runInContext(
+    `${extractConst(demo, "LOCAL_REMEMBERED_HABITUAL_KEY")}
+     let state = ${JSON.stringify({ habitualPlayers: habituales })};
+     let changingRegisteredPlayer = ${JSON.stringify(changing)};
+     function responseDelJugadorActual(){ return ${JSON.stringify(propia)}; }
+     ${extractFunction(demo, "leerJugadorRecordado")}
+     ${extractFunction(demo, "guardarJugadorRecordado")}
+     ${extractFunction(demo, "olvidarJugadorRecordado")}
+     ${extractFunction(demo, "identidadParaRecordar")}
+     ${extractFunction(demo, "renderRememberPlayerDevice")}
+     ${extractFunction(demo, "onRememberPlayerDeviceChange")}
+     globalThis.__render = renderRememberPlayerDevice;
+     globalThis.__change = onRememberPlayerDeviceChange;
+     globalThis.__identidad = identidadParaRecordar;`,
+    ctx,
+  );
+  return { els, storage, calls, render: () => ctx.__render(), change: () => ctx.__change(), identidad: () => ctx.__identidad() };
+}
+
+test("identidad elegida en Registro (nombre exacto del roster) muestra el checkbox DESMARCADO", () => {
+  const w = makeUiWorld({ inputValue: "  félix bv " });
+  w.render();
+  assert.equal(w.els["remember-player-device-field"].hidden, false);
+  assert.equal(w.els["remember-player-device"].checked, false);
+  assert.equal(w.identidad(), "Félix BV", "canónica, no lo tipeado");
+});
+
+test("si este navegador ya recuerda a esa identidad, el checkbox aparece MARCADO", () => {
+  const w = makeUiWorld({ stored: "Félix BV", inputValue: "Félix BV" });
+  w.render();
+  assert.equal(w.els["remember-player-device"].checked, true);
+});
+
+test("recordar a OTRA persona no marca el checkbox de esta identidad", () => {
+  const w = makeUiWorld({ stored: "Ale", inputValue: "Félix BV" });
+  w.render();
+  assert.equal(w.els["remember-player-device"].checked, false);
+});
+
+test("nombre libre / no habitual / input vacío: el checkbox queda oculto", () => {
+  for (const inputValue of ["", "Nadie", "Fél"]) {
+    const w = makeUiWorld({ inputValue });
+    w.render();
+    assert.equal(w.els["remember-player-device-field"].hidden, true, `oculto con "${inputValue}"`);
+    assert.equal(w.els["remember-player-device"].checked, false);
+  }
+});
+
+test("identificado: usa la identidad base de su response (no la casaca escrita en el input)", () => {
+  const w = makeUiWorld({ propia: { name: "Tito", habitualName: "Ale" }, inputValue: "Tito" });
+  w.render();
+  assert.equal(w.identidad(), "Ale");
+  assert.equal(w.els["remember-player-device-field"].hidden, false);
+});
+
+test("identificado con identidad ya fuera del roster: oculto", () => {
+  const w = makeUiWorld({ habituales: ["Fran"], propia: { name: "Tito", habitualName: "Ale" }, inputValue: "Tito" });
+  w.render();
+  assert.equal(w.els["remember-player-device-field"].hidden, true);
+});
+
+test("'Cambiar jugador': usa lo escrito en el buscador, no la response propia", () => {
+  const w = makeUiWorld({ propia: { name: "Ale", habitualName: "Ale" }, changing: true, inputValue: "Félix BV" });
+  w.render();
+  assert.equal(w.identidad(), "Félix BV");
+});
+
+test("marcar guarda SÓLO la preferencia local canónica: sin escritura al servidor", () => {
+  const w = makeUiWorld({ inputValue: "félix bv" });
+  w.render();
+  w.els["remember-player-device"].checked = true;
+  w.change();
+  assert.equal(w.storage.raw(), "Félix BV");
+  assert.equal(w.calls.server, 0);
+});
+
+test("desmarcar borra la preferencia local de esa identidad y nada más", () => {
+  const w = makeUiWorld({ stored: "Félix BV", inputValue: "Félix BV" });
+  w.render();
+  w.els["remember-player-device"].checked = false;
+  w.change();
+  assert.equal(w.storage.raw(), null);
+  assert.equal(w.calls.server, 0);
+  // desmarcar mientras el recuerdo es de otra persona no lo pisa
+  const otro = makeUiWorld({ stored: "Ale", inputValue: "Félix BV" });
+  otro.els["remember-player-device"].checked = false;
+  otro.change();
+  assert.equal(otro.storage.raw(), "Ale");
+});
+
+test("el cambio del checkbox con una identidad inválida no guarda nada", () => {
+  const w = makeUiWorld({ inputValue: "Nadie" });
+  w.els["remember-player-device"].checked = true;
+  w.change();
+  assert.equal(w.storage.raw(), null);
+});
+
+test("el handler y el render del checkbox no escriben estado compartido ni ownership ni disparan claim/toast", () => {
+  for (const name of ["identidadParaRecordar", "renderRememberPlayerDevice", "onRememberPlayerDeviceChange"]) {
+    const fn = extractFunction(demo, name);
+    assert.doesNotMatch(fn, /persistFocalizado|savePlayerRegistration|guardarCambioEnResponses|saveState|upsert|supabase/i);
+    assert.doesNotMatch(fn, /ownerId|ownerIds|pendingClaimResponseId|claim-player-overlay|showToast|showSaveFeedback/);
+    assert.doesNotMatch(fn, /mockAvailability|currentLocalResponseName\s*=/);
+  }
+});
+
+test("wiring: el checkbox se re-evalúa al escribir, al elegir del menú y en cada renderIdentityHeader", () => {
+  assert.match(demo, /getElementById\('remember-player-device'\)\.addEventListener\('change', onRememberPlayerDeviceChange\)/);
+  assert.match(demo, /myStatusCard\.addEventListener\('input', renderRememberPlayerDevice\)/);
+  assert.match(extractFunction(demo, "renderIdentityHeader"), /renderRememberPlayerDevice\(\);/);
+  assert.match(extractFunction(demo, "renderRecurrentPlayerMenu"), /renderRememberPlayerDevice\(\);/);
+  assert.match(extractFunction(demo, "refreshFromServer"), /renderRememberPlayerDevice\(\);/);
+});

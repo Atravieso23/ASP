@@ -208,6 +208,7 @@ function makeWorld({ row, local, failRead = false, failWrite = false } = {}) {
     function renderLocalOrganizer(){}
     function renderGuestManager(){}
     function renderJoinRequestStatus(){}
+    function renderRememberPlayerDevice(){}
     function evaluarTarjetasSiCorresponde(){}
     function saveLocalFormationState(){}
     function showToast(mensaje){ toasts.push(mensaje); }

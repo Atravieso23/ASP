@@ -132,6 +132,7 @@ test("segundo dispositivo: elegir la identidad del selector abre el claim aunque
      let recurrentPlayers = ["Pablo de Achaval"];
      let localAvailabilityResponses = ${JSON.stringify([otraResponse])};
      let pendingClaimResponseId = null;
+     function renderRememberPlayerDevice(){}
      ${src}
      globalThis.__render = renderRecurrentPlayerMenu;`,
     ctx,

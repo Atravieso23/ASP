@@ -513,6 +513,11 @@
   .player-name-feedback.info{background:var(--active-soft);border:1px solid var(--primary);color:var(--primary-deep);}
   .player-name-feedback.error{background:#F6E4E0;border:1px solid var(--danger);color:#8A2A1D;}
   .player-name-feedback strong{display:block;margin-bottom:2px;}
+  /* "Recordar este jugador en este dispositivo": checkbox + etiqueta, toda la fila es tocable. */
+  .remember-player-field{display:flex; align-items:center; gap:10px; margin:2px 0 6px;}
+  .remember-player-field[hidden]{display:none;}
+  .remember-player-field input{flex:none; width:22px; height:22px; margin:0; accent-color:var(--primary); cursor:pointer;}
+  .remember-player-field label{flex:1; min-width:0; min-height:var(--tap); display:flex; align-items:center; margin:0; font:600 var(--fs-body) 'Inter',sans-serif; text-transform:none; letter-spacing:normal; color:var(--text); cursor:pointer; overflow-wrap:anywhere;}
   .join-request-status{margin:9px 0 0;padding:10px 11px;border-radius:var(--radius-control);font-size:var(--fs-help);line-height:1.45;background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
   .join-request-status[hidden]{display:none;}
   .join-request-status p{margin:0;}
@@ -878,6 +883,10 @@
           <input type="number" id="my-status-number" inputmode="numeric" min="1" max="99" step="1" placeholder="—" autocomplete="off">
           <p class="my-status-number-help">Opcional.</p>
         </div>
+      </div>
+      <div class="remember-player-field" id="remember-player-device-field" hidden>
+        <input type="checkbox" id="remember-player-device">
+        <label for="remember-player-device">Recordar este jugador en este dispositivo</label>
       </div>
       <span class="my-status-label">Estado</span>
       <div class="my-status-choice" role="group" aria-label="Estado">
@@ -1790,6 +1799,7 @@ async function refreshFromServer(){
   // (Organizador). render() no llama a renderIdentityHeader(), así que sin esto el
   // banner de este dispositivo quedaría "pendiente" para siempre hasta recargar.
   renderJoinRequestStatus();
+  renderRememberPlayerDevice();
   // Alguien que ya tenía la app abierta cuando pasó el horario, o cuyo primer intento
   // perdió la carrera contra otro dispositivo, evalúa en el próximo sondeo. El latch
   // (evaluated[matchKey]) corta el loop: una vez seteado, no vuelve a escribir.
@@ -4424,6 +4434,7 @@ function renderIdentityHeader(){
   if(numberInput && document.activeElement !== numberInput){
     numberInput.value = modoIdentificado && Number.isInteger(propia.number) ? String(propia.number) : '';
   }
+  renderRememberPlayerDevice();
   renderJoinRequestStatus();
   renderCasacaPreview();
 }
@@ -4486,6 +4497,46 @@ function renderJoinRequestStatus(){
     el.innerHTML = '<p>No se aprobó tu solicitud. Corregí el nombre o hablá con el grupo.</p>';
   }
   el.hidden = false;
+}
+
+// Identidad habitual CANÓNICA sobre la que aplica el checkbox "Recordar este jugador en este
+// dispositivo", o '' si no hay una válida. Identificado: la identidad base de su response
+// (habitualName ?? name), no la casaca. Registro / "Cambiar jugador": lo que hay en el buscador,
+// sólo si es un nombre EXACTO del roster (comparación normalizada) — un nombre libre no cuenta.
+function identidadParaRecordar(){
+  const input = document.getElementById('my-player-name');
+  const propia = responseDelJugadorActual();
+  const identificado = Boolean(propia) && !changingRegisteredPlayer;
+  const candidato = identificado
+    ? String(propia.habitualName || propia.name || '')
+    : String(input ? input.value : '');
+  const key = candidato.trim().toLocaleLowerCase('es');
+  if(!key) return '';
+  const habituales = Array.isArray(state && state.habitualPlayers) ? state.habitualPlayers : [];
+  const habitual = habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key);
+  return habitual ? String(habitual) : '';
+}
+
+// Muestra/oculta el checkbox y refleja si ESTE navegador ya recuerda a esa identidad. Sólo
+// lee: no persiste nada, no toca responses ni ownership.
+function renderRememberPlayerDevice(){
+  const field = document.getElementById('remember-player-device-field');
+  const box = document.getElementById('remember-player-device');
+  if(!field || !box) return;
+  const identidad = identidadParaRecordar();
+  field.hidden = !identidad;
+  box.checked = Boolean(identidad) && leerJugadorRecordado()===identidad;
+}
+
+// Cambio del checkbox: SÓLO preferencia local. No guarda la respuesta, no fija disponibilidad,
+// no toca ownerId/ownerIds, no dispara claim ni toast.
+function onRememberPlayerDeviceChange(){
+  const box = document.getElementById('remember-player-device');
+  if(!box) return;
+  const identidad = identidadParaRecordar();
+  if(!identidad){ box.checked = false; return; }
+  if(box.checked) guardarJugadorRecordado(identidad);
+  else olvidarJugadorRecordado(identidad);
 }
 
 const INVITADO_SIN_ANFITRION = 'sin-anfitrion';
@@ -5086,6 +5137,7 @@ function renderRecurrentPlayerMenu(){
       const selectedName = recurrentPlayers[Number(button.dataset.recurrentIndex)] || '';
       input.value = selectedName;
       hideRecurrentPlayerMenu();
+      renderRememberPlayerDevice();
       const ownResponse = localAvailabilityResponses.find(item=>!item.isGuest && responseBelongsToCurrentDevice(item));
       // El match de identidad mira name Y habitualName: "Nombre en la casaca" muta name,
       // y sin esto un segundo dispositivo no reconoce la response existente y crea otra.
@@ -5781,6 +5833,10 @@ myStatusCard.addEventListener('input', refreshDirtyIndicator);
 // El preview de casaca sigue al input en vivo (mismo canal, función aparte para no
 // tocar el cableado del indicador de cambios sin guardar).
 myStatusCard.addEventListener('input', renderCasacaPreview);
+// Checkbox "Recordar este jugador en este dispositivo": se re-evalúa al escribir el nombre y su
+// cambio es SÓLO preferencia local.
+myStatusCard.addEventListener('input', renderRememberPlayerDevice);
+document.getElementById('remember-player-device').addEventListener('change', onRememberPlayerDeviceChange);
 myStatusCard.addEventListener('click', event=>{
   if(event.target.closest('#my-status-confirm')) return;
   refreshDirtyIndicator();
