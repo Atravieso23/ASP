@@ -729,7 +729,9 @@ function makeLocalIdentityWorld({ currentLocalResponseName = "" } = {}) {
   const removed = [];
   const input = { value: "algo escrito" };
   let nameModeCalls = 0;
+  const olvidados = [];
   const ctx = vm.createContext({
+    olvidarJugadorRecordado: (n) => { olvidados.push(n); return true; },
     document: { getElementById: (id) => (id === "my-player-name" ? input : null) },
     localStorage: { removeItem: (k) => removed.push(k) },
     String,
@@ -749,6 +751,7 @@ function makeLocalIdentityWorld({ currentLocalResponseName = "" } = {}) {
     currentName: () => ctx.__nombre(),
     removed,
     input,
+    olvidados,
     modeCalls: () => nameModeCalls,
   };
 }
@@ -812,4 +815,24 @@ test("sacarDelRoster: conserva entradas falsy / no-objeto de responses y sólo e
   assert.equal(resp[2], "texto raro");
   assert.equal(resp[3].responseId, "g-ale", "el invitado sobrevive");
   assert.ok(!resp.some((r) => r && r.responseId === "r-ale"));
+});
+
+test("limpiarIdentidadRetirada: al limpiar la identidad también olvida el jugador recordado de esa persona", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Félix BV" });
+  assert.equal(w.limpiar("Félix BV"), true);
+  assert.deepEqual(w.olvidados, ["Félix BV"]);
+});
+
+test("limpiarIdentidadRetirada: sin coincidencia no olvida ningún recuerdo (otro jugador recordado se conserva)", () => {
+  const w = makeLocalIdentityWorld({ currentLocalResponseName: "Ale" });
+  assert.equal(w.limpiar("Félix BV"), false);
+  assert.deepEqual(w.olvidados, []);
+});
+
+test("el handler de baja también olvida el recuerdo de la persona retirada, tras el éxito del writer", () => {
+  const i = demo.indexOf("getElementById('roster-manage-list').addEventListener('click'");
+  const h = demo.slice(i, demo.indexOf("\n});", i));
+  const falla = h.indexOf("if(!ok){");
+  const olvida = h.indexOf("olvidarJugadorRecordado(nombre)");
+  assert.ok(olvida > falla && falla > -1, "sólo tras el chequeo de éxito");
 });

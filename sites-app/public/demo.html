@@ -3046,6 +3046,8 @@ document.getElementById('roster-manage-list').addEventListener('click', async (e
     return;
   }
   limpiarIdentidadRetirada(nombre, identidadPropia);
+  // El recuerdo local de esa persona también se va, aunque este dispositivo no estuviera identificado como ella.
+  olvidarJugadorRecordado(nombre);
   recurrentPlayers = deriveSelectorNames();
   render();
   renderLocalOrganizer();
@@ -4224,6 +4226,10 @@ document.getElementById('maps-btn').onclick = ()=>{
 /* ---------- DISPONIBILIDAD LOCAL DE PRUEBA ---------- */
 const LOCAL_AVAILABILITY_KEY = 'asp_availability_demo_v1';
 const LOCAL_CURRENT_PLAYER_KEY = 'asp_current_player_demo_v1';
+// Preferencia LOCAL y optativa (checkbox "Recordar este jugador en este dispositivo"): guarda
+// SÓLO la identidad habitual canónica. Clave propia — LOCAL_CURRENT_PLAYER_KEY es el valor de
+// sesión que escriben el registro y el claim, y no debe mezclarse con una preferencia.
+const LOCAL_REMEMBERED_HABITUAL_KEY = 'asp_remembered_habitual_v1';
 const LOCAL_DEMO_SEEDED_KEY = 'asp_demo_responses_seeded_v3';
 const DEFAULT_DEMO_RESPONSES = [
   {name:'Clara', status:'in', from:'16:00', to:'20:00', paid:true, team:'negro'},
@@ -4945,9 +4951,48 @@ function limpiarIdentidadRetirada(nombre, identidadPropia){
   if(!coincide) return false;
   currentLocalResponseName = '';
   try{ localStorage.removeItem(LOCAL_CURRENT_PLAYER_KEY); }catch(e){}
+  olvidarJugadorRecordado(nombre);
   setRegisteredPlayerNameMode(true);
   const input = document.getElementById('my-player-name');
   if(input) input.value = '';
+  return true;
+}
+
+// ---------- Recordar jugador en este dispositivo (preferencia local) ----------
+// Tres helpers y nada más: leen/escriben UNA clave de localStorage con la identidad habitual
+// canónica. No tocan state, responses, ownerId/ownerIds ni Supabase: recordar un nombre NO
+// equivale a reclamar una response de otro dispositivo (el claim actual sigue siendo el único
+// camino), ni vincula celular y desktop. Comparación normalizada trim + minúsculas 'es'.
+function leerJugadorRecordado(estado = state){
+  let raw = '';
+  try{ raw = localStorage.getItem(LOCAL_REMEMBERED_HABITUAL_KEY) || ''; }catch(e){ return ''; }
+  const key = String(raw).trim().toLocaleLowerCase('es');
+  const habituales = Array.isArray(estado && estado.habitualPlayers) ? estado.habitualPlayers : [];
+  const habitual = key ? habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key) : null;
+  if(habitual) return String(habitual);
+  // Recuerdo inválido (salió del roster, editado a mano, roster vacío): se elimina.
+  if(raw){ try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){} }
+  return '';
+}
+
+function guardarJugadorRecordado(nombre){
+  const key = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
+  if(!key) return false;
+  const habituales = Array.isArray(state && state.habitualPlayers) ? state.habitualPlayers : [];
+  const habitual = habituales.find(h=>String(h).trim().toLocaleLowerCase('es')===key);
+  if(!habitual) return false;
+  try{ localStorage.setItem(LOCAL_REMEMBERED_HABITUAL_KEY, String(habitual)); }catch(e){ return false; }
+  return true;
+}
+
+// Borra el recuerdo SÓLO si es de esa identidad: no pisa el de otra persona.
+function olvidarJugadorRecordado(nombre){
+  const key = String(nombre == null ? '' : nombre).trim().toLocaleLowerCase('es');
+  if(!key) return false;
+  let raw = '';
+  try{ raw = localStorage.getItem(LOCAL_REMEMBERED_HABITUAL_KEY) || ''; }catch(e){ return false; }
+  if(String(raw).trim().toLocaleLowerCase('es')!==key) return false;
+  try{ localStorage.removeItem(LOCAL_REMEMBERED_HABITUAL_KEY); }catch(e){ return false; }
   return true;
 }
 
