@@ -858,7 +858,7 @@
           <input type="text" id="my-player-name" placeholder="Buscá tu nombre" maxlength="40" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="recurrent-player-menu" aria-expanded="false">
           <div class="recurrent-player-menu" id="recurrent-player-menu" role="listbox" hidden></div>
           <p class="casaca-preview" id="casaca-preview" hidden>En la lista te ven como <b id="casaca-preview-name"></b></p>
-          <p class="player-picker-help" id="player-picker-help">Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)</p>
+          <p class="player-picker-help" id="player-picker-help">Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.</p>
           <div class="player-name-feedback" id="player-name-feedback" role="alert" aria-live="assertive" hidden></div>
           <div class="join-request-status" id="join-request-status" role="status" hidden></div>
         </div>
@@ -1053,7 +1053,7 @@
 
     <section class="organizer-card" aria-labelledby="join-requests-title">
       <h2 class="organizer-card-title" id="join-requests-title">Solicitudes pendientes</h2>
-      <p class="organizer-empty" id="join-requests-empty">No hay pedidos pendientes.</p>
+      <p class="organizer-empty" id="join-requests-empty">No hay solicitudes pendientes.</p>
       <ul class="join-requests-list" id="join-requests-list" hidden></ul>
     </section>
 
@@ -1614,7 +1614,7 @@ async function leerEstadoDelServidor(){
     if(!parsed.split || typeof parsed.split !== 'object') parsed.split = { participants:[], expenses:[] };
     if(!Array.isArray(parsed.split.participants)) parsed.split.participants = [];
     if(!Array.isArray(parsed.split.expenses)) parsed.split.expenses = [];
-    // Solicitudes de alta ("Pedir sumarme"): array plano, igual criterio que cards.log.
+    // Solicitudes de alta ("Solicitar sumarme"): array plano, igual criterio que cards.log.
     // Nunca se borra una entrada resuelta; reenviar tras un rechazo agrega una fila nueva.
     if(!Array.isArray(parsed.solicitudesAlta)) parsed.solicitudesAlta = [];
     return { estado:parsed, motivo:'ok' };
@@ -1749,7 +1749,7 @@ async function refreshFromServer(){
   render();
   renderLocalOrganizer();
   renderGuestManager();
-  // El estado del pedido ("Pedir sumarme") lo puede resolver OTRO dispositivo
+  // El estado de la solicitud ("Solicitar sumarme") lo puede resolver OTRO dispositivo
   // (Organizador). render() no llama a renderIdentityHeader(), así que sin esto el
   // banner de este dispositivo quedaría "pendiente" para siempre hasta recargar.
   renderJoinRequestStatus();
@@ -2949,13 +2949,13 @@ document.getElementById('join-requests-list').addEventListener('click', async (e
   if(!id) return;
   const pregunta = aprobar
     ? `¿Sumar a "${nombre}" al grupo? Va a poder elegirse en el selector "¿Quién sos?".`
-    : `¿Rechazar el pedido de "${nombre}"? Va a poder corregir el nombre y pedirlo de nuevo.`;
+    : `¿Rechazar la solicitud de "${nombre}"? Va a poder corregir el nombre y solicitarlo de nuevo.`;
   if(!window.confirm(pregunta)) return;
   boton.disabled = true;
   const ok = aprobar ? await aprobarSolicitudDeAlta(id) : await rechazarSolicitudDeAlta(id);
   boton.disabled = false;
   if(!ok){
-    showToast('Ese pedido ya se resolvió. Actualizá la lista.');
+    showToast('Esa solicitud ya se resolvió. Actualizá la lista.');
     renderSolicitudesAlta();
     return;
   }
@@ -4358,7 +4358,7 @@ function renderCasacaPreview(){
   wrap.hidden = false;
 }
 
-// Estado del pedido de ESTE dispositivo ("Pedir sumarme"), por ownerId — no hay login,
+// Estado de la solicitud de ESTE dispositivo ("Solicitar sumarme"), por ownerId — no hay login,
 // así que el dispositivo que mandó la solicitud es la única forma de reconocerla como
 // "mía". Sólo se muestra en modo Registro (sin response propia, o cambiando de
 // identidad): una vez aprobada, la persona ya está en habitualPlayers y sigue el camino
@@ -4384,7 +4384,7 @@ function renderJoinRequestStatus(){
   }
   if(ultima.estado==='pendiente'){
     el.className = 'join-request-status pending';
-    el.innerHTML = `<p>Tu pedido para "<b>${escapeHtml(ultima.nombre)}</b>" está pendiente. Avisamos cuando lo resuelvan.</p>`;
+    el.innerHTML = `<p>Tu solicitud para "<b>${escapeHtml(ultima.nombre)}</b>" está pendiente. Avisamos cuando la resuelvan.</p>`;
   }else{
     el.className = 'join-request-status rejected';
     el.innerHTML = '<p>No se aprobó tu solicitud. Corregí el nombre o hablá con el grupo.</p>';
@@ -4702,7 +4702,7 @@ async function corregirAmarilla(identidad){
   }
 }
 
-/* ---------- SOLICITUDES DE ALTA — "Pedir sumarme" ---------- */
+/* ---------- SOLICITUDES DE ALTA — "Solicitar sumarme" ---------- */
 // Quien no está en la lista cerrada puede pedir que lo sumen. La solicitud nace
 // PENDIENTE en solicitudesAlta y no crea ni toca ninguna response: aprobarla agrega el
 // nombre a habitualPlayers, pero la persona sigue sin "Estoy" — recién aparece en el
@@ -4743,7 +4743,7 @@ async function pedirSumarme(nombreCrudo){
     });
     return {ok, motivo};
   }catch(e){
-    console.error('No se pudo enviar el pedido para sumarse', e);
+    console.error('No se pudo enviar la solicitud para sumarse', e);
     return {ok:false, motivo:null};
   }
 }
@@ -4854,11 +4854,11 @@ function setRegisteredPlayerNameMode(allowChange=false){
     hidePlayerNameFeedback();
     hideRecurrentPlayerMenu();
   }else if(ownResponse){
-    help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen al grupo.';
+    help.textContent = 'Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.';
     help.hidden = false;
     showPlayerNameFeedback('info','Cambio de jugador activado.',' Elegí otra identidad de la lista.');
   }else{
-    help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)';
+    help.textContent = 'Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.';
     help.hidden = false;
   }
   renderIdentityHeader();
@@ -4876,14 +4876,14 @@ function renderRecurrentPlayerMenu(){
     .map((name,index)=>({name,index}))
     .filter(item=>item.name.toLocaleLowerCase('es').includes(query))
     .slice(0,20);
-  // Sin match Y con algo tipeado: además del empty state de siempre, ofrece "Pedir
-  // sumarme" para esa identidad exacta. Con el input vacío no hay nombre que pedir.
-  const puedePedir = filtered.length===0 && input.value.trim().length>0;
+  // Sin match Y con algo tipeado: además del empty state de siempre, ofrece "Solicitar
+  // sumarme" para esa identidad exacta. Con el input vacío no hay nombre que solicitar.
+  const puedeSolicitar = filtered.length===0 && input.value.trim().length>0;
   menu.innerHTML = filtered.length ? filtered.map(item=>`
     <div class="recurrent-player-option" role="option">
       <button type="button" class="recurrent-player-select" data-recurrent-index="${item.index}">${escapeHtml(item.name)}</button>
-    </div>`).join('') : `<p class="recurrent-player-empty">No encontramos ese nombre. Pedile a un organizador que te sume al grupo.</p>${
-      puedePedir ? '<button type="button" class="join-request-btn" data-join-request>Pedir sumarme</button>' : ''
+    </div>`).join('') : `<p class="recurrent-player-empty">No encontramos ese nombre.</p>${
+      puedeSolicitar ? '<button type="button" class="join-request-btn" data-join-request>Solicitar sumarme</button>' : ''
     }`;
   menu.hidden = false;
   input.setAttribute('aria-expanded','true');
@@ -4909,33 +4909,33 @@ function renderRecurrentPlayerMenu(){
       }
     };
   });
-  // "Pedir sumarme": guardado a través de menu.querySelectorAll (no getElementById) para
+  // "Solicitar sumarme": guardado a través de menu.querySelectorAll (no getElementById) para
   // no depender de un id fijo que a veces existe y a veces no — el botón sólo se pinta
   // en el empty state con texto tipeado.
   menu.querySelectorAll('[data-join-request]').forEach(button=>{
     button.onclick = async ()=>{
-      const nombrePedido = input.value.trim();
-      if(!nombrePedido) return;
+      const nombreSolicitado = input.value.trim();
+      if(!nombreSolicitado) return;
       button.disabled = true;
-      button.textContent = 'Pidiendo…';
-      const { ok, motivo } = await pedirSumarme(nombrePedido);
+      button.textContent = 'Enviando…';
+      const { ok, motivo } = await pedirSumarme(nombreSolicitado);
       if(ok){
         hideRecurrentPlayerMenu();
-        showToast(`Pedimos sumarte como "${nombrePedido}". Quedó pendiente.`);
+        showToast(`Enviamos tu solicitud para sumarte como "${nombreSolicitado}". Quedó pendiente.`);
         renderJoinRequestStatus();
         return;
       }
       button.disabled = false;
-      button.textContent = 'Pedir sumarme';
+      button.textContent = 'Solicitar sumarme';
       if(motivo===SOLICITUD_YA_HABITUAL){
-        showToast(`"${nombrePedido}" ya está en la lista. Buscalo de nuevo.`);
+        showToast(`"${nombreSolicitado}" ya está en la lista. Buscalo de nuevo.`);
         loadRecurrentPlayers();
         renderRecurrentPlayerMenu();
       }else if(motivo===SOLICITUD_YA_PENDIENTE){
-        showToast(`Ya hay un pedido pendiente para "${nombrePedido}".`);
+        showToast(`Ya hay una solicitud pendiente para "${nombreSolicitado}".`);
         renderJoinRequestStatus();
       }else{
-        showToast('No pudimos enviar el pedido. Revisá la conexión e intentá de nuevo.');
+        showToast('No pudimos enviar la solicitud. Revisá la conexión e intentá de nuevo.');
       }
     };
   });
@@ -4951,7 +4951,7 @@ function resetPlayerPicker(preserveValue=false){
   const confirm = document.getElementById('my-status-confirm');
   if(!preserveValue) input.value = '';
   input.placeholder = 'Buscá tu nombre';
-  help.textContent = 'Elegí tu nombre de la lista. ¿No estás? Pedí que te agreguen en el grupo. (Seguro estuviste 👻)';
+  help.textContent = 'Escribí tu nombre. Si no aparece, solicitá sumarte al grupo.';
   help.hidden = false;
   confirm.textContent = 'Guardar cambios';
   hidePlayerNameFeedback();
@@ -5602,8 +5602,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   // La única excepción es editar "Nombre en la casaca" ya identificado (texto libre).
   if(!recurrentMatch && !editandoMiEstado){
     nameInput.setAttribute('aria-invalid','true');
-    showPlayerNameFeedback('error','No encontramos ese nombre.',' Elegí uno de la lista o pedí que te agreguen al grupo.');
-    showToast('No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.');
+    showPlayerNameFeedback('error','No encontramos ese nombre.',' Elegí uno de la lista o solicitá sumarte al grupo.');
+    showToast('No encontramos ese nombre. Elegí uno de la lista o solicitá sumarte al grupo.');
     nameInput.focus();
     renderRecurrentPlayerMenu();
     return;
@@ -5687,8 +5687,8 @@ document.getElementById('my-status-confirm').onclick = async ()=>{
   // identidad estable que asignar; se bloquea y se orienta a pedir el alta al grupo.
   if(!editandoMiEstado && !habitualExacto){
     nameInput.setAttribute('aria-invalid','true');
-    showPlayerNameFeedback('error','No encontramos ese nombre.',' Elegí uno de la lista o pedí que te agreguen al grupo.');
-    showToast('No encontramos ese nombre. Elegí uno de la lista o pedí que te agreguen al grupo.');
+    showPlayerNameFeedback('error','No encontramos ese nombre.',' Elegí uno de la lista o solicitá sumarte al grupo.');
+    showToast('No encontramos ese nombre. Elegí uno de la lista o solicitá sumarte al grupo.');
     nameInput.focus();
     renderRecurrentPlayerMenu();
     return;
