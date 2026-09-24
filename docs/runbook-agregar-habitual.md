@@ -14,7 +14,7 @@ para los casos que la app no cubre (corregir un nombre mal tipeado, un reseed
 completo, o cuando conviene evitar la cola de solicitudes). Sigue siendo una operación controlada que corre una persona con
 acceso al repo.
 
-> Alcance: describe el procedimiento manual (script). El alta normal vía
+> Alcance: describe el procedimiento manual (script). El alta y baja normal vía
 > Organizador está descripta abajo pero implementada en `demo.html`, no acá.
 
 ---
