@@ -76,11 +76,11 @@ test("3b. vm: al tocar el control se entra en modo 'cambiar jugador' y se limpia
 
 /* ---------- 4–5. no rompe selector ni casaca ---------- */
 
-test("4+5. el selector de identidad y 'Nombre en la casaca' siguen igual", () => {
+test("4+5. el selector de identidad y la etiqueta 'Casaca' (identificado) siguen igual", () => {
   // Sólo cambian las ramas del cambio de jugador que YA existían.
   assert.match(demo, /if\(propiaResponse && !changingRegisteredPlayer\)\{ hideRecurrentPlayerMenu\(\); return; \}/);
   assert.match(demo, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
-  assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
+  assert.match(demo, /label\.textContent = 'Casaca';/);
   // El menú de habituales sólo se puebla sin identificar o al cambiar identidad — sin tocar.
   assert.match(demo, /const editandoMiEstado = Boolean\(existingResponse\) && !changingRegisteredPlayer;/);
 });

@@ -778,7 +778,7 @@ test("Mi estado: la card tiene dos modos — Registro vs Jugador convocado", asy
   const ident = runIdentityHeader(demo, { identified: true });
   assert.equal(ident.eyebrow.textContent, "Jugador convocado esta fecha");
   assert.equal(ident.title.textContent, "Pablo de Achaval", "identidad base, no el nombre visible 'Pablito'");
-  assert.equal(ident.label.textContent, "Nombre en la casaca");
+  assert.equal(ident.label.textContent, "Casaca");
   assert.equal(ident.row.hidden, false);
 
   // ⇄ (changingRegisteredPlayer) — vuelve al modo registro
@@ -895,7 +895,7 @@ test("Mi estado es un formulario continuo sin resumen colapsado", async () => {
   assert.match(demo, /<button type="button" class="change-player-btn" id="change-player-btn" aria-label="Cambiar jugador" title="Cambiar jugador" hidden>Cambiar jugador<\/button>/);
   assert.match(demo, /function setRegisteredPlayerNameMode\(allowChange=false\)/);
   assert.match(demo, /input\.readOnly = false;/);
-  assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
+  assert.match(demo, /label\.textContent = 'Casaca';/);
   assert.match(demo, /Cambio de jugador activado/);
 });
 
@@ -979,13 +979,13 @@ test("Mi estado: la ceja arranca en 'Registro' y renderIdentityHeader alterna la
   assert.ok(card.indexOf('id="my-status-title"') < card.indexOf('id="my-status-identity"'), 'la ceja va antes del nombre');
 });
 
-test("Mi estado: el label del input alterna 'Tu nombre' (registro) / 'Nombre en la casaca' (identificado)", async () => {
+test("Mi estado: el label del input alterna 'Tu nombre' (registro) / 'Casaca' (identificado)", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
   // Estático = modo registro.
   assert.match(demo, /<label for="my-player-name" id="my-player-name-label">Tu nombre<\/label>/);
   assert.doesNotMatch(demo, /Nombre de jugador/, 'no queda copy viejo "Nombre de jugador"');
   const fn = sliceBetween(demo, "function renderIdentityHeader(){", "\nconst INVITADO_SIN_ANFITRION", "renderIdentityHeader");
-  assert.match(fn, /label\.textContent = 'Nombre en la casaca';/);
+  assert.match(fn, /label\.textContent = 'Casaca';/);
   assert.match(fn, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
 });
 
@@ -1317,10 +1317,12 @@ test("PR #30 · casaca: en modo identificado el helper es persistente y con el c
   );
   // PR #49 — el copy se acortó a la mitad no redundante; "Así te ve el grupo en la lista"
   // lo cubre el preview "En la lista te ven como {nombre}". El helper sigue persistente.
-  assert.match(identBranch, /help\.textContent = 'Editarlo no cambia tu jugador\.';/);
+  // Recordar mis datos: la ayuda fija "Editarlo no cambia tu jugador." se eliminó; en modo
+  // identificado el helper queda oculto y vacío.
+  assert.doesNotMatch(identBranch, /Editarlo no cambia tu jugador/);
   assert.doesNotMatch(identBranch, /Así te ve el grupo en la lista/);
-  assert.match(identBranch, /help\.hidden = false;/);
-  assert.doesNotMatch(identBranch, /help\.hidden = true;/);
+  assert.match(identBranch, /help\.hidden = true;/);
+  assert.doesNotMatch(identBranch, /help\.hidden = false;/);
 });
 
 test("PR #30 · casaca: el placeholder del modo identificado es la identidad base", async () => {
@@ -1353,9 +1355,9 @@ test("PR #30 · casaca: el helper de registro / cambio de jugador no se contamin
   assert.match(demo, /id="player-picker-help">Escribí tu nombre\. Si no aparece, solicitá sumarte al grupo\.</);
 });
 
-test("PR #30 · casaca: el label del campo sigue siendo 'Nombre en la casaca'", async () => {
+test("PR #30 · casaca: el label del campo identificado pasa a 'Casaca'", async () => {
   const demo = await readFile(new URL("../public/demo.html", import.meta.url), "utf8");
-  assert.match(demo, /label\.textContent = 'Nombre en la casaca';/);
+  assert.match(demo, /label\.textContent = 'Casaca';/);
   assert.match(demo, /label\.textContent = changingRegisteredPlayer \? 'Cambiar jugador' : 'Tu nombre';/);
 });
 
